@@ -29,16 +29,72 @@ renderer.setPixelRatio(
   window.devicePixelRatio
 );
 
-// 粒子生成
-const particleCount = 1000;
+// ----------------------------
+// 光粒子テクスチャ
+// ----------------------------
 
-const positions = new Float32Array(
-  particleCount * 3
+const canvas = document.createElement('canvas');
+canvas.width = 128;
+canvas.height = 128;
+
+const ctx = canvas.getContext('2d');
+
+const gradient = ctx.createRadialGradient(
+  64,
+  64,
+  0,
+  64,
+  64,
+  64
 );
 
+gradient.addColorStop(
+  0,
+  'rgba(255,255,255,1)'
+);
+
+gradient.addColorStop(
+  0.2,
+  'rgba(255,245,220,0.8)'
+);
+
+gradient.addColorStop(
+  0.5,
+  'rgba(255,230,180,0.3)'
+);
+
+gradient.addColorStop(
+  1,
+  'rgba(255,255,255,0)'
+);
+
+ctx.fillStyle = gradient;
+ctx.fillRect(
+  0,
+  0,
+  128,
+  128
+);
+
+const particleTexture =
+  new THREE.CanvasTexture(canvas);
+
+// ----------------------------
+// 背景粒子
+// ----------------------------
+
+const particleCount = 1000;
+
+const positions =
+  new Float32Array(
+    particleCount * 3
+  );
+
 for (let i = 0; i < particleCount * 3; i++) {
+
   positions[i] =
     (Math.random() - 0.5) * 100;
+
 }
 
 const geometry =
@@ -54,10 +110,13 @@ geometry.setAttribute(
 
 const material =
   new THREE.PointsMaterial({
+    map: particleTexture,
     color: 0xffffff,
-    size: 0.12,
+    size: 0.4,
     transparent: true,
-    opacity: 0.8
+    opacity: 0.8,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false
   });
 
 const particles =
@@ -67,7 +126,10 @@ const particles =
   );
 
 scene.add(particles);
+
+// ----------------------------
 // 記憶の核
+// ----------------------------
 
 const coreCount = 500;
 
@@ -96,8 +158,9 @@ coreGeometry.setAttribute(
 
 const coreMaterial =
   new THREE.PointsMaterial({
+    map: particleTexture,
     color: 0xffe8c8,
-    size: 0.35,
+    size: 0.8,
     transparent: true,
     opacity: 0.9,
     blending: THREE.AdditiveBlending,
@@ -111,12 +174,60 @@ const memoryCore =
   );
 
 scene.add(memoryCore);
+const textureLoader =
+  new THREE.TextureLoader();
 
+const photoTexture =
+  textureLoader.load(
+    './assets/photo1.jpg'
+  );
 
+photoTexture.generateMipmaps = true;
+
+photoTexture.minFilter =
+  THREE.LinearMipmapLinearFilter;
+
+photoTexture.magFilter =
+  THREE.LinearFilter;
+
+photoTexture.anisotropy =
+  renderer.capabilities.getMaxAnisotropy();
+
+const photoGeometry =
+  new THREE.PlaneGeometry(
+    10,
+    14
+  );
+
+const photoMaterial =
+  new THREE.MeshBasicMaterial({
+    map: photoTexture,
+    transparent: true,
+    opacity: 1
+  });
+
+const photo =
+  new THREE.Mesh(
+    photoGeometry,
+    photoMaterial
+  );
+
+photo.position.set(
+  0,
+  0,
+  3
+);
+
+scene.add(photo);
+
+// ----------------------------
 // リサイズ対応
+// ----------------------------
+
 window.addEventListener(
   'resize',
   () => {
+
     camera.aspect =
       window.innerWidth /
       window.innerHeight;
@@ -127,25 +238,54 @@ window.addEventListener(
       window.innerWidth,
       window.innerHeight
     );
+
   }
 );
 
+// ----------------------------
 // アニメーション
+// ----------------------------
+
 function animate() {
-  requestAnimationFrame(animate);
 
-  particles.rotation.y += 0.0005;
-  particles.rotation.x += 0.0002;
+  requestAnimationFrame(
+    animate
+  );
 
-  memoryCore.rotation.y += 0.002;
+  particles.rotation.y +=
+    0.0005;
+
+  particles.rotation.x +=
+    0.0002;
+
+  memoryCore.rotation.y +=
+    0.002;
 
   memoryCore.scale.setScalar(
-    1 + Math.sin(Date.now() * 0.001) * 0.2
+    1 +
+    Math.sin(
+      Date.now() * 0.001
+    ) * 0.2
   );
 
   memoryCore.position.y =
-    Math.sin(Date.now() * 0.0005) * 0.5;
+    Math.sin(
+      Date.now() * 0.0005
+    ) * 0.5;
 
-  renderer.render(scene, camera);
+    photo.position.y =
+  Math.sin(Date.now() * 0.001) * 0.4;
+
+  
+    photo.lookAt(
+  camera.position
+);
+
+  renderer.render(
+    scene,
+    camera
+  );
+
 }
+
 animate();
