@@ -179,7 +179,7 @@ const textureLoader =
 
 const photoTexture =
   textureLoader.load(
-    './assets/photo1.jpg'
+    'assets/photo1.jpg'
   );
 
 photoTexture.generateMipmaps = true;
