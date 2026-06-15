@@ -39,8 +39,9 @@ function createGlowTexture() {
 
   gradient.addColorStop(0.0, 'rgba(255,255,255,1)');
   gradient.addColorStop(0.1, 'rgba(255,255,255,0.95)');
-  gradient.addColorStop(0.25, 'rgba(255,255,255,0.7)');
-  gradient.addColorStop(0.5, 'rgba(255,255,255,0.25)');
+  gradient.addColorStop(0.15, 'rgba(255,255,255,1)');
+  gradient.addColorStop(0.4, 'rgba(255,255,255,0.8)');
+  gradient.addColorStop(0.7, 'rgba(255,255,255,0.25)');
   gradient.addColorStop(1.0, 'rgba(255,255,255,0)');
 
   ctx.fillStyle = gradient;
@@ -55,11 +56,11 @@ const particleTexture = createGlowTexture();
 // 背景粒子（空間演出）
 // ======================================================
 function createBackgroundParticles() {
-  const count = 800;
+  const count = 1500;
   const positions = new Float32Array(count * 3);
 
   for (let i = 0; i < count; i++) {
-    const r = 80 * Math.cbrt(Math.random());
+    const r = 300 * Math.cbrt(Math.random());
     const theta = Math.random() * Math.PI * 2;
     const phi = Math.acos(2 * Math.random() - 1);
 
@@ -71,16 +72,20 @@ function createBackgroundParticles() {
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
 
-  const bgMat = new THREE.PointsMaterial({
-    map: particleTexture,
-    color: 0xffffff,
-    size: 0.9,
-    transparent: true,
-    opacity: 0.35,
-    blending: THREE.AdditiveBlending,
-    depthWrite: false,
-    sizeAttenuation: true
-  });
+const bgMat = new THREE.PointsMaterial({
+  map: particleTexture,
+
+  color: 0xfff6e8, // 暖かいアイボリー
+
+  size: 1.4,
+
+  transparent: true,
+  opacity: 0.45,
+
+  blending: THREE.AdditiveBlending,
+  depthWrite: false,
+  sizeAttenuation: true
+});
 
   const bg = new THREE.Points(geo, bgMat);
   scene.add(bg);
@@ -121,7 +126,7 @@ img.onload = () => {
       const b = data[i + 2];
       const brightness = r + g + b;
 
-      if (brightness > 150) {
+      if (brightness > 450) {
         const px = (x - w / 2) * 0.07;
         const py = (h / 2 - y) * 0.07;
         const pz = 3;
@@ -148,6 +153,8 @@ img.onload = () => {
 // 写真粒子（生成演出）
 // ======================================================
 let photoParticles, photoGeo, photoCount;
+let auraParticles;
+
 let attract = false;
 let photoFullyFormed = false;
 
@@ -171,9 +178,9 @@ function createPhotoParticles() {
   const mat = new THREE.PointsMaterial({
     map: particleTexture,
     color: photoColor,
-    size: 0.22,
+    size: 0.60,
     transparent: true,
-    opacity: 0.65,
+    opacity: 0.9,
     blending: THREE.AdditiveBlending,
     depthWrite: false,
     sizeAttenuation: true
@@ -241,8 +248,16 @@ function attractPhotoParticles() {
 // 写真フェードイン（C1）
 // ======================================================
 function fadeInPhoto() {
-  if (photoFullyFormed && photoMaterial.opacity < 1) {
-    photoMaterial.opacity += 0.01;
+
+  if (photoFullyFormed) {
+
+    if (photoMaterial.opacity < 1) {
+      photoMaterial.opacity += 0.01;
+    }
+
+    if (photoParticles.material.opacity > 0) {
+      photoParticles.material.opacity -= 0.01;
+    }
   }
 }
 
