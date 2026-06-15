@@ -22,6 +22,36 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(window.devicePixelRatio);
 
 // ======================================================
+// 超キラキラ粒子テクスチャ（強い光）
+// ======================================================
+function createGlowTexture() {
+  const size = 128;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+
+  const ctx = canvas.getContext('2d');
+
+  const gradient = ctx.createRadialGradient(
+    size / 2, size / 2, 0,
+    size / 2, size / 2, size / 2
+  );
+
+  gradient.addColorStop(0.0, 'rgba(255,255,255,1)');
+  gradient.addColorStop(0.1, 'rgba(255,255,255,0.95)');
+  gradient.addColorStop(0.25, 'rgba(255,255,255,0.7)');
+  gradient.addColorStop(0.5, 'rgba(255,255,255,0.25)');
+  gradient.addColorStop(1.0, 'rgba(255,255,255,0)');
+
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, size, size);
+
+  return new THREE.CanvasTexture(canvas);
+}
+
+const particleTexture = createGlowTexture();
+
+// ======================================================
 // 背景粒子（空間演出）
 // ======================================================
 function createBackgroundParticles() {
@@ -41,16 +71,18 @@ function createBackgroundParticles() {
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
 
-  const mat = new THREE.PointsMaterial({
+  const bgMat = new THREE.PointsMaterial({
+    map: particleTexture,
     color: 0xffffff,
-    size: 1.2,
+    size: 0.9,
     transparent: true,
-    opacity: 0.4,
+    opacity: 0.35,
     blending: THREE.AdditiveBlending,
-    depthWrite: false
+    depthWrite: false,
+    sizeAttenuation: true
   });
 
-  const bg = new THREE.Points(geo, mat);
+  const bg = new THREE.Points(geo, bgMat);
   scene.add(bg);
 
   return bg;
@@ -137,12 +169,14 @@ function createPhotoParticles() {
   photoGeo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
 
   const mat = new THREE.PointsMaterial({
+    map: particleTexture,
     color: photoColor,
-    size: 0.7,
+    size: 0.22,
     transparent: true,
-    opacity: 0.9,
+    opacity: 0.65,
     blending: THREE.AdditiveBlending,
-    depthWrite: false
+    depthWrite: false,
+    sizeAttenuation: true
   });
 
   photoParticles = new THREE.Points(photoGeo, mat);
@@ -213,6 +247,51 @@ function fadeInPhoto() {
 }
 
 // ======================================================
+// 粒子の瞬き & 色揺らぎ（なめらか＋キラッ）
+// ======================================================
+function updateParticleEffects() {
+  const t = Date.now() * 0.0015; // ゆっくり
+
+  // 背景粒子の儚い揺らぎ
+  backgroundParticles.material.opacity =
+    0.28 + Math.sin(t * 0.3) * 0.06;
+
+  // 写真粒子のキラキラ
+  if (photoParticles) {
+    const mat = photoParticles.material;
+
+    // 粒子ごとの固定位相
+    if (!mat._phase) mat._phase = Math.random() * 10;
+
+    // ★ ① なめらかなベース揺らぎ
+    const smooth = 0.55 + Math.sin(t * 1.0 + mat._phase) * 0.10;
+
+    // ★ ② 弱いランダム輝き（キラッ）
+    const sparkle = Math.pow(Math.random(), 20) * 0.25; 
+    // ↑ ほとんど0、たまに強く光る（宝石の反射）
+
+    // 合成（なめらか＋キラッ）
+    mat.opacity = smooth + sparkle;
+
+    // ★ サイズ揺らぎ（呼吸する光）
+    mat.size = 0.20 + Math.sin(t * 1.3 + mat._phase) * 0.04 + sparkle * 0.3;
+
+    // ★ 色揺らぎ（オレンジ〜金色〜白〜銀色）
+    const hueShift = (Math.sin(t * 0.5 + mat._phase) + 1) / 2;
+    const color = new THREE.Color();
+
+    color.setHSL(
+      0.08 + hueShift * 0.08,
+      0.55 + hueShift * 0.25,
+      0.60 + hueShift * 0.30 + sparkle * 0.4 // キラッ時に白く輝く
+    );
+
+    mat.color = color;
+  }
+}
+
+
+// ======================================================
 // 視点操作
 // ======================================================
 window.addEventListener('keydown', (e) => {
@@ -239,6 +318,7 @@ function animate() {
 
   attractPhotoParticles();
   fadeInPhoto();
+  updateParticleEffects(); // 儚い光・宝石の輝き
 
   renderer.render(scene, camera);
 }
