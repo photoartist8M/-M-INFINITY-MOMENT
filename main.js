@@ -21,6 +21,11 @@ const renderer = new THREE.WebGLRenderer({
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(window.devicePixelRatio);
 
+const PHOTO_TRIGGER_DISTANCE = 18; // カメラがこの距離まで来たら出現
+let photoTriggered = false;
+
+
+
 // ======================================================
 // 超キラキラ粒子テクスチャ（強い光）
 // ======================================================
@@ -60,7 +65,7 @@ function createBackgroundParticles() {
   const positions = new Float32Array(count * 3);
 
   for (let i = 0; i < count; i++) {
-    const r = 300 * Math.cbrt(Math.random());
+    const r = 80 * Math.cbrt(Math.random());
     const theta = Math.random() * Math.PI * 2;
     const phi = Math.acos(2 * Math.random() - 1);
 
@@ -366,6 +371,15 @@ function animate() {
   requestAnimationFrame(animate);
 
   backgroundParticles.rotation.y += 0.0003;
+
+  // ★ カメラと写真の距離を測る
+  const dist = camera.position.distanceTo(photoMesh.position);
+
+  // ★ 一定距離まで来たら自動で出現
+  if (!photoTriggered && dist < PHOTO_TRIGGER_DISTANCE) {
+    photoTriggered = true;
+    photoFullyFormed = true; // ← あなたの既存ロジックに合わせて発火
+  }
 
   attractPhotoParticles();
   fadeInPhoto();
