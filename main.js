@@ -126,9 +126,10 @@ img.onload = () => {
       const b = data[i + 2];
       const brightness = r + g + b;
 
-      if (brightness > 450) {
-        const px = (x - w / 2) * 0.07;
-        const py = (h / 2 - y) * 0.07;
+      if (brightness > 450 && x > 2 && x < w - 2 && y > 2 && y < h - 2) {     //写真横の点々削除
+const px = (x - w / 2) * (10 / w);
+const py = (h / 2 - y) * (14 / h);
+
         const pz = 3;
 
         targetPositions.push(new THREE.Vector3(px, py, pz));
@@ -148,6 +149,25 @@ img.onload = () => {
   createPhotoParticles();
   createPhotoMesh();
 };
+
+//写真枠（オーラ）
+let photoAura;
+
+function createPhotoAura() {
+  const geo = new THREE.PlaneGeometry(11, 15); // 写真より少し大きく
+  const auraMat = new THREE.MeshBasicMaterial({
+    color: 0xffffff,
+    transparent: true,
+    opacity: 0,              // 最初は透明
+    blending: THREE.AdditiveBlending,
+    depthWrite: false
+  });
+
+  photoAura = new THREE.Mesh(geo, auraMat);
+  photoAura.position.set(0, 0, 2.9); // 写真のすぐ後ろ
+  scene.add(photoAura);
+}
+
 
 // ======================================================
 // 写真粒子（生成演出）
@@ -208,6 +228,9 @@ function createPhotoMesh() {
   photoMesh = new THREE.Mesh(geo, photoMaterial);
   photoMesh.position.set(0, 0, 3);
   scene.add(photoMesh);
+
+  // ★ オーラ生成
+  createPhotoAura();
 }
 
 // ======================================================
@@ -248,18 +271,30 @@ function attractPhotoParticles() {
 // 写真フェードイン（C1）
 // ======================================================
 function fadeInPhoto() {
-
   if (photoFullyFormed) {
 
+    // 写真フェードイン
     if (photoMaterial.opacity < 1) {
       photoMaterial.opacity += 0.01;
     }
 
+    // 粒子フェードアウト
     if (photoParticles.material.opacity > 0) {
-      photoParticles.material.opacity -= 0.01;
+      photoParticles.material.opacity -= 0.02;
+    }
+
+    // 粒子が消えたら非表示
+    if (photoParticles.material.opacity <= 0.02) {
+      photoParticles.visible = false;
+    }
+
+    // ★ オーラをフェードイン
+    if (photoAura.material.opacity < 0.35) {
+      photoAura.material.opacity += 0.01;
     }
   }
 }
+
 
 // ======================================================
 // 粒子の瞬き & 色揺らぎ（なめらか＋キラッ）
@@ -274,6 +309,7 @@ function updateParticleEffects() {
   // 写真粒子のキラキラ
   if (photoParticles) {
     const mat = photoParticles.material;
+    
 
     // 粒子ごとの固定位相
     if (!mat._phase) mat._phase = Math.random() * 10;
