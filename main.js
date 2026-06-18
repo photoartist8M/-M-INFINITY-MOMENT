@@ -25,7 +25,6 @@ const PHOTO_TRIGGER_DISTANCE = 18; // カメラがこの距離まで来たら出
 let photoTriggered = false;
 
 
-
 // ======================================================
 // 超キラキラ粒子テクスチャ（強い光）
 // ======================================================
@@ -363,6 +362,32 @@ window.addEventListener('mousemove', (e) => {
 window.addEventListener('click', () => {
   attract = true;
 });
+
+let lastTouchX = 0;
+let lastTouchY = 0;
+
+window.addEventListener('touchstart', (e) => {
+  lastTouchX = e.touches[0].clientX;
+  lastTouchY = e.touches[0].clientY;
+});
+
+window.addEventListener('touchmove', (e) => {
+  e.preventDefault();
+
+  const touch = e.touches[0];
+
+  const dx = touch.clientX - lastTouchX;
+  const dy = touch.clientY - lastTouchY;
+
+  // 左右を見る
+  camera.rotation.y -= dx * 0.005;
+
+  // 前進後退
+  camera.position.z += dy * 0.05;
+
+  lastTouchX = touch.clientX;
+  lastTouchY = touch.clientY;
+}, { passive: false });
 
 // ======================================================
 // アニメーション
