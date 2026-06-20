@@ -1,4 +1,10 @@
-import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.157.0/build/three.module.js';
+import * as THREE from 'three';
+import { EffectComposer }
+from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass }
+from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass }
+from 'three/addons/postprocessing/UnrealBloomPass.js';
 
 // ======================================================
 // 基本セットアップ
@@ -13,13 +19,29 @@ const camera = new THREE.PerspectiveCamera(
   1000
 );
 camera.position.z = 40;
-
+const BLOOM_LAYER = 1;
 const renderer = new THREE.WebGLRenderer({
   canvas: document.querySelector('#canvas'),
   antialias: true
 });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(window.devicePixelRatio);
+
+//Bloom 光らす
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+
+const bloomPass = new UnrealBloomPass(
+  new THREE.Vector2(
+    window.innerWidth,
+    window.innerHeight
+  ),
+  0.4,
+  0.2,
+  0.95
+);
+
+composer.addPass(bloomPass);
 
 const PHOTO_TRIGGER_DISTANCE = 18; // カメラがこの距離まで来たら出現
 let photoTriggered = false;
@@ -81,10 +103,10 @@ const bgMat = new THREE.PointsMaterial({
 
   color: 0xfff6e8, // 暖かいアイボリー
 
-  size: 1.4,
+  size: 0.15,
 
   transparent: true,
-  opacity: 0.45,
+  opacity: 0.25,
 
   blending: THREE.AdditiveBlending,
   depthWrite: false,
@@ -410,7 +432,7 @@ function animate() {
   fadeInPhoto();
   updateParticleEffects(); // 儚い光・宝石の輝き
 
-  renderer.render(scene, camera);
+  composer.render();
 }
 
 animate();
@@ -419,7 +441,20 @@ animate();
 // リサイズ
 // ======================================================
 window.addEventListener('resize', () => {
-  camera.aspect = window.innerWidth / window.innerHeight;
+
+  camera.aspect =
+    window.innerWidth / window.innerHeight;
+
   camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
+
+  renderer.setSize(
+    window.innerWidth,
+    window.innerHeight
+  );
+
+  composer.setSize(
+    window.innerWidth,
+    window.innerHeight
+  );
+
 });
