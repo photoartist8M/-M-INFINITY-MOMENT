@@ -1,4 +1,10 @@
-import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.157.0/build/three.module.js';
+import * as THREE from 'three';
+import { EffectComposer }
+from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass }
+from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass }
+from 'three/addons/postprocessing/UnrealBloomPass.js';
 
 // ======================================================
 // 基本セットアップ
@@ -13,13 +19,29 @@ const camera = new THREE.PerspectiveCamera(
   1000
 );
 camera.position.z = 40;
-
+const BLOOM_LAYER = 1;
 const renderer = new THREE.WebGLRenderer({
   canvas: document.querySelector('#canvas'),
   antialias: true
 });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(window.devicePixelRatio);
+
+//Bloom 光らす
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+
+const bloomPass = new UnrealBloomPass(
+  new THREE.Vector2(
+    window.innerWidth,
+    window.innerHeight
+  ),
+  0.8,
+  0.2,
+  0.95
+);
+
+composer.addPass(bloomPass);
 
 const PHOTO_TRIGGER_DISTANCE = 18; // カメラがこの距離まで来たら出現
 let photoTriggered = false;
@@ -81,10 +103,10 @@ const bgMat = new THREE.PointsMaterial({
 
   color: 0xfff6e8, // 暖かいアイボリー
 
-  size: 1.4,
+  size: 0.15,
 
   transparent: true,
-  opacity: 0.45,
+  opacity: 0.25,
 
   blending: THREE.AdditiveBlending,
   depthWrite: false,
@@ -158,19 +180,25 @@ const py = (h / 2 - y) * (14 / h);
 let photoAura;
 
 function createPhotoAura() {
-  const geo = new THREE.PlaneGeometry(11, 15); // 写真より少し大きく
+  const geo = new THREE.PlaneGeometry(10.3, 14.3);
   const auraMat = new THREE.MeshBasicMaterial({
-    color: 0xffffff,
+    color: new THREE.Color(2.5, 2.5, 2.5),
     transparent: true,
-    opacity: 0,              // 最初は透明
+    opacity: 0.8,
     blending: THREE.AdditiveBlending,
     depthWrite: false
   });
 
   photoAura = new THREE.Mesh(geo, auraMat);
-  photoAura.position.set(0, 0, 2.9); // 写真のすぐ後ろ
+  photoAura.position.set(0, 0, 2.9);
+
+  // ★ 最初は完全に OFF（光らせない）
+  photoAura.visible = false;
+  photoAura.layers.disable(BLOOM_LAYER);
+
   scene.add(photoAura);
 }
+
 
 
 // ======================================================
@@ -296,6 +324,12 @@ function fadeInPhoto() {
     if (photoAura.material.opacity < 0.35) {
       photoAura.material.opacity += 0.01;
     }
+    // 写真が完全に表示された瞬間に aura を ON
+if (photoMesh.material.opacity >= 1 && !photoAura.visible) {
+  photoAura.visible = true;
+  photoAura.layers.enable(BLOOM_LAYER);
+}
+
   }
 }
 
@@ -410,7 +444,7 @@ function animate() {
   fadeInPhoto();
   updateParticleEffects(); // 儚い光・宝石の輝き
 
-  renderer.render(scene, camera);
+  composer.render();
 }
 
 animate();
@@ -419,7 +453,20 @@ animate();
 // リサイズ
 // ======================================================
 window.addEventListener('resize', () => {
-  camera.aspect = window.innerWidth / window.innerHeight;
+
+  camera.aspect =
+    window.innerWidth / window.innerHeight;
+
   camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
+
+  renderer.setSize(
+    window.innerWidth,
+    window.innerHeight
+  );
+
+  composer.setSize(
+    window.innerWidth,
+    window.innerHeight
+  );
+
 });
