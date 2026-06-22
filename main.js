@@ -36,7 +36,11 @@ const bloomPass = new UnrealBloomPass(
     window.innerWidth,
     window.innerHeight
   ),
+<<<<<<< HEAD
   0.8,
+=======
+  0.4,
+>>>>>>> 805ade1a3432ad4cce8f5ea4fe32a763b45504ce
   0.2,
   0.95
 );
@@ -469,4 +473,8 @@ window.addEventListener('resize', () => {
     window.innerHeight
   );
 
+<<<<<<< HEAD
 });
+=======
+});
+>>>>>>> 805ade1a3432ad4cce8f5ea4fe32a763b45504ce
