@@ -36,11 +36,7 @@ const bloomPass = new UnrealBloomPass(
     window.innerWidth,
     window.innerHeight
   ),
-<<<<<<< HEAD
-  0.8,
-=======
-  0.4,
->>>>>>> 805ade1a3432ad4cce8f5ea4fe32a763b45504ce
+  1.0,
   0.2,
   0.95
 );
@@ -184,7 +180,7 @@ const py = (h / 2 - y) * (14 / h);
 let photoAura;
 
 function createPhotoAura() {
-  const geo = new THREE.PlaneGeometry(10.3, 14.3);
+  const geo = new THREE.PlaneGeometry(11, 15);
   const auraMat = new THREE.MeshBasicMaterial({
     color: new THREE.Color(2.5, 2.5, 2.5),
     transparent: true,
@@ -202,8 +198,6 @@ function createPhotoAura() {
 
   scene.add(photoAura);
 }
-
-
 
 // ======================================================
 // 写真粒子（生成演出）
@@ -254,7 +248,7 @@ let photoMesh, photoMaterial;
 function createPhotoMesh() {
   const tex = new THREE.TextureLoader().load('assets/photo1.jpg');
 
-  const geo = new THREE.PlaneGeometry(10, 14);
+  const geo = new THREE.PlaneGeometry(10.80, 14.80);
   photoMaterial = new THREE.MeshBasicMaterial({
     map: tex,
     transparent: true,
@@ -473,8 +467,4 @@ window.addEventListener('resize', () => {
     window.innerHeight
   );
 
-<<<<<<< HEAD
 });
-=======
-});
->>>>>>> 805ade1a3432ad4cce8f5ea4fe32a763b45504ce
