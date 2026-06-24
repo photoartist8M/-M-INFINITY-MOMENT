@@ -95,6 +95,7 @@ function createPhotoItem(src, index) {
     fixed: false,        // ワールド固定になったか
     dissolving: false,   // 光に溶け始めたか
     dissolved: false,    // 完全に消えたか
+    dissolveParticles: null, // dissolve用粒子
   };
 }
 
@@ -271,10 +272,7 @@ function buildPhotoMesh(item) {
 
 // オーラ生成
 function buildAura(item) {
-  // 写真メッシュのサイズに自動で合わせる
-  const w = item.mesh.geometry.parameters.width;
-  const h = item.mesh.geometry.parameters.height;
-  const geo = new THREE.PlaneGeometry(w, h);
+  const geo = new THREE.PlaneGeometry(11, 15);
   const mat = new THREE.MeshBasicMaterial({
     color: new THREE.Color(2.5, 2.5, 2.5),
     transparent: true,
@@ -518,63 +516,111 @@ function animate() {
 function dissolvePhoto(item) {
   if (!item.dissolving || item.dissolved) return;
 
-  if (!item._dissolveDir) {
-    item._dissolveDir = item.index % 2 === 0 ? 1 : -1;
-  }
+  if (!item._dissolvePhase) item._dissolvePhase = 1;
 
-  // 左右・上に流れる（速度アップ）
-  if (item.mesh) {
-    item.mesh.position.x += item._dissolveDir * 0.04;
-    item.mesh.position.y += 0.01;
-    item.mesh.scale.x += 0.004;
-    item.mesh.scale.y += 0.004;
-  }
+  // フェーズ1：オーラが光り始め、端から粒子が散る
+  if (item._dissolvePhase === 1) {
+    // dissolve粒子をまだ作っていなければ生成
+    if (!item.dissolveParticles) {
+      const count = 80;
+      const pos = new Float32Array(count * 3);
+      const w = 10.80 / 2;
+      const h = 14.80 / 2;
 
-  if (item.aura) {
-    item.aura.position.x += item._dissolveDir * 0.04;
-    item.aura.position.y += 0.01;
-    // スケールは変えない（写真と同じサイズをキープ）
-    item.aura.visible = true;
-    item.aura.layers.enable(BLOOM_LAYER);
-    // 最初だけ強く発光させる
-    if (!item._dissolveGlowSet) {
-      item.aura.material.opacity = 1.5;
-      item._dissolveGlowSet = true;
+      for (let i = 0; i < count; i++) {
+        // オーラの外周付近からランダムに配置
+        const side = Math.floor(Math.random() * 4);
+        let x, y;
+        if (side === 0) { x = (Math.random() * 2 - 1) * w; y = h; }
+        else if (side === 1) { x = (Math.random() * 2 - 1) * w; y = -h; }
+        else if (side === 2) { x = w; y = (Math.random() * 2 - 1) * h; }
+        else { x = -w; y = (Math.random() * 2 - 1) * h; }
+
+        pos[i * 3]     = x;
+        pos[i * 3 + 1] = y;
+        pos[i * 3 + 2] = 0;
+      }
+
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+
+      const mat = new THREE.PointsMaterial({
+        map: particleTexture,
+        color: new THREE.Color(1.0, 0.85, 0.5),
+        size: 0.3,
+        transparent: true,
+        opacity: 0.9,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        sizeAttenuation: true
+      });
+
+      item.dissolveParticles = new THREE.Points(geo, mat);
+      item.dissolveParticles.position.copy(item.mesh.position);
+      scene.add(item.dissolveParticles);
+      item._dpGeo = geo;
     }
-  }
 
-  // キラキラ感：オーラの不透明度をランダムに揺らす
-  const flicker = Math.pow(Math.random(), 3) * 0.3;
+    // 粒子を外側に散らす
+    const pos = item._dpGeo.attributes.position.array;
+    for (let i = 0; i < 80; i++) {
+      const ix = i * 3, iy = i * 3 + 1;
+      const nx = pos[ix] === 0 ? (Math.random() - 0.5) : pos[ix];
+      pos[ix] += (nx / Math.abs(nx || 1)) * 0.04;
+      pos[iy] += (pos[iy] / Math.abs(pos[iy] || 1)) * 0.03;
+    }
+    item._dpGeo.attributes.position.needsUpdate = true;
 
-  // 写真を消す
-  if (item.material.opacity > 0) {
-    item.material.opacity -= 0.006;
-  }
-
-  // オーラがキラキラしながら消える
-  if (item.aura && item.aura.material.opacity > 0) {
-    item.aura.material.opacity = Math.max(0,
-      item.aura.material.opacity - 0.004 + flicker * 0.1
-    );
-    // 暖色系に色を変える
-    item.aura.material.color.setHSL(0.08, 0.8, 0.9 + flicker);
-  }
-
-  // 写真が消えたらオーラも強制的に消す
-  if (item.material.opacity <= 0) {
+    // オーラを光らせる
     if (item.aura) {
-      item.aura.material.opacity -= 0.02;
-      if (item.aura.material.opacity <= 0) {
-        item.aura.visible = false;
-        item.aura.material.opacity = 0;
-        item.dissolved = true;
+      item.aura.visible = true;
+      item.aura.layers.enable(BLOOM_LAYER);
+      if (item.aura.material.opacity < 1.2) {
+        item.aura.material.opacity += 0.008;
+      } else {
+        item._dissolvePhase = 2;
       }
     } else {
-      item.dissolved = true;
+      item._dissolvePhase = 2;
     }
-    if (item.particles) item.particles.visible = false;
   }
+
+  // フェーズ2：写真が光に溶けていく
+  if (item._dissolvePhase === 2) {
+    if (item.material.opacity > 0) {
+      item.material.opacity -= 0.005;
+    }
+
+    if (item.aura && item.aura.material.opacity > 0) {
+      item.aura.material.opacity -= 0.003;
+    }
+
+    // dissolve粒子もフェードアウト
+    if (item.dissolveParticles) {
+      item.dissolveParticles.material.opacity -= 0.005;
+      const pos = item._dpGeo.attributes.position.array;
+      for (let i = 0; i < 80; i++) {
+        const ix = i * 3, iy = i * 3 + 1;
+        const nx = pos[ix];
+        pos[ix] += (nx / Math.abs(nx || 1)) * 0.03;
+        pos[iy] += 0.02;
+      }
+      item._dpGeo.attributes.position.needsUpdate = true;
+    }
+
+    if (item.material.opacity <= 0 && (!item.aura || item.aura.material.opacity <= 0)) {
+      item.dissolved = true;
+      if (item.aura) { item.aura.visible = false; item.aura.material.opacity = 0; }
+      if (item.particles) item.particles.visible = false;
+      if (item.dissolveParticles) {
+        scene.remove(item.dissolveParticles);
+        item._dpGeo.dispose();
+        item.dissolveParticles.material.dispose();
+        item.dissolveParticles = null;
+      }
+    }
   }
+}
 
 animate();
 
