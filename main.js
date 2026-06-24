@@ -16,7 +16,7 @@ const camera = new THREE.PerspectiveCamera(
   0.1,
   1000
 );
-camera.position.set(0, 0, 25);
+camera.position.set(0, 0, 20);
 
 const BLOOM_LAYER = 1;
 
@@ -117,10 +117,10 @@ function createGlowTexture() {
     size / 2, size / 2, size / 2
   );
   gradient.addColorStop(0.0,  'rgba(255,255,255,1)');
-  gradient.addColorStop(0.1,  'rgba(255,255,255,0.95)');
+  gradient.addColorStop(0.05, 'rgba(255,255,255,1)');
   gradient.addColorStop(0.15, 'rgba(255,255,255,1)');
-  gradient.addColorStop(0.4,  'rgba(255,255,255,0.8)');
-  gradient.addColorStop(0.7,  'rgba(255,255,255,0.25)');
+  gradient.addColorStop(0.3,  'rgba(255,255,255,0.7)');
+  gradient.addColorStop(0.6,  'rgba(255,255,255,0.15)');
   gradient.addColorStop(1.0,  'rgba(255,255,255,0)');
 
   ctx.fillStyle = gradient;
@@ -135,7 +135,7 @@ const particleTexture = createGlowTexture();
 // 背景粒子
 // ======================================================
 function createBackgroundParticles() {
-  const count = 1500;
+  const count = 3000;
   const positions = new Float32Array(count * 3);
 
   for (let i = 0; i < count; i++) {
@@ -153,10 +153,10 @@ function createBackgroundParticles() {
 
   const mat = new THREE.PointsMaterial({
     map: particleTexture,
-    color: 0xfff6e8,
-    size: 0.15,
+    color: 0xffffff,
+    size: 0.4,
     transparent: true,
-    opacity: 0.25,
+    opacity: 0.6,
     blending: THREE.AdditiveBlending,
     depthWrite: false,
     sizeAttenuation: true
@@ -216,6 +216,7 @@ function loadPhotoItem(item) {
     buildAura(item);
 
     item.loaded = true;
+    item._loadedAt = Date.now();
   };
 }
 
@@ -293,24 +294,32 @@ function buildAura(item) {
 // ======================================================
 photoItems.forEach(item => loadPhotoItem(item));
 
-
 // ======================================================
 // トリガー判定（カメラとの距離）
 // ======================================================
-const TRIGGER_DISTANCE = 30;
+const TRIGGER_DISTANCE = 22;
 
 function checkTriggers() {
+  const now = Date.now();
   photoItems.forEach(item => {
     if (!item.loaded || item.triggered) return;
 
+    // ① 距離で出現
     const dist = camera.position.distanceTo(item.position);
-    if (dist < TRIGGER_DISTANCE) {
+    const byDistance = dist < TRIGGER_DISTANCE;
+
+    // ② クリックで出現（最寄りの未トリガー写真）
+    const byClick = item._clickTriggered === true;
+
+   // ③ 1枚目のみ5秒後に自動出現
+    const byTime = item.index === 0 && item._loadedAt && (now - item._loadedAt) > 50000;
+
+    if (byDistance || byClick || byTime) {
       item.triggered = true;
       item.attract = true;
     }
   });
 }
-
 
 // ======================================================
 // 粒子吸引
@@ -372,18 +381,16 @@ function fadeInPhoto(item) {
 function checkFixed(item) {
   if (!item.formed || item.fixed || !item.mesh) return;
 
-  if (item.material.opacity >= 1) {
+if (item.material.opacity >= 1) {
     item.fixed = true;
+
+    // 粒子を完全に非表示
+    if (item.particles) item.particles.visible = false;
 
     // ワールド座標に固定
     const worldPos = item.position.clone().add(new THREE.Vector3(0, 0, 3));
     item.mesh.position.copy(worldPos);
     item.mesh.quaternion.set(0, 0, 0, 1);
-
-    if (item.aura) {
-      item.aura.position.copy(item.position).add(new THREE.Vector3(0, 0, 2.9));
-      item.aura.quaternion.set(0, 0, 0, 1);
-    }
   }
 }
 
@@ -393,7 +400,9 @@ function checkFixed(item) {
 function updateParticleEffects() {
   const t = Date.now() * 0.0015;
 
-  backgroundParticles.material.opacity = 0.28 + Math.sin(t * 0.3) * 0.06;
+ const sparkle = Math.pow(Math.random(), 15) * 0.5;
+backgroundParticles.material.opacity = 0.25 + Math.sin(t * 0.3) * 0.05 + sparkle;
+backgroundParticles.material.size = 0.12 + sparkle * 0.3;
 
   photoItems.forEach(item => {
     if (!item.particles) return;
@@ -468,9 +477,27 @@ function animate() {
     fadeInPhoto(item);
     checkFixed(item);
     dissolvePhoto(item);
-    // 常にカメラの方を向く
-    if (item.mesh) item.mesh.lookAt(camera.position);
-    if (item.aura) item.aura.lookAt(camera.position);
+
+    // 固定後にゆっくり漂う
+    if (item.fixed && item.mesh) {
+      const t = Date.now() * 0.0005;
+      const floatY = Math.sin(t + item.index * 1.5) * 0.8;
+      const floatX = Math.cos(t * 0.7 + item.index * 1.2) * 0.4;
+      const basePos = item.position.clone().add(new THREE.Vector3(0, 0, 3));
+      item.mesh.position.set(
+        basePos.x + floatX,
+        basePos.y + floatY,
+        basePos.z
+      );
+      if (item.aura) {
+        item.aura.position.set(
+          basePos.x + floatX,
+          basePos.y + floatY,
+          basePos.z - 0.1
+        );
+      }
+    }
+    
   });
 
   updateParticleEffects();
