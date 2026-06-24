@@ -7,8 +7,8 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 // 基本セットアップ
 // ======================================================
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x0f0f0f);
-scene.fog = new THREE.Fog(0x0f0f0f, 5, 35);
+scene.background = new THREE.Color(0x0a0805);
+scene.fog = new THREE.Fog(0x0a0805, 5, 35);
 
 const camera = new THREE.PerspectiveCamera(
   75,
@@ -16,7 +16,7 @@ const camera = new THREE.PerspectiveCamera(
   0.1,
   1000
 );
-camera.position.set(0, 0, 20);
+camera.position.set(0, 0, 30);
 
 const BLOOM_LAYER = 1;
 
@@ -46,13 +46,13 @@ const PHOTO_FILES = [
 ];
 
 // ======================================================
-// らせん配置の座標計算
+// 写真配置-正面
 // ======================================================
 const SPIRAL_CONFIG = {
-  radius: 12,        // らせんの半径
-  zStep: 14,         // 写真間のZ間隔
-  yAmplitude: 2,     // 上下のゆらぎ幅
-  photosPerLoop: 5,  // 1周に何枚
+  radius: 0,
+  zStep: 14,
+  yAmplitude: 0,
+  photosPerLoop: 5,
 };
 
 function getSpiralPosition(index) {
@@ -91,7 +91,6 @@ function createPhotoItem(src, index) {
     loaded: false,       // 画像ロード済みか
     triggered: false,    // カメラが近づいたか
     attract: false,      // 粒子が集まり始めたか
-    formed: false,       // 粒子が揃ったか
     formed: false,       // 粒子が揃ったか
     fixed: false,        // ワールド固定になったか
     dissolving: false,   // 光に溶け始めたか
@@ -153,7 +152,7 @@ function createBackgroundParticles() {
 
   const mat = new THREE.PointsMaterial({
     map: particleTexture,
-    color: 0xffffff,
+    color: 0xffd4a0,
     size: 0.4,
     transparent: true,
     opacity: 0.6,
@@ -272,7 +271,10 @@ function buildPhotoMesh(item) {
 
 // オーラ生成
 function buildAura(item) {
-  const geo = new THREE.PlaneGeometry(11, 15);
+  // 写真メッシュのサイズに自動で合わせる
+  const w = item.mesh.geometry.parameters.width;
+  const h = item.mesh.geometry.parameters.height;
+  const geo = new THREE.PlaneGeometry(w, h);
   const mat = new THREE.MeshBasicMaterial({
     color: new THREE.Color(2.5, 2.5, 2.5),
     transparent: true,
@@ -312,7 +314,7 @@ function checkTriggers() {
     const byClick = item._clickTriggered === true;
 
    // ③ 1枚目のみ5秒後に自動出現
-    const byTime = item.index === 0 && item._loadedAt && (now - item._loadedAt) > 50000;
+    const byTime = item.index === 0 && item._loadedAt && (now - item._loadedAt) > 5000;
 
     if (byDistance || byClick || byTime) {
       item.triggered = true;
@@ -352,7 +354,7 @@ function attractParticles(item) {
 // 写真フェードイン
 // ======================================================
 function fadeInPhoto(item) {
-  if (!item.formed) return;
+  if (!item.formed || item.dissolving || item.dissolved) return;
 
   if (item.material.opacity < 1) {
     item.material.opacity += 0.01;
@@ -391,8 +393,13 @@ if (item.material.opacity >= 1) {
     const worldPos = item.position.clone().add(new THREE.Vector3(0, 0, 3));
     item.mesh.position.copy(worldPos);
     item.mesh.quaternion.set(0, 0, 0, 1);
-  }
-}
+
+    // 3秒後に自分自身をdissolve開始
+    setTimeout(() => {
+      if (!item.dissolving) item.dissolving = true;
+    }, 3000);
+      }
+    }
 
 // ======================================================
 // 粒子エフェクト更新
@@ -462,6 +469,7 @@ window.addEventListener('touchmove', (e) => {
 }, { passive: false });
 
 
+
 // ======================================================
 // アニメーションループ
 // ======================================================
@@ -478,8 +486,8 @@ function animate() {
     checkFixed(item);
     dissolvePhoto(item);
 
-    // 固定後にゆっくり漂う
-    if (item.fixed && item.mesh) {
+    // 固定後にゆっくり漂う（dissolving中は止める）
+    if (item.fixed && !item.dissolving && item.mesh) {
       const t = Date.now() * 0.0005;
       const floatY = Math.sin(t + item.index * 1.5) * 0.8;
       const floatX = Math.cos(t * 0.7 + item.index * 1.2) * 0.4;
@@ -504,34 +512,71 @@ function animate() {
 
   composer.render();
 }
-
-animate();
 // ======================================================
 // 光に溶けて消える
 // ======================================================
 function dissolvePhoto(item) {
   if (!item.dissolving || item.dissolved) return;
 
-  // オーラを先に白く膨らませる
-  if (item.aura && item.aura.material.opacity < 1.0) {
-    item.aura.material.opacity += 0.02;
+  if (!item._dissolveDir) {
+    item._dissolveDir = item.index % 2 === 0 ? 1 : -1;
   }
 
-  // 写真をゆっくりフェードアウト
+  // 左右・上に流れる（速度アップ）
+  if (item.mesh) {
+    item.mesh.position.x += item._dissolveDir * 0.04;
+    item.mesh.position.y += 0.01;
+    item.mesh.scale.x += 0.004;
+    item.mesh.scale.y += 0.004;
+  }
+
+  if (item.aura) {
+    item.aura.position.x += item._dissolveDir * 0.04;
+    item.aura.position.y += 0.01;
+    // スケールは変えない（写真と同じサイズをキープ）
+    item.aura.visible = true;
+    item.aura.layers.enable(BLOOM_LAYER);
+    // 最初だけ強く発光させる
+    if (!item._dissolveGlowSet) {
+      item.aura.material.opacity = 1.5;
+      item._dissolveGlowSet = true;
+    }
+  }
+
+  // キラキラ感：オーラの不透明度をランダムに揺らす
+  const flicker = Math.pow(Math.random(), 3) * 0.3;
+
+  // 写真を消す
   if (item.material.opacity > 0) {
-    item.material.opacity -= 0.005;
+    item.material.opacity -= 0.006;
   }
 
-  // オーラも最終的に消える
-  if (item.material.opacity <= 0 && item.aura) {
-    item.aura.material.opacity -= 0.01;
+  // オーラがキラキラしながら消える
+  if (item.aura && item.aura.material.opacity > 0) {
+    item.aura.material.opacity = Math.max(0,
+      item.aura.material.opacity - 0.004 + flicker * 0.1
+    );
+    // 暖色系に色を変える
+    item.aura.material.color.setHSL(0.08, 0.8, 0.9 + flicker);
   }
 
-  // 完全に消えたら終了
-  if (item.material.opacity <= 0 && (!item.aura || item.aura.material.opacity <= 0)) {
-    item.dissolved = true;
+  // 写真が消えたらオーラも強制的に消す
+  if (item.material.opacity <= 0) {
+    if (item.aura) {
+      item.aura.material.opacity -= 0.02;
+      if (item.aura.material.opacity <= 0) {
+        item.aura.visible = false;
+        item.aura.material.opacity = 0;
+        item.dissolved = true;
+      }
+    } else {
+      item.dissolved = true;
+    }
+    if (item.particles) item.particles.visible = false;
   }
-}
+  }
+
+animate();
 
 // ======================================================
 // リサイズ
