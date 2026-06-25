@@ -25,7 +25,7 @@ const renderer = new THREE.WebGLRenderer({
   antialias: true
 });
 renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // スマホの高DPIで重くなるのを防ぐ
 
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
@@ -88,13 +88,15 @@ function createPhotoItem(src, index) {
     dissolving: false,
     dissolved: false,
     dissolveParticles: null,
+    viewing: false,
+    viewStartTime: null,
   };
 }
 
 const photoItems = PHOTO_FILES.map((src, i) => createPhotoItem(src, i));
 
 // ======================================================
-// 通常グロー テクスチャ（背景粒子・写真粒子用）
+// テクスチャ
 // ======================================================
 function createGlowTexture() {
   const size = 128;
@@ -102,18 +104,13 @@ function createGlowTexture() {
   canvas.width = size;
   canvas.height = size;
   const ctx = canvas.getContext('2d');
-
-  const gradient = ctx.createRadialGradient(
-    size / 2, size / 2, 0,
-    size / 2, size / 2, size / 2
-  );
+  const gradient = ctx.createRadialGradient(size/2, size/2, 0, size/2, size/2, size/2);
   gradient.addColorStop(0.0,  'rgba(255,255,255,1)');
   gradient.addColorStop(0.05, 'rgba(255,255,255,1)');
   gradient.addColorStop(0.15, 'rgba(255,255,255,1)');
   gradient.addColorStop(0.3,  'rgba(255,255,255,0.7)');
   gradient.addColorStop(0.6,  'rgba(255,255,255,0.15)');
   gradient.addColorStop(1.0,  'rgba(255,255,255,0)');
-
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, size, size);
   return new THREE.CanvasTexture(canvas);
@@ -121,16 +118,12 @@ function createGlowTexture() {
 
 const particleTexture = createGlowTexture();
 
-// ======================================================
-// ★ 追加：星形スパークテクスチャ（アクセント粒子用）
-// ======================================================
 function createSparkTexture(size = 128) {
   const canvas = document.createElement('canvas');
   canvas.width = canvas.height = size;
   const ctx = canvas.getContext('2d');
-  const half = size / 1.8;
+  const half = size / 2;
 
-  // ソフトグロー（基底）
   const glow = ctx.createRadialGradient(half, half, 0, half, half, half);
   glow.addColorStop(0.00, 'rgba(255,255,255,1.0)');
   glow.addColorStop(0.08, 'rgba(255,255,255,1.0)');
@@ -140,7 +133,6 @@ function createSparkTexture(size = 128) {
   ctx.fillStyle = glow;
   ctx.fillRect(0, 0, size, size);
 
-  // 4方向スパイク
   ctx.globalCompositeOperation = 'lighter';
   const spikes = [
     { angle: 0,   w: 2.2, len: 0.90, op: 0.85 },
@@ -165,30 +157,25 @@ function createSparkTexture(size = 128) {
     ctx.restore();
   });
   ctx.globalCompositeOperation = 'source-over';
-
   return new THREE.CanvasTexture(canvas);
 }
 
 // ======================================================
-// 背景粒子
+// 背景粒子 & アクセント粒子
 // ======================================================
 function createBackgroundParticles() {
   const count = 3000;
   const positions = new Float32Array(count * 3);
-
   for (let i = 0; i < count; i++) {
     const r = 80 * Math.cbrt(Math.random());
     const theta = Math.random() * Math.PI * 2;
     const phi = Math.acos(2 * Math.random() - 1);
-
     positions[i * 3]     = r * Math.sin(phi) * Math.cos(theta);
     positions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
     positions[i * 3 + 2] = r * Math.cos(phi);
   }
-
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-
   const mat = new THREE.PointsMaterial({
     map: particleTexture,
     color: 0xffd4a0,
@@ -199,32 +186,24 @@ function createBackgroundParticles() {
     depthWrite: false,
     sizeAttenuation: true
   });
-
   const bg = new THREE.Points(geo, mat);
   scene.add(bg);
   return bg;
 }
 
-// ======================================================
-// ★ 追加：アクセント粒子（星形・少数混在）
-// ======================================================
 function createAccentParticles() {
   const count = 320;
   const positions = new Float32Array(count * 3);
-
   for (let i = 0; i < count; i++) {
     const r     = 60 * Math.cbrt(Math.random());
     const theta = Math.random() * Math.PI * 2;
     const phi   = Math.acos(2 * Math.random() - 1);
-
     positions[i * 3]     = r * Math.sin(phi) * Math.cos(theta);
     positions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
     positions[i * 3 + 2] = r * Math.cos(phi);
   }
-
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-
   const mat = new THREE.PointsMaterial({
     map:             createSparkTexture(),
     color:           0xffd27a,
@@ -235,7 +214,6 @@ function createAccentParticles() {
     depthWrite:      false,
     sizeAttenuation: true,
   });
-
   const mesh = new THREE.Points(geo, mat);
   scene.add(mesh);
   return mesh;
@@ -245,73 +223,58 @@ const backgroundParticles = createBackgroundParticles();
 const accentParticles     = createAccentParticles();
 
 // ======================================================
-// 写真1枚のロードと3Dオブジェクト生成
+// 写真ロード & オブジェクト生成
 // ======================================================
 function loadPhotoItem(item) {
   const img = new Image();
   img.src = item.src;
-
   img.onload = () => {
-    const w = 150;
-    const h = 200;
+    const w = 150, h = 200;
     const c = document.createElement('canvas');
     c.width = w; c.height = h;
     const cx = c.getContext('2d');
     cx.drawImage(img, 0, 0, w, h);
-
     const data = cx.getImageData(0, 0, w, h).data;
     let rSum = 0, gSum = 0, bSum = 0, count = 0;
-
     for (let y = 0; y < h; y += 2) {
       for (let x = 0; x < w; x += 2) {
         const i = (y * w + x) * 4;
-        const r = data[i], g = data[i + 1], b = data[i + 2];
-        const brightness = r + g + b;
-
-        if (brightness > 450 && x > 2 && x < w - 2 && y > 2 && y < h - 2) {
-          const px = (x - w / 2) * (10 / w);
-          const py = (h / 2 - y) * (14 / h);
-          item.targetPositions.push(new THREE.Vector3(px, py, 3));
+        const r = data[i], g = data[i+1], b = data[i+2];
+        if ((r+g+b) > 450 && x > 2 && x < w-2 && y > 2 && y < h-2) {
+          item.targetPositions.push(new THREE.Vector3(
+            (x - w/2) * (10/w),
+            (h/2 - y) * (14/h),
+            3
+          ));
           rSum += r; gSum += g; bSum += b; count++;
         }
       }
     }
-
     if (count > 0) {
-      item.particleColor = new THREE.Color(
-        rSum / count / 255,
-        gSum / count / 255,
-        bSum / count / 255
-      );
+      item.particleColor = new THREE.Color(rSum/count/255, gSum/count/255, bSum/count/255);
     }
-
     buildParticles(item);
     buildPhotoMesh(item);
     buildAura(item);
-
     item.loaded = true;
     item._loadedAt = Date.now();
   };
 }
 
-// 粒子オブジェクト生成
 function buildParticles(item) {
   const photoCount = item.targetPositions.length;
   item.particleCount = photoCount;
-
   const pos = new Float32Array(photoCount * 3);
   for (let i = 0; i < photoCount; i++) {
     const r = 50 * Math.cbrt(Math.random());
     const theta = Math.random() * Math.PI * 2;
     const phi = Math.acos(2 * Math.random() - 1);
-    pos[i * 3]     = r * Math.sin(phi) * Math.cos(theta);
-    pos[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
-    pos[i * 3 + 2] = r * Math.cos(phi);
+    pos[i*3]   = r * Math.sin(phi) * Math.cos(theta);
+    pos[i*3+1] = r * Math.sin(phi) * Math.sin(theta);
+    pos[i*3+2] = r * Math.cos(phi);
   }
-
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-
   const mat = new THREE.PointsMaterial({
     map: createSparkTexture(),
     color: item.particleColor,
@@ -322,39 +285,28 @@ function buildParticles(item) {
     depthWrite: false,
     sizeAttenuation: true
   });
-
   item.particles = new THREE.Points(geo, mat);
   item.particles.position.copy(item.position);
   item.particleGeo = geo;
   scene.add(item.particles);
 }
 
-// 写真メッシュ生成
 function buildPhotoMesh(item) {
   const tex = new THREE.TextureLoader().load(item.src);
   const geo = new THREE.PlaneGeometry(10.80, 14.80);
-  item.material = new THREE.MeshBasicMaterial({
-    map: tex,
-    transparent: true,
-    opacity: 0
-  });
-
+  item.material = new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0 });
   item.mesh = new THREE.Mesh(geo, item.material);
   item.mesh.position.copy(item.position).add(new THREE.Vector3(0, 0, 3));
   scene.add(item.mesh);
 }
 
-// オーラ生成
 function buildAura(item) {
   const geo = new THREE.PlaneGeometry(11, 15);
   const mat = new THREE.MeshBasicMaterial({
     color: new THREE.Color(2.5, 2.5, 2.5),
-    transparent: true,
-    opacity: 0.8,
-    blending: THREE.AdditiveBlending,
-    depthWrite: false
+    transparent: true, opacity: 0.8,
+    blending: THREE.AdditiveBlending, depthWrite: false
   });
-
   item.aura = new THREE.Mesh(geo, mat);
   item.aura.position.copy(item.position).add(new THREE.Vector3(0, 0, 2.9));
   item.aura.visible = false;
@@ -362,13 +314,10 @@ function buildAura(item) {
   scene.add(item.aura);
 }
 
-// ======================================================
-// 全写真をロード
-// ======================================================
 photoItems.forEach(item => loadPhotoItem(item));
 
 // ======================================================
-// トリガー判定
+// トリガー・吸引・フェード・固定
 // ======================================================
 const TRIGGER_DISTANCE = 22;
 
@@ -376,12 +325,10 @@ function checkTriggers() {
   const now = Date.now();
   photoItems.forEach(item => {
     if (!item.loaded || item.triggered) return;
-
     const dist = camera.position.distanceTo(item.position);
     const byDistance = dist < TRIGGER_DISTANCE;
     const byClick    = item._clickTriggered === true;
     const byTime     = item.index === 0 && item._loadedAt && (now - item._loadedAt) > 5000;
-
     if (byDistance || byClick || byTime) {
       item.triggered = true;
       item.attract   = true;
@@ -389,75 +336,47 @@ function checkTriggers() {
   });
 }
 
-// ======================================================
-// 粒子吸引
-// ======================================================
 function attractParticles(item) {
   if (!item.attract || !item.particles || item.formed) return;
-
   const pos = item.particleGeo.attributes.position.array;
   let allClose = true;
-
   for (let i = 0; i < item.particleCount; i++) {
-    const ix = i * 3, iy = i * 3 + 1, iz = i * 3 + 2;
+    const ix = i*3, iy = i*3+1, iz = i*3+2;
     const p = new THREE.Vector3(pos[ix], pos[iy], pos[iz]);
     const t = item.targetPositions[i];
     const dir = t.clone().sub(p).multiplyScalar(0.04);
     p.add(dir);
-
     pos[ix] = p.x; pos[iy] = p.y; pos[iz] = p.z;
     if (dir.length() > 0.01) allClose = false;
   }
-
   item.particleGeo.attributes.position.needsUpdate = true;
   if (allClose) item.formed = true;
 }
 
-// ======================================================
-// 写真フェードイン
-// ======================================================
 function fadeInPhoto(item) {
   if (!item.formed || item.dissolving || item.dissolved) return;
-
-  if (item.material.opacity < 1) {
-    item.material.opacity += 0.01;
-  }
-
-  if (item.particles && item.particles.material.opacity > 0) {
-    item.particles.material.opacity -= 0.02;
-  }
-  if (item.particles && item.particles.material.opacity <= 0.02) {
-    item.particles.visible = false;
-  }
-
+  if (item.material.opacity < 1) item.material.opacity += 0.01;
+  if (item.particles && item.particles.material.opacity > 0) item.particles.material.opacity -= 0.02;
+  if (item.particles && item.particles.material.opacity <= 0.02) item.particles.visible = false;
   if (item.aura) {
     if (item.material.opacity >= 1 && !item.aura.visible) {
       item.aura.visible = true;
       item.aura.layers.enable(BLOOM_LAYER);
     }
-    if (item.aura.material.opacity < 0.25) {
-      item.aura.material.opacity += 0.01;
-    }
+    if (item.aura.material.opacity < 0.25) item.aura.material.opacity += 0.01;
   }
 }
 
-// ======================================================
-// フェードイン完了でワールド固定
-// ======================================================
 function checkFixed(item) {
   if (!item.formed || item.fixed || !item.mesh) return;
-
   if (item.material.opacity >= 1) {
     item.fixed = true;
-
     if (item.particles) item.particles.visible = false;
-
     const worldPos = item.position.clone().add(new THREE.Vector3(0, 0, 3));
     item.mesh.position.copy(worldPos);
     item.mesh.quaternion.set(0, 0, 0, 1);
-
     item.viewing = true;
-item.viewStartTime = Date.now();
+    item.viewStartTime = Date.now();
   }
 }
 
@@ -466,101 +385,130 @@ item.viewStartTime = Date.now();
 // ======================================================
 function updateParticleEffects() {
   const t = Date.now() * 0.0015;
-
   const sparkle = Math.pow(Math.random(), 15) * 0.5;
   backgroundParticles.material.opacity = 0.25 + Math.sin(t * 0.3) * 0.05 + sparkle;
   backgroundParticles.material.size    = 0.12 + sparkle * 0.3;
 
-  // ★ アクセント粒子のきらめき更新
   const accentSparkle = Math.pow(Math.random(), 12) * 0.4;
   accentParticles.material.opacity = 0.55 + Math.sin(t * 0.2) * 0.08 + accentSparkle;
 
   photoItems.forEach(item => {
     if (!item.particles) return;
     const mat = item.particles.material;
-
     if (!mat._phase) mat._phase = Math.random() * 10;
-    if (!mat._speed)
-  mat._speed = 0.2 + Math.random() * 0.4;
-
     const smooth  = 0.55 + Math.sin(t * 1.0 + mat._phase) * 0.10;
     const sparkle = Math.pow(Math.random(), 20) * 0.25;
-
     mat.opacity = smooth + sparkle;
     mat.size    = 0.35 + Math.sin(t * 1.3 + mat._phase) * 0.05 + sparkle * 0.15;
-
     const hueShift = (Math.sin(t * 0.5 + mat._phase) + 1) / 2;
     const color = new THREE.Color();
-    color.setHSL(
-      0.08 + hueShift * 0.08,
-      0.55 + hueShift * 0.25,
-      0.60 + hueShift * 0.30 + sparkle * 0.4
-    );
+    color.setHSL(0.08 + hueShift*0.08, 0.55 + hueShift*0.25, 0.60 + hueShift*0.30 + sparkle*0.4);
     mat.color = color;
   });
 }
 
 // ======================================================
-// 視点操作
+// ★ 入力管理（PC・スマホ共通化）
 // ======================================================
+
+// カメラの向き（PCマウス・スマホ両方で共有する変数）
+let targetRotX = 0;
+let targetRotY = 0;
+
+// 表示中の写真を全部dissolveする
+function dissolveAllFixed() {
+  photoItems.forEach(item => {
+    if (item.fixed && !item.dissolving && !item.dissolved) {
+      item.dissolving = true;
+      item.viewing    = false;
+    }
+  });
+}
+
+// ── PC：マウス移動で視点 ──────────────────────────────
+window.addEventListener('mousemove', (e) => {
+  targetRotY = (e.clientX / window.innerWidth  - 0.5) * 0.6;
+  targetRotX = (e.clientY / window.innerHeight - 0.5) * 0.4;
+});
+
+// ── PC：キーボード ────────────────────────────────────
 window.addEventListener('keydown', (e) => {
-
   if (e.key === 'ArrowUp') {
-
-    photoItems.forEach(item => {
-
-      if (
-        item.fixed &&
-        !item.dissolving &&
-        !item.dissolved
-      ) {
-        item.dissolving = true;
-      }
-
-    });
-
+    dissolveAllFixed();
     camera.position.z -= 1.2;
   }
-
   if (e.key === 'ArrowDown') {
     camera.position.z += 1.2;
   }
-
 });
+
+// ── スマホ：タッチ ────────────────────────────────────
+// 1本指 → 視点回転（PCのマウス移動に相当）
+// 2本指 → 前後移動（PCの矢印キーに相当）
+
+let lastTouchX = 0;
+let lastTouchY = 0;
+let lastPinchDist = 0;
+
+window.addEventListener('touchstart', (e) => {
+  if (e.touches.length === 1) {
+    lastTouchX = e.touches[0].clientX;
+    lastTouchY = e.touches[0].clientY;
+  }
+  if (e.touches.length === 2) {
+    // 2本指の初期距離を記録
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    lastPinchDist = Math.sqrt(dx*dx + dy*dy);
+    // 2本指の中心Y
+    lastTouchY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+  }
+}, { passive: true });
+
 window.addEventListener('touchmove', (e) => {
   e.preventDefault();
 
-  const touch = e.touches[0];
-  const dx = touch.clientX - lastTouchX;
-  const dy = touch.clientY - lastTouchY;
+  // ── 1本指：視点回転 ──
+  if (e.touches.length === 1) {
+    const dx = e.touches[0].clientX - lastTouchX;
+    const dy = e.touches[0].clientY - lastTouchY;
 
-  const oldZ = camera.position.z;
+    targetRotY -= dx * 0.005;
+    targetRotX -= dy * 0.003;
 
-  camera.rotation.y -= dx * 0.005;
-  camera.position.z += dy * 0.05;
+    // 上下限を設ける
+    targetRotX = Math.max(-0.4, Math.min(0.4, targetRotX));
+    targetRotY = Math.max(-0.6, Math.min(0.6, targetRotY));
 
-  // 前進したら表示中の写真を消す
-  if (camera.position.z < oldZ) {
-
-    photoItems.forEach(item => {
-
-      if (
-        item.fixed &&
-        !item.dissolving &&
-        !item.dissolved
-      ) {
-
-        item.dissolving = true;
-
-      }
-
-    });
-
+    lastTouchX = e.touches[0].clientX;
+    lastTouchY = e.touches[0].clientY;
   }
 
-  lastTouchX = touch.clientX;
-  lastTouchY = touch.clientY;
+  // ── 2本指：ピンチ or 縦スワイプで前後移動 ──
+  if (e.touches.length === 2) {
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    const centerY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
 
+    // ピンチイン/アウト で前後
+    const pinchDelta = dist - lastPinchDist;
+    if (Math.abs(pinchDelta) > 1) {
+      const oldZ = camera.position.z;
+      camera.position.z -= pinchDelta * 0.08; // ピンチアウト=前進
+      if (camera.position.z < oldZ) dissolveAllFixed();
+      lastPinchDist = dist;
+    }
+
+    // 2本指縦スワイプでも前後
+    const swipeDelta = lastTouchY - centerY;
+    if (Math.abs(swipeDelta) > 1) {
+      const oldZ = camera.position.z;
+      camera.position.z -= swipeDelta * 0.05;
+      if (camera.position.z < oldZ) dissolveAllFixed();
+      lastTouchY = centerY;
+    }
+  }
 }, { passive: false });
 
 // ======================================================
@@ -568,25 +516,26 @@ window.addEventListener('touchmove', (e) => {
 // ======================================================
 function animate() {
   requestAnimationFrame(animate);
-  camera.position.z -= 0.005; 
+
+  // 自動前進
+  camera.position.z -= 0.005;
+
+  // カメラ回転をスムーズに追従（PC・スマホ共通）
+  camera.rotation.y += (targetRotY - camera.rotation.y) * 0.08;
+  camera.rotation.x += (targetRotX - camera.rotation.x) * 0.08;
 
   backgroundParticles.rotation.y += 0.0003;
+  accentParticles.rotation.y     += 0.0002;
+  accentParticles.rotation.x     += 0.00005;
 
+  // 10秒で自動dissolve
   photoItems.forEach(item => {
-
-  if (!item.viewing) return;
-
-  // 10秒放置で自動消滅
-  if (Date.now() - item.viewStartTime > 10000) {
-    item.dissolving = true;
-    item.viewing = false;
-  }
-
-});
-
-  // ★ アクセント粒子の回転（背景と少しずらして奥行き感）
-  accentParticles.rotation.y += 0.0002;
-  accentParticles.rotation.x += 0.00005;
+    if (!item.viewing) return;
+    if (Date.now() - item.viewStartTime > 10000) {
+      item.dissolving    = true;
+      item.viewing       = false;
+    }
+  });
 
   checkTriggers();
 
@@ -603,11 +552,7 @@ function animate() {
       const basePos = item.position.clone().add(new THREE.Vector3(0, 0, 3));
       item.mesh.position.set(basePos.x + floatX, basePos.y + floatY, basePos.z);
       if (item.aura) {
-        item.aura.position.set(
-          basePos.x + floatX,
-          basePos.y + floatY,
-          basePos.z - 0.1
-        );
+        item.aura.position.set(basePos.x + floatX, basePos.y + floatY, basePos.z - 0.1);
       }
     }
   });
@@ -621,32 +566,37 @@ function animate() {
 // ======================================================
 function dissolvePhoto(item) {
   if (!item.dissolving || item.dissolved) return;
-  console.log("dissolve", item.index);
-  
 
+  // フェーズ1：写真が白く光り始める
   if (!item._dissolvePhase) item._dissolvePhase = 1;
 
   if (item._dissolvePhase === 1) {
+    // オーラをじわっと明るくする
     if (item.aura) {
       item.aura.visible = true;
       item.aura.layers.enable(BLOOM_LAYER);
       if (item.aura.material.opacity < 1.2) {
         item.aura.material.opacity += 0.008;
       } else {
-        item._dissolvePhase = 2;
+        item._dissolvePhase = 2; // フェーズ2へ
       }
     } else {
       item._dissolvePhase = 2;
     }
   }
 
+  // フェーズ2：写真が光に溶けていく
   if (item._dissolvePhase === 2) {
     if (item.material.opacity > 0) {
-      item.material.opacity -= 0.75; //写真の透明度？ 0.85くらいがいいかも
+      item.material.opacity -= 0.6;
     }
+
+    // オーラはゆっくり消える
     if (item.aura && item.aura.material.opacity > 0) {
-      item.aura.material.opacity -= 0.001;
+      item.aura.material.opacity -= 0.003;
     }
+
+    // 完全に消えたら終了
     if (item.material.opacity <= 0 && (!item.aura || item.aura.material.opacity <= 0)) {
       item.dissolved = true;
       if (item.aura) {
@@ -657,19 +607,24 @@ function dissolvePhoto(item) {
     }
   }
 
+  // キラキラ感：オーラの不透明度をランダムに揺らす
   const flicker = Math.pow(Math.random(), 3) * 0.3;
 
+  // 写真を消す
   if (item.material.opacity > 0) {
-    item.material.opacity -= 0.0035;
+    item.material.opacity -= 0.006;
   }
 
+  // オーラがキラキラしながら消える
   if (item.aura && item.aura.material.opacity > 0) {
     item.aura.material.opacity = Math.max(0,
-      item.aura.material.opacity - 0.001 + flicker * 0.1
+      item.aura.material.opacity - 0.004 + flicker * 0.1
     );
+    // 暖色系に色を変える
     item.aura.material.color.setHSL(0.08, 0.8, 0.9 + flicker);
   }
 
+  // 写真が消えたらオーラも強制的に消す
   if (item.material.opacity <= 0) {
     if (item.aura) {
       item.aura.material.opacity -= 0.02;
