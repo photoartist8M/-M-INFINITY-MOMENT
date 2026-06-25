@@ -456,9 +456,8 @@ function checkFixed(item) {
     item.mesh.position.copy(worldPos);
     item.mesh.quaternion.set(0, 0, 0, 1);
 
-    setTimeout(() => {
-      if (!item.dissolving) item.dissolving = true;
-    }, 3000);
+    item.viewing = true;
+item.viewStartTime = Date.now();
   }
 }
 
@@ -505,33 +504,63 @@ function updateParticleEffects() {
 // 視点操作
 // ======================================================
 window.addEventListener('keydown', (e) => {
-  if (e.key === 'ArrowUp')   camera.position.z -= 1.2;
-  if (e.key === 'ArrowDown') camera.position.z += 1.2;
+
+  if (e.key === 'ArrowUp') {
+
+    photoItems.forEach(item => {
+
+      if (
+        item.fixed &&
+        !item.dissolving &&
+        !item.dissolved
+      ) {
+        item.dissolving = true;
+      }
+
+    });
+
+    camera.position.z -= 1.2;
+  }
+
+  if (e.key === 'ArrowDown') {
+    camera.position.z += 1.2;
+  }
+
 });
-
-window.addEventListener('mousemove', (e) => {
-  camera.rotation.y = (e.clientX / window.innerWidth  - 0.5) * 0.6;
-  camera.rotation.x = (e.clientY / window.innerHeight - 0.5) * 0.4;
-});
-
-let lastTouchX = 0, lastTouchY = 0;
-
-window.addEventListener('touchstart', (e) => {
-  lastTouchX = e.touches[0].clientX;
-  lastTouchY = e.touches[0].clientY;
-});
-
 window.addEventListener('touchmove', (e) => {
   e.preventDefault();
+
   const touch = e.touches[0];
   const dx = touch.clientX - lastTouchX;
   const dy = touch.clientY - lastTouchY;
 
+  const oldZ = camera.position.z;
+
   camera.rotation.y -= dx * 0.005;
-  camera.position.z  += dy * 0.05;
+  camera.position.z += dy * 0.05;
+
+  // 前進したら表示中の写真を消す
+  if (camera.position.z < oldZ) {
+
+    photoItems.forEach(item => {
+
+      if (
+        item.fixed &&
+        !item.dissolving &&
+        !item.dissolved
+      ) {
+
+        item.dissolving = true;
+
+      }
+
+    });
+
+  }
 
   lastTouchX = touch.clientX;
   lastTouchY = touch.clientY;
+
 }, { passive: false });
 
 // ======================================================
@@ -539,8 +568,21 @@ window.addEventListener('touchmove', (e) => {
 // ======================================================
 function animate() {
   requestAnimationFrame(animate);
+  camera.position.z -= 0.005; 
 
   backgroundParticles.rotation.y += 0.0003;
+
+  photoItems.forEach(item => {
+
+  if (!item.viewing) return;
+
+  // 10秒放置で自動消滅
+  if (Date.now() - item.viewStartTime > 10000) {
+    item.dissolving = true;
+    item.viewing = false;
+  }
+
+});
 
   // ★ アクセント粒子の回転（背景と少しずらして奥行き感）
   accentParticles.rotation.y += 0.0002;
@@ -579,6 +621,8 @@ function animate() {
 // ======================================================
 function dissolvePhoto(item) {
   if (!item.dissolving || item.dissolved) return;
+  console.log("dissolve", item.index);
+  
 
   if (!item._dissolvePhase) item._dissolvePhase = 1;
 
@@ -598,10 +642,10 @@ function dissolvePhoto(item) {
 
   if (item._dissolvePhase === 2) {
     if (item.material.opacity > 0) {
-      item.material.opacity -= 0.005;
+      item.material.opacity -= 0.75; //写真の透明度？ 0.85くらいがいいかも
     }
     if (item.aura && item.aura.material.opacity > 0) {
-      item.aura.material.opacity -= 0.003;
+      item.aura.material.opacity -= 0.001;
     }
     if (item.material.opacity <= 0 && (!item.aura || item.aura.material.opacity <= 0)) {
       item.dissolved = true;
@@ -616,12 +660,12 @@ function dissolvePhoto(item) {
   const flicker = Math.pow(Math.random(), 3) * 0.3;
 
   if (item.material.opacity > 0) {
-    item.material.opacity -= 0.006;
+    item.material.opacity -= 0.0035;
   }
 
   if (item.aura && item.aura.material.opacity > 0) {
     item.aura.material.opacity = Math.max(0,
-      item.aura.material.opacity - 0.004 + flicker * 0.1
+      item.aura.material.opacity - 0.001 + flicker * 0.1
     );
     item.aura.material.color.setHSL(0.08, 0.8, 0.9 + flicker);
   }
