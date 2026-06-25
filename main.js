@@ -36,7 +36,6 @@ const bloomPass = new UnrealBloomPass(
 );
 composer.addPass(bloomPass);
 
-
 // ======================================================
 // 写真リスト
 // ======================================================
@@ -65,7 +64,6 @@ function getSpiralPosition(index) {
   );
 }
 
-
 // ======================================================
 // 写真アイテムの状態管理
 // ======================================================
@@ -89,14 +87,14 @@ function createPhotoItem(src, index) {
     fixed: false,
     dissolving: false,
     dissolved: false,
+    dissolveParticles: null,
   };
 }
 
 const photoItems = PHOTO_FILES.map((src, i) => createPhotoItem(src, i));
 
-
 // ======================================================
-// 粒子テクスチャ（共通）
+// 通常グロー テクスチャ（背景粒子・写真粒子用）
 // ======================================================
 function createGlowTexture() {
   const size = 128;
@@ -104,13 +102,18 @@ function createGlowTexture() {
   canvas.width = size;
   canvas.height = size;
   const ctx = canvas.getContext('2d');
-  const gradient = ctx.createRadialGradient(size/2, size/2, 0, size/2, size/2, size/2);
+
+  const gradient = ctx.createRadialGradient(
+    size / 2, size / 2, 0,
+    size / 2, size / 2, size / 2
+  );
   gradient.addColorStop(0.0,  'rgba(255,255,255,1)');
   gradient.addColorStop(0.05, 'rgba(255,255,255,1)');
   gradient.addColorStop(0.15, 'rgba(255,255,255,1)');
   gradient.addColorStop(0.3,  'rgba(255,255,255,0.7)');
   gradient.addColorStop(0.6,  'rgba(255,255,255,0.15)');
   gradient.addColorStop(1.0,  'rgba(255,255,255,0)');
+
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, size, size);
   return new THREE.CanvasTexture(canvas);
@@ -118,23 +121,74 @@ function createGlowTexture() {
 
 const particleTexture = createGlowTexture();
 
+// ======================================================
+// ★ 追加：星形スパークテクスチャ（アクセント粒子用）
+// ======================================================
+function createSparkTexture(size = 128) {
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  const half = size / 1.8;
+
+  // ソフトグロー（基底）
+  const glow = ctx.createRadialGradient(half, half, 0, half, half, half);
+  glow.addColorStop(0.00, 'rgba(255,255,255,1.0)');
+  glow.addColorStop(0.08, 'rgba(255,255,255,1.0)');
+  glow.addColorStop(0.22, 'rgba(210,228,255,0.80)');
+  glow.addColorStop(0.50, 'rgba(160,200,255,0.20)');
+  glow.addColorStop(1.00, 'rgba(0,0,0,0)');
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, size, size);
+
+  // 4方向スパイク
+  ctx.globalCompositeOperation = 'lighter';
+  const spikes = [
+    { angle: 0,   w: 2.2, len: 0.90, op: 0.85 },
+    { angle: 90,  w: 2.2, len: 0.90, op: 0.85 },
+    { angle: 45,  w: 1.0, len: 0.65, op: 0.35 },
+    { angle: 135, w: 1.0, len: 0.65, op: 0.35 },
+  ];
+  spikes.forEach(({ angle, w, len, op }) => {
+    const rad = angle * Math.PI / 180;
+    const L = half * len;
+    const g = ctx.createLinearGradient(-L, 0, L, 0);
+    g.addColorStop(0.00, `rgba(180,215,255,0)`);
+    g.addColorStop(0.42, `rgba(220,238,255,${op * 0.35})`);
+    g.addColorStop(0.50, `rgba(255,255,255,${op})`);
+    g.addColorStop(0.58, `rgba(220,238,255,${op * 0.35})`);
+    g.addColorStop(1.00, `rgba(180,215,255,0)`);
+    ctx.save();
+    ctx.translate(half, half);
+    ctx.rotate(rad);
+    ctx.fillStyle = g;
+    ctx.fillRect(-L, -w / 2, L * 2, w);
+    ctx.restore();
+  });
+  ctx.globalCompositeOperation = 'source-over';
+
+  return new THREE.CanvasTexture(canvas);
+}
 
 // ======================================================
 // 背景粒子
 // ======================================================
 function createBackgroundParticles() {
-  const count = 10000;
+  const count = 3000;
   const positions = new Float32Array(count * 3);
+
   for (let i = 0; i < count; i++) {
     const r = 80 * Math.cbrt(Math.random());
     const theta = Math.random() * Math.PI * 2;
     const phi = Math.acos(2 * Math.random() - 1);
+
     positions[i * 3]     = r * Math.sin(phi) * Math.cos(theta);
     positions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
     positions[i * 3 + 2] = r * Math.cos(phi);
   }
+
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
   const mat = new THREE.PointsMaterial({
     map: particleTexture,
     color: 0xffd4a0,
@@ -145,13 +199,50 @@ function createBackgroundParticles() {
     depthWrite: false,
     sizeAttenuation: true
   });
+
   const bg = new THREE.Points(geo, mat);
   scene.add(bg);
   return bg;
 }
 
-const backgroundParticles = createBackgroundParticles();
+// ======================================================
+// ★ 追加：アクセント粒子（星形・少数混在）
+// ======================================================
+function createAccentParticles() {
+  const count = 320;
+  const positions = new Float32Array(count * 3);
 
+  for (let i = 0; i < count; i++) {
+    const r     = 60 * Math.cbrt(Math.random());
+    const theta = Math.random() * Math.PI * 2;
+    const phi   = Math.acos(2 * Math.random() - 1);
+
+    positions[i * 3]     = r * Math.sin(phi) * Math.cos(theta);
+    positions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+    positions[i * 3 + 2] = r * Math.cos(phi);
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+  const mat = new THREE.PointsMaterial({
+    map:             createSparkTexture(),
+    color:           0xffd27a,
+    size:            0.55,
+    transparent:     true,
+    opacity:         0.75,
+    blending:        THREE.AdditiveBlending,
+    depthWrite:      false,
+    sizeAttenuation: true,
+  });
+
+  const mesh = new THREE.Points(geo, mat);
+  scene.add(mesh);
+  return mesh;
+}
+
+const backgroundParticles = createBackgroundParticles();
+const accentParticles     = createAccentParticles();
 
 // ======================================================
 // 写真1枚のロードと3Dオブジェクト生成
@@ -159,32 +250,45 @@ const backgroundParticles = createBackgroundParticles();
 function loadPhotoItem(item) {
   const img = new Image();
   img.src = item.src;
+
   img.onload = () => {
-    const w = 150, h = 200;
+    const w = 150;
+    const h = 200;
     const c = document.createElement('canvas');
     c.width = w; c.height = h;
     const cx = c.getContext('2d');
     cx.drawImage(img, 0, 0, w, h);
+
     const data = cx.getImageData(0, 0, w, h).data;
     let rSum = 0, gSum = 0, bSum = 0, count = 0;
+
     for (let y = 0; y < h; y += 2) {
       for (let x = 0; x < w; x += 2) {
         const i = (y * w + x) * 4;
-        const r = data[i], g = data[i+1], b = data[i+2];
-        if ((r+g+b) > 450 && x > 2 && x < w-2 && y > 2 && y < h-2) {
-          const px = (x - w/2) * (10/w);
-          const py = (h/2 - y) * (14/h);
+        const r = data[i], g = data[i + 1], b = data[i + 2];
+        const brightness = r + g + b;
+
+        if (brightness > 450 && x > 2 && x < w - 2 && y > 2 && y < h - 2) {
+          const px = (x - w / 2) * (10 / w);
+          const py = (h / 2 - y) * (14 / h);
           item.targetPositions.push(new THREE.Vector3(px, py, 3));
           rSum += r; gSum += g; bSum += b; count++;
         }
       }
     }
+
     if (count > 0) {
-      item.particleColor = new THREE.Color(rSum/count/255, gSum/count/255, bSum/count/255);
+      item.particleColor = new THREE.Color(
+        rSum / count / 255,
+        gSum / count / 255,
+        bSum / count / 255
+      );
     }
+
     buildParticles(item);
     buildPhotoMesh(item);
     buildAura(item);
+
     item.loaded = true;
     item._loadedAt = Date.now();
   };
@@ -194,89 +298,45 @@ function loadPhotoItem(item) {
 function buildParticles(item) {
   const photoCount = item.targetPositions.length;
   item.particleCount = photoCount;
+
   const pos = new Float32Array(photoCount * 3);
   for (let i = 0; i < photoCount; i++) {
     const r = 50 * Math.cbrt(Math.random());
     const theta = Math.random() * Math.PI * 2;
     const phi = Math.acos(2 * Math.random() - 1);
-    pos[i*3]   = r * Math.sin(phi) * Math.cos(theta);
-    pos[i*3+1] = r * Math.sin(phi) * Math.sin(theta);
-    pos[i*3+2] = r * Math.cos(phi);
+    pos[i * 3]     = r * Math.sin(phi) * Math.cos(theta);
+    pos[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+    pos[i * 3 + 2] = r * Math.cos(phi);
   }
+
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+
   const mat = new THREE.PointsMaterial({
-    map: particleTexture,
+    map: createSparkTexture(),
     color: item.particleColor,
-    size: 0.60,
+    size: 0.8,
     transparent: true,
     opacity: 0.9,
     blending: THREE.AdditiveBlending,
     depthWrite: false,
     sizeAttenuation: true
   });
+
   item.particles = new THREE.Points(geo, mat);
   item.particles.position.copy(item.position);
   item.particleGeo = geo;
   scene.add(item.particles);
 }
 
-// 写真メッシュ生成（ShaderMaterial）
+// 写真メッシュ生成
 function buildPhotoMesh(item) {
   const tex = new THREE.TextureLoader().load(item.src);
   const geo = new THREE.PlaneGeometry(10.80, 14.80);
-
-  item.material = new THREE.ShaderMaterial({
-    uniforms: {
-      map:      { value: tex },
-      opacity:  { value: 0.0 },
-      dissolve: { value: 0.0 },
-      time:     { value: 0.0 },
-    },
-    vertexShader: `
-      varying vec2 vUv;
-      void main() {
-        vUv = uv;
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-      }
-    `,
-    fragmentShader: `
-      uniform sampler2D map;
-      uniform float opacity;
-      uniform float dissolve;
-      uniform float time;
-      varying vec2 vUv;
-
-      void main() {
-        vec4 texColor = texture2D(map, vUv);
-
-        // dissolveが0のとき通常表示
-        if (dissolve <= 0.0) {
-          gl_FragColor = vec4(texColor.rgb, texColor.a * opacity);
-          return;
-        }
-
-        // 中心からの距離
-        vec2 center = vUv - 0.5;
-        float dist = length(center);
-
-        // 波状のマスク
-        float wave = sin(dist * 20.0 - time * 8.0) * 0.5 + 0.5;
-        float mask = smoothstep(dissolve - 0.25, dissolve + 0.05, dist + wave * 0.12);
-
-        // 消えていく境界の光
-        float edgeDist = abs(dist - dissolve * 0.85);
-        float glow = (1.0 - smoothstep(0.0, 0.08, edgeDist)) * (1.0 - dissolve);
-        vec3 glowColor = vec3(1.0, 0.85, 0.5) * glow * 1.5;
-
-        vec3 finalColor = texColor.rgb + glowColor;
-        float finalAlpha = texColor.a * opacity * (1.0 - mask);
-
-        gl_FragColor = vec4(finalColor, finalAlpha);
-      }
-    `,
+  item.material = new THREE.MeshBasicMaterial({
+    map: tex,
     transparent: true,
-    depthWrite: false,
+    opacity: 0
   });
 
   item.mesh = new THREE.Mesh(geo, item.material);
@@ -294,13 +354,13 @@ function buildAura(item) {
     blending: THREE.AdditiveBlending,
     depthWrite: false
   });
+
   item.aura = new THREE.Mesh(geo, mat);
   item.aura.position.copy(item.position).add(new THREE.Vector3(0, 0, 2.9));
   item.aura.visible = false;
   item.aura.layers.disable(BLOOM_LAYER);
   scene.add(item.aura);
 }
-
 
 // ======================================================
 // 全写真をロード
@@ -316,13 +376,15 @@ function checkTriggers() {
   const now = Date.now();
   photoItems.forEach(item => {
     if (!item.loaded || item.triggered) return;
+
     const dist = camera.position.distanceTo(item.position);
     const byDistance = dist < TRIGGER_DISTANCE;
-    const byClick = item._clickTriggered === true;
-    const byTime = item.index === 0 && item._loadedAt && (now - item._loadedAt) > 5000;
+    const byClick    = item._clickTriggered === true;
+    const byTime     = item.index === 0 && item._loadedAt && (now - item._loadedAt) > 5000;
+
     if (byDistance || byClick || byTime) {
       item.triggered = true;
-      item.attract = true;
+      item.attract   = true;
     }
   });
 }
@@ -332,21 +394,24 @@ function checkTriggers() {
 // ======================================================
 function attractParticles(item) {
   if (!item.attract || !item.particles || item.formed) return;
+
   const pos = item.particleGeo.attributes.position.array;
   let allClose = true;
+
   for (let i = 0; i < item.particleCount; i++) {
-    const ix = i*3, iy = i*3+1, iz = i*3+2;
+    const ix = i * 3, iy = i * 3 + 1, iz = i * 3 + 2;
     const p = new THREE.Vector3(pos[ix], pos[iy], pos[iz]);
     const t = item.targetPositions[i];
-    const dir = t.clone().sub(p).multiplyScalar(0.05);
+    const dir = t.clone().sub(p).multiplyScalar(0.04);
     p.add(dir);
+
     pos[ix] = p.x; pos[iy] = p.y; pos[iz] = p.z;
     if (dir.length() > 0.01) allClose = false;
   }
+
   item.particleGeo.attributes.position.needsUpdate = true;
   if (allClose) item.formed = true;
 }
-
 
 // ======================================================
 // 写真フェードイン
@@ -354,8 +419,9 @@ function attractParticles(item) {
 function fadeInPhoto(item) {
   if (!item.formed || item.dissolving || item.dissolved) return;
 
-  const op = item.material.uniforms.opacity;
-  if (op.value < 1) op.value += 0.01;
+  if (item.material.opacity < 1) {
+    item.material.opacity += 0.01;
+  }
 
   if (item.particles && item.particles.material.opacity > 0) {
     item.particles.material.opacity -= 0.02;
@@ -365,7 +431,7 @@ function fadeInPhoto(item) {
   }
 
   if (item.aura) {
-    if (op.value >= 1 && !item.aura.visible) {
+    if (item.material.opacity >= 1 && !item.aura.visible) {
       item.aura.visible = true;
       item.aura.layers.enable(BLOOM_LAYER);
     }
@@ -381,60 +447,18 @@ function fadeInPhoto(item) {
 function checkFixed(item) {
   if (!item.formed || item.fixed || !item.mesh) return;
 
-  if (item.material.uniforms.opacity.value >= 1) {
+  if (item.material.opacity >= 1) {
     item.fixed = true;
+
     if (item.particles) item.particles.visible = false;
+
     const worldPos = item.position.clone().add(new THREE.Vector3(0, 0, 3));
     item.mesh.position.copy(worldPos);
     item.mesh.quaternion.set(0, 0, 0, 1);
+
     setTimeout(() => {
       if (!item.dissolving) item.dissolving = true;
     }, 3000);
-  }
-}
-
-// ======================================================
-// 写真消える
-// ======================================================
-function dissolvePhoto(item) {
-  if (!item.dissolving || item.dissolved) return;
-
-  item.aura.scale.x += 0.001;
-item.aura.scale.y += 0.001;
-const photoOpacity = item.material.uniforms.opacity.value;
-
-if (photoOpacity > 0.3) {
-
-  item.aura.material.opacity =
-    (1.0 - photoOpacity) * 0.12;
-
-} else {
-
-  item.aura.material.opacity =
-    photoOpacity * 0.15;
-
-}
-item.mesh.scale.multiplyScalar(1.0013);
-
-  // 写真をゆっくりフェード
-  item.material.uniforms.opacity.value -= 0.008;
-
-  if (item.material.uniforms.opacity.value <= 0) {
-
-    item.material.uniforms.opacity.value = 0;
-
-    item.dissolved = true;
-
-    if (item.aura) {
-      item.aura.visible = false;
-      item.aura.material.opacity = 0;
-    }
-
-    if (item.particles) {
-      item.particles.visible = false;
-    }
-
-    item.mesh.visible = false;
   }
 }
 
@@ -443,27 +467,37 @@ item.mesh.scale.multiplyScalar(1.0013);
 // ======================================================
 function updateParticleEffects() {
   const t = Date.now() * 0.0015;
+
   const sparkle = Math.pow(Math.random(), 15) * 0.5;
   backgroundParticles.material.opacity = 0.25 + Math.sin(t * 0.3) * 0.05 + sparkle;
-  backgroundParticles.material.size = 0.12 + sparkle * 0.3;
+  backgroundParticles.material.size    = 0.12 + sparkle * 0.3;
+
+  // ★ アクセント粒子のきらめき更新
+  const accentSparkle = Math.pow(Math.random(), 12) * 0.4;
+  accentParticles.material.opacity = 0.55 + Math.sin(t * 0.2) * 0.08 + accentSparkle;
 
   photoItems.forEach(item => {
     if (!item.particles) return;
-    if (item.formed || item.dissolving || item.dissolved) return;
-    const pMat = item.particles.material;
-    if (!pMat._phase) pMat._phase = Math.random() * 10;
-    const smooth   = 0.55 + Math.sin(t * 1.0 + pMat._phase) * 0.10;
-    const pSparkle = Math.pow(Math.random(), 20) * 0.25;
-    pMat.opacity = smooth + pSparkle;
-    pMat.size    = 0.20 + Math.sin(t * 1.3 + pMat._phase) * 0.04 + pSparkle * 0.3;
-    const hueShift = (Math.sin(t * 0.5 + pMat._phase) + 1) / 2;
+    const mat = item.particles.material;
+
+    if (!mat._phase) mat._phase = Math.random() * 10;
+    if (!mat._speed)
+  mat._speed = 0.2 + Math.random() * 0.4;
+
+    const smooth  = 0.55 + Math.sin(t * 1.0 + mat._phase) * 0.10;
+    const sparkle = Math.pow(Math.random(), 20) * 0.25;
+
+    mat.opacity = smooth + sparkle;
+    mat.size    = 0.35 + Math.sin(t * 1.3 + mat._phase) * 0.05 + sparkle * 0.15;
+
+    const hueShift = (Math.sin(t * 0.5 + mat._phase) + 1) / 2;
     const color = new THREE.Color();
     color.setHSL(
       0.08 + hueShift * 0.08,
       0.55 + hueShift * 0.25,
-      0.60 + hueShift * 0.30 + pSparkle * 0.4
+      0.60 + hueShift * 0.30 + sparkle * 0.4
     );
-    pMat.color = color;
+    mat.color = color;
   });
 }
 
@@ -492,8 +526,10 @@ window.addEventListener('touchmove', (e) => {
   const touch = e.touches[0];
   const dx = touch.clientX - lastTouchX;
   const dy = touch.clientY - lastTouchY;
+
   camera.rotation.y -= dx * 0.005;
   camera.position.z  += dy * 0.05;
+
   lastTouchX = touch.clientX;
   lastTouchY = touch.clientY;
 }, { passive: false });
@@ -505,6 +541,10 @@ function animate() {
   requestAnimationFrame(animate);
 
   backgroundParticles.rotation.y += 0.0003;
+
+  // ★ アクセント粒子の回転（背景と少しずらして奥行き感）
+  accentParticles.rotation.y += 0.0002;
+  accentParticles.rotation.x += 0.00005;
 
   checkTriggers();
 
@@ -521,13 +561,84 @@ function animate() {
       const basePos = item.position.clone().add(new THREE.Vector3(0, 0, 3));
       item.mesh.position.set(basePos.x + floatX, basePos.y + floatY, basePos.z);
       if (item.aura) {
-        item.aura.position.set(basePos.x + floatX, basePos.y + floatY, basePos.z - 0.1);
+        item.aura.position.set(
+          basePos.x + floatX,
+          basePos.y + floatY,
+          basePos.z - 0.1
+        );
       }
     }
   });
 
   updateParticleEffects();
   composer.render();
+}
+
+// ======================================================
+// 光に溶けて消える
+// ======================================================
+function dissolvePhoto(item) {
+  if (!item.dissolving || item.dissolved) return;
+
+  if (!item._dissolvePhase) item._dissolvePhase = 1;
+
+  if (item._dissolvePhase === 1) {
+    if (item.aura) {
+      item.aura.visible = true;
+      item.aura.layers.enable(BLOOM_LAYER);
+      if (item.aura.material.opacity < 1.2) {
+        item.aura.material.opacity += 0.008;
+      } else {
+        item._dissolvePhase = 2;
+      }
+    } else {
+      item._dissolvePhase = 2;
+    }
+  }
+
+  if (item._dissolvePhase === 2) {
+    if (item.material.opacity > 0) {
+      item.material.opacity -= 0.005;
+    }
+    if (item.aura && item.aura.material.opacity > 0) {
+      item.aura.material.opacity -= 0.003;
+    }
+    if (item.material.opacity <= 0 && (!item.aura || item.aura.material.opacity <= 0)) {
+      item.dissolved = true;
+      if (item.aura) {
+        item.aura.visible = false;
+        item.aura.material.opacity = 0;
+      }
+      if (item.particles) item.particles.visible = false;
+    }
+  }
+
+  const flicker = Math.pow(Math.random(), 3) * 0.3;
+
+  if (item.material.opacity > 0) {
+    item.material.opacity -= 0.006;
+  }
+
+  if (item.aura && item.aura.material.opacity > 0) {
+    item.aura.material.opacity = Math.max(0,
+      item.aura.material.opacity - 0.004 + flicker * 0.1
+    );
+    item.aura.material.color.setHSL(0.08, 0.8, 0.9 + flicker);
+  }
+
+  if (item.material.opacity <= 0) {
+    if (item.aura) {
+      item.aura.material.opacity -= 0.02;
+      if (item.aura.material.opacity <= 0) {
+        item.aura.visible = false;
+        item.aura.material.opacity = 0;
+        item.dissolved = true;
+      }
+    } else {
+      item.dissolved = true;
+    }
+    if (item.particles) item.particles.visible = false;
+  }
 }
 
 animate();
