@@ -32,7 +32,7 @@ composer.addPass(new RenderPass(scene, camera));
 
 const bloomPass = new UnrealBloomPass(
   new THREE.Vector2(window.innerWidth, window.innerHeight),
-  1.0, 0.2, 0.95
+  1.3, 0.5, 0.95   //光のエネルギーそのもの/光がどれくらい“ぼけて広がるか/どれくらい明るい部分から光るか
 );
 composer.addPass(bloomPass);
 
@@ -42,6 +42,7 @@ composer.addPass(bloomPass);
 const PHOTO_FILES = [
   'assets/photo1.jpg',
   'assets/photo2.jpg',
+  'assets/photo3.jpg',
 ];
 
 // ======================================================
@@ -229,7 +230,13 @@ function loadPhotoItem(item) {
   const img = new Image();
   img.src = item.src;
   img.onload = () => {
-    const w = 150, h = 200;
+    // 実際の画像比率を維持してサンプリング
+    const baseHeight = 11;
+    const aspect = img.width / img.height;
+    const baseWidth = baseHeight * aspect;
+
+    const w = 150;
+    const h = Math.round(150 / aspect);
     const c = document.createElement('canvas');
     c.width = w; c.height = h;
     const cx = c.getContext('2d');
@@ -242,8 +249,8 @@ function loadPhotoItem(item) {
         const r = data[i], g = data[i+1], b = data[i+2];
         if ((r+g+b) > 450 && x > 2 && x < w-2 && y > 2 && y < h-2) {
           item.targetPositions.push(new THREE.Vector3(
-            (x - w/2) * (10/w),
-            (h/2 - y) * (14/h),
+            (x - w/2) * (baseWidth/w),
+            (h/2 - y) * (baseHeight/h),
             3
           ));
           rSum += r; gSum += g; bSum += b; count++;
@@ -292,9 +299,33 @@ function buildParticles(item) {
 }
 
 function buildPhotoMesh(item) {
-  const tex = new THREE.TextureLoader().load(item.src);
-  const geo = new THREE.PlaneGeometry(10.80, 14.80);
-  item.material = new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0 });
+  const tex = new THREE.TextureLoader().load(item.src, (texture) => {
+    // 画像の実際のサイズから縦横比を計算
+    const imgW = texture.image.width;
+    const imgH = texture.image.height;
+    const aspect = imgW / imgH;
+
+    // 高さを基準にして幅を自動計算
+    const baseHeight = 11;
+    const baseWidth = baseHeight * aspect;
+
+    item.mesh.geometry.dispose();
+    item.mesh.geometry = new THREE.PlaneGeometry(baseWidth, baseHeight);
+
+    if (item.aura) {
+      item.aura.geometry.dispose();
+      item.aura.geometry = new THREE.PlaneGeometry(baseWidth, baseHeight);
+    }
+  });
+
+  const geo = new THREE.PlaneGeometry(11, 11); // 仮のサイズ（ロード後に更新）
+  item.material = new THREE.MeshBasicMaterial({
+    map: tex,
+    transparent: true,
+    opacity: 0,
+    depthWrite: false
+  });
+
   item.mesh = new THREE.Mesh(geo, item.material);
   item.mesh.position.copy(item.position).add(new THREE.Vector3(0, 0, 3));
   scene.add(item.mesh);
@@ -354,7 +385,8 @@ function attractParticles(item) {
 }
 
 function fadeInPhoto(item) {
-  if (!item.formed || item.dissolving || item.dissolved) return;
+   if (!item.formed || item.dissolving || item.dissolved) return;
+  if (!item.mesh) return;
   if (item.material.opacity < 1) item.material.opacity += 0.01;
   if (item.particles && item.particles.material.opacity > 0) item.particles.material.opacity -= 0.02;
   if (item.particles && item.particles.material.opacity <= 0.02) item.particles.visible = false;
@@ -408,44 +440,24 @@ function updateParticleEffects() {
 }
 
 // ======================================================
-// ★ 入力管理（PC・スマホ共通化）
+// 入力管理（PC・スマホ）
 // ======================================================
-
-// カメラの向き（PCマウス・スマホ両方で共有する変数）
 let targetRotX = 0;
 let targetRotY = 0;
 
-// 表示中の写真を全部dissolveする
-function dissolveAllFixed() {
-  photoItems.forEach(item => {
-    if (item.fixed && !item.dissolving && !item.dissolved) {
-      item.dissolving = true;
-      item.viewing    = false;
-    }
-  });
-}
-
-// ── PC：マウス移動で視点 ──────────────────────────────
+// PC：マウス移動
 window.addEventListener('mousemove', (e) => {
-  targetRotY = (e.clientX / window.innerWidth  - 0.5) * 0.6;
-  targetRotX = (e.clientY / window.innerHeight - 0.5) * 0.4;
+  targetRotY = (e.clientX / window.innerWidth  - 0.5) * 0.5;
+  targetRotX = (e.clientY / window.innerHeight - 0.5) * 0.3;
 });
 
-// ── PC：キーボード ────────────────────────────────────
+// PC：キーボード
 window.addEventListener('keydown', (e) => {
-  if (e.key === 'ArrowUp') {
-    dissolveAllFixed();
-    camera.position.z -= 1.2;
-  }
-  if (e.key === 'ArrowDown') {
-    camera.position.z += 1.2;
-  }
+  if (e.key === 'ArrowUp')   camera.position.z -= 1.5;
+  if (e.key === 'ArrowDown') camera.position.z += 1.5;
 });
 
-// ── スマホ：タッチ ────────────────────────────────────
-// 1本指 → 視点回転（PCのマウス移動に相当）
-// 2本指 → 前後移動（PCの矢印キーに相当）
-
+// スマホ：タッチ
 let lastTouchX = 0;
 let lastTouchY = 0;
 let lastPinchDist = 0;
@@ -456,11 +468,9 @@ window.addEventListener('touchstart', (e) => {
     lastTouchY = e.touches[0].clientY;
   }
   if (e.touches.length === 2) {
-    // 2本指の初期距離を記録
     const dx = e.touches[0].clientX - e.touches[1].clientX;
     const dy = e.touches[0].clientY - e.touches[1].clientY;
     lastPinchDist = Math.sqrt(dx*dx + dy*dy);
-    // 2本指の中心Y
     lastTouchY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
   }
 }, { passive: true });
@@ -468,44 +478,34 @@ window.addEventListener('touchstart', (e) => {
 window.addEventListener('touchmove', (e) => {
   e.preventDefault();
 
-  // ── 1本指：視点回転 ──
+  // 1本指：視点回転（スマホは感度低め）
   if (e.touches.length === 1) {
     const dx = e.touches[0].clientX - lastTouchX;
     const dy = e.touches[0].clientY - lastTouchY;
-
-    targetRotY -= dx * 0.005;
-    targetRotX -= dy * 0.003;
-
-    // 上下限を設ける
-    targetRotX = Math.max(-0.4, Math.min(0.4, targetRotX));
-    targetRotY = Math.max(-0.6, Math.min(0.6, targetRotY));
-
+    targetRotY -= dx * 0.002; // PC(0.005)より遅く
+    targetRotX -= dy * 0.001;
+    targetRotX = Math.max(-0.3, Math.min(0.3, targetRotX));
+    targetRotY = Math.max(-0.5, Math.min(0.5, targetRotY));
     lastTouchX = e.touches[0].clientX;
     lastTouchY = e.touches[0].clientY;
   }
 
-  // ── 2本指：ピンチ or 縦スワイプで前後移動 ──
+  // 2本指：前後移動
   if (e.touches.length === 2) {
     const dx = e.touches[0].clientX - e.touches[1].clientX;
     const dy = e.touches[0].clientY - e.touches[1].clientY;
     const dist = Math.sqrt(dx*dx + dy*dy);
     const centerY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
 
-    // ピンチイン/アウト で前後
     const pinchDelta = dist - lastPinchDist;
     if (Math.abs(pinchDelta) > 1) {
-      const oldZ = camera.position.z;
-      camera.position.z -= pinchDelta * 0.08; // ピンチアウト=前進
-      if (camera.position.z < oldZ) dissolveAllFixed();
+      camera.position.z -= pinchDelta * 0.05;
       lastPinchDist = dist;
     }
 
-    // 2本指縦スワイプでも前後
     const swipeDelta = lastTouchY - centerY;
     if (Math.abs(swipeDelta) > 1) {
-      const oldZ = camera.position.z;
-      camera.position.z -= swipeDelta * 0.05;
-      if (camera.position.z < oldZ) dissolveAllFixed();
+      camera.position.z -= swipeDelta * 0.03;
       lastTouchY = centerY;
     }
   }
@@ -518,7 +518,7 @@ function animate() {
   requestAnimationFrame(animate);
 
   // 自動前進
-  camera.position.z -= 0.005;
+  camera.position.z -= 0.002;
 
   // カメラ回転をスムーズに追従（PC・スマホ共通）
   camera.rotation.y += (targetRotY - camera.rotation.y) * 0.08;
@@ -567,81 +567,53 @@ function animate() {
 function dissolvePhoto(item) {
   if (!item.dissolving || item.dissolved) return;
 
-  // フェーズ1：写真が白く光り始める
   if (!item._dissolvePhase) item._dissolvePhase = 1;
 
+  // フェーズ1：オーラが白く光り始める
   if (item._dissolvePhase === 1) {
-    // オーラをじわっと明るくする
     if (item.aura) {
       item.aura.visible = true;
       item.aura.layers.enable(BLOOM_LAYER);
       if (item.aura.material.opacity < 1.2) {
         item.aura.material.opacity += 0.008;
       } else {
-        item._dissolvePhase = 2; // フェーズ2へ
+        item._dissolvePhase = 2;
       }
     } else {
       item._dissolvePhase = 2;
     }
   }
 
-  // フェーズ2：写真が光に溶けていく
+  // フェーズ2：写真とオーラが消えていく
   if (item._dissolvePhase === 2) {
-    if (item.material.opacity > 0) {
-      item.material.opacity -= 0.6;
+    if (item.material && item.material.opacity > 0) {
+      item.material.opacity -= 0.012;
     }
-
-    // オーラはゆっくり消える
     if (item.aura && item.aura.material.opacity > 0) {
-      item.aura.material.opacity -= 0.003;
+      item.aura.material.opacity -= 0.7;
     }
 
-    // 完全に消えたら終了
-    if (item.material.opacity <= 0 && (!item.aura || item.aura.material.opacity <= 0)) {
+    // 完全に消えたらシーンから削除
+    if ((!item.material || item.material.opacity <= 0) &&
+        (!item.aura || item.aura.material.opacity <= 0)) {
       item.dissolved = true;
+      if (item.mesh) {
+        scene.remove(item.mesh);
+        item.mesh.geometry.dispose();
+        item.material.dispose();
+        item.mesh = null;
+      }
       if (item.aura) {
-        item.aura.visible = false;
-        item.aura.material.opacity = 0;
+        scene.remove(item.aura);
+        item.aura.geometry.dispose();
+        item.aura.material.dispose();
+        item.aura = null;
       }
       if (item.particles) item.particles.visible = false;
     }
   }
-
-  // キラキラ感：オーラの不透明度をランダムに揺らす
-  const flicker = Math.pow(Math.random(), 3) * 0.3;
-
-  // 写真を消す
-  if (item.material.opacity > 0) {
-    item.material.opacity -= 0.006;
-  }
-
-  // オーラがキラキラしながら消える
-  if (item.aura && item.aura.material.opacity > 0) {
-    item.aura.material.opacity = Math.max(0,
-      item.aura.material.opacity - 0.004 + flicker * 0.1
-    );
-    // 暖色系に色を変える
-    item.aura.material.color.setHSL(0.08, 0.8, 0.9 + flicker);
-  }
-
-  // 写真が消えたらオーラも強制的に消す
-  if (item.material.opacity <= 0) {
-    if (item.aura) {
-      item.aura.material.opacity -= 0.02;
-      if (item.aura.material.opacity <= 0) {
-        item.aura.visible = false;
-        item.aura.material.opacity = 0;
-        item.dissolved = true;
-      }
-    } else {
-      item.dissolved = true;
-    }
-    if (item.particles) item.particles.visible = false;
-  }
 }
-
 animate();
-
 // ======================================================
 // リサイズ
 // ======================================================
