@@ -34,7 +34,7 @@ composer.addPass(new RenderPass(scene, camera));
 
 const bloomPass = new UnrealBloomPass(
   new THREE.Vector2(window.innerWidth, window.innerHeight),
-  1.3, 0.5, 0.93
+  1.3, 2.0, 0.93
 );
 composer.addPass(bloomPass);
 
@@ -51,18 +51,19 @@ const PHOTO_FILES = [
 // 写真配置
 // ======================================================
 const SPIRAL_CONFIG = {
-  radius: 0,
-  zStep: 14,
-  yAmplitude: 0,
-  photosPerLoop: 5,
+  radius: 6,         // 左右に振る幅（0から6に変更）
+  zStep: 16,         // 奥への間隔（14から16に少し広げて見やすく）
+  yAmplitude: 1.2,   // 上下の緩やかな高低差
 };
 
 function getSpiralPosition(index) {
-  const { radius, zStep, yAmplitude, photosPerLoop } = SPIRAL_CONFIG;
-  const angle = (index / photosPerLoop) * Math.PI * 2;
+  const { radius, zStep, yAmplitude } = SPIRAL_CONFIG;
+  // 偶数なら右(1)、奇数なら左(-1)に配置して一本道のジグザグを作る
+  const side = index % 2 === 0 ? 1 : -1; 
+  
   return new THREE.Vector3(
-    Math.cos(angle) * radius,
-    Math.sin(angle) * yAmplitude,
+    side * radius,
+    Math.sin(index) * yAmplitude, // 規則的な上下動を付与
     -(index * zStep)
   );
 }
@@ -237,10 +238,28 @@ function loadPhotoItem(item) {
 
   const isMobile = window.innerWidth <= 768;
 
-const baseHeight = isMobile ? 11.5 : 11;  //11.5
+const frameHeight = isMobile ? 9.5 : 10;
 
 const aspect = img.width / img.height;
-const baseWidth = baseHeight * aspect;
+
+let baseWidth = frameHeight * aspect;
+let baseHeight = frameHeight;
+
+
+// 横長写真を制限
+if (baseWidth > 14) {
+  baseWidth = 14;
+  baseHeight = baseWidth / aspect;
+}
+
+
+// 縦写真を制限
+const maxHeight = isMobile ? 13 : 14;
+
+if (baseHeight > maxHeight) {
+  baseHeight = maxHeight;
+  baseWidth = baseHeight * aspect;
+}
 
     const w = 150;
     const h = Math.round(150 / aspect);
@@ -371,17 +390,36 @@ const TRIGGER_DISTANCE = 25;
 
 function checkTriggers() {
   const now = Date.now();
-  photoItems.forEach(item => {
-    if (!item.loaded || item.triggered) return;
+  let newlyTriggered = null;
+
+  for (let i = 0; i < photoItems.length; i++) {
+    const item = photoItems[i];
+    if (!item.loaded || item.triggered) continue;
+
     const dist = camera.position.distanceTo(item.position);
     const byDistance = dist < TRIGGER_DISTANCE;
     const byClick    = item._clickTriggered === true;
     const byTime     = item.index === 0 && item._loadedAt && (now - item._loadedAt) > 5000;
+
     if (byDistance || byClick || byTime) {
       item.triggered = true;
       item.attract   = true;
+      newlyTriggered = item;
     }
-  });
+  }
+
+  // 新しく写真が出現した場合のみ、表示中の枚数をチェックして古いものを消す
+  if (newlyTriggered) {
+    // 現在画面に存在する（トリガー済み、かつ、まだ完全に消滅していない）写真をインデックス順に集める
+    const activeItems = photoItems.filter(item => item.triggered && !item.dissolved);
+    
+    // 表示上限（3枚）を超えていたら、一番古いもの（配列の先頭）を消滅モードにする
+    if (activeItems.length > 3) {
+      const oldest = activeItems[0];
+      oldest.dissolving = true;
+      oldest.viewing = false;
+    }
+  }
 }
 
 function attractParticles(item) {
@@ -571,19 +609,34 @@ function animate() {
   accentParticles.rotation.y     += 0.0002;
   accentParticles.rotation.x     += 0.00005;
 
-  // camera.position.z をローカル変数にキャッシュ（プロパティアクセスを削減）
-  const camZ = camera.position.z;
+  checkTriggers();
 
-  // forEach → for ループ（コールバック生成コストを削除）
+  // ─── 【修正】写真への自動回避ロジック（近づくと横にスッと逸れる） ───
+  const AVOID_RADIUS_Z = 12; // 回避を開始する奥方向の距離
+  const AVOID_RADIUS_X = 6;  // 回避する左右の幅
+
   for (let i = 0; i < photoItems.length; i++) {
     const item = photoItems[i];
-    if (!item.viewing) continue;
-    if (
-      now - item.viewStartTime > 10000 ||
-      Math.abs(camZ - item.viewStartZ) > 12
-    ) {
-      item.dissolving = true;
-      item.viewing    = false;
+    // まだ消滅していない、正面にある写真のみ判定
+    if (!item.triggered || item.dissolved || !item.mesh) continue;
+
+    // カメラと写真の相対位置を計算
+    const dx = camera.position.x - item.mesh.position.x;
+    const dz = camera.position.z - item.mesh.position.z;
+    const distZ = Math.abs(dz);
+
+    // 写真の一定範囲内（Z軸方向）にカメラが近づいた場合
+    if (distZ < AVOID_RADIUS_Z) {
+      // Z軸の距離に応じて、回避する強さ（0.0 ～ 1.0）を計算
+      const ease = 1.0 - (distZ / AVOID_RADIUS_Z);
+      const avoidStrength = Math.pow(ease, 2); // なめらかに避けるためのカーブ
+
+      // 写真が右にあるか左にあるかに応じて、反対方向にカメラを押し出す（X軸）
+      const pushDir = dx >= 0 ? 1 : -1;
+      const targetX = item.mesh.position.x + pushDir * AVOID_RADIUS_X;
+
+      // カメラのX位置をなめらかにターゲットに近づける
+      camera.position.x += (targetX - camera.position.x) * avoidStrength * 0.1;
     }
   }
 
@@ -617,6 +670,13 @@ function animate() {
 
       item.mesh.position.set(mx, my, mz);
       if (item.aura) item.aura.position.set(mx, my, mz);
+      // ─── 【修正】写真の上下の傾きを防ぎ、左右だけをカメラに正対させる ───
+      _basePos.copy(camera.position);
+      // 写真と同じ高さ（Y）をターゲットにすることで、上下の無駄な傾きを無くす
+      _basePos.y = item.mesh.position.y; 
+      
+      item.mesh.lookAt(_basePos);
+      if (item.aura) item.aura.lookAt(_basePos);
     }
   }
 
@@ -701,4 +761,5 @@ window.addEventListener('resize', () => {
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
   composer.setSize(window.innerWidth, window.innerHeight);
+  bloomPass.resolution.set(window.innerWidth, window.innerHeight);
 });
