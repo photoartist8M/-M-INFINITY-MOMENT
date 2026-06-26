@@ -90,8 +90,8 @@ function createPhotoItem(src, index) {
     dissolved: false,
     dissolveParticles: null,
     viewing: false,
-    viewStartTime: null,
-    _img: null,
+viewStartZ: null,
+_img: null,
     viewStartZ: null,
   };
 }
@@ -363,7 +363,7 @@ photoItems.forEach(item => loadPhotoItem(item));
 // ======================================================
 // トリガー・吸引・フェード・固定
 // ======================================================
-const TRIGGER_DISTANCE = 22;
+const TRIGGER_DISTANCE = 18;
 
 function checkTriggers() {
   const now = Date.now();
@@ -421,6 +421,7 @@ function checkFixed(item) {
     item.mesh.position.copy(worldPos);
     item.mesh.quaternion.set(0, 0, 0, 1);
     item.viewing = true;
+item.viewStartTime = Date.now();
 item.viewStartZ = camera.position.z;
   }
 }
@@ -475,8 +476,21 @@ window.addEventListener('keydown', (e) => {
 let lastTouchX = 0;
 let lastTouchY = 0;
 let lastPinchDist = 0;
+let lastTapTime = 0;
+let moveForward = false;
+let moveTargetZ = 0;
 
 window.addEventListener('touchstart', (e) => {
+
+  const now = Date.now();
+
+ if (now - lastTapTime < 300) {
+  moveTargetZ = camera.position.z - 3;
+  moveForward = true;
+}
+
+  lastTapTime = now;
+
   if (e.touches.length === 1) {
     lastTouchX = e.touches[0].clientX;
     lastTouchY = e.touches[0].clientY;
@@ -530,6 +544,16 @@ function animate() {
   requestAnimationFrame(animate);
 
   camera.position.z -= 0.002;
+  if (moveForward) {
+
+  camera.position.z += (moveTargetZ - camera.position.z) * 0.15;
+
+  if (Math.abs(moveTargetZ - camera.position.z) < 0.03) {
+    camera.position.z = moveTargetZ;
+    moveForward = false;
+  }
+
+}
 
   camera.rotation.y += (targetRotY - camera.rotation.y) * 0.08;
   camera.rotation.x += (targetRotX - camera.rotation.x) * 0.08;
@@ -540,11 +564,14 @@ function animate() {
 
   photoItems.forEach(item => {
     if (!item.viewing) return;
-   const moveDistance = Math.abs(camera.position.z - item.viewStartZ);
+  const moveDistance = Math.abs(camera.position.z - item.viewStartZ);
 
-if (moveDistance > 2.8) {
-    item.dissolving = true;
-    item.viewing = false;
+if (
+  Date.now() - item.viewStartTime > 10000 ||
+  moveDistance > 3
+) {
+  item.dissolving = true;
+  item.viewing = false;
 }
   });
 
@@ -622,6 +649,19 @@ function dissolvePhoto(item) {
   }
 }
 animate();
+
+// ======================================================
+// フルスクリーン（スマホ）
+// ======================================================
+window.addEventListener('touchstart', () => {
+
+  if (!document.fullscreenElement) {
+
+    document.documentElement.requestFullscreen?.();
+
+  }
+
+}, { once: true });
 // ======================================================
 // リサイズ
 // ======================================================
