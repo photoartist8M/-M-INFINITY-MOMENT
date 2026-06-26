@@ -367,7 +367,7 @@ photoItems.forEach(item => loadPhotoItem(item));
 // ======================================================
 // トリガー・吸引・フェード・固定
 // ======================================================
-const TRIGGER_DISTANCE = 18;
+const TRIGGER_DISTANCE = 25;
 
 function checkTriggers() {
   const now = Date.now();
@@ -555,7 +555,7 @@ function animate() {
   // フレーム内で 1 回だけ取得して使い回す
   const now = performance.now();
 
-  camera.position.z -= 0.002;
+  camera.position.z -= 0.0005;
   if (moveForward) {
     camera.position.z += (moveTargetZ - camera.position.z) * 0.15;
     if (Math.abs(moveTargetZ - camera.position.z) < 0.03) {
@@ -580,7 +580,7 @@ function animate() {
     if (!item.viewing) continue;
     if (
       now - item.viewStartTime > 10000 ||
-      Math.abs(camZ - item.viewStartZ) > 3
+      Math.abs(camZ - item.viewStartZ) > 12
     ) {
       item.dissolving = true;
       item.viewing    = false;
