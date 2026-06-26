@@ -92,6 +92,7 @@ function createPhotoItem(src, index) {
     viewing: false,
     viewStartTime: null,
     _img: null,
+    viewStartZ: null,
   };
 }
 
@@ -420,7 +421,7 @@ function checkFixed(item) {
     item.mesh.position.copy(worldPos);
     item.mesh.quaternion.set(0, 0, 0, 1);
     item.viewing = true;
-    item.viewStartTime = Date.now();
+item.viewStartZ = camera.position.z;
   }
 }
 
@@ -539,10 +540,12 @@ function animate() {
 
   photoItems.forEach(item => {
     if (!item.viewing) return;
-    if (Date.now() - item.viewStartTime > 10000) {
-      item.dissolving = true;
-      item.viewing    = false;
-    }
+   const moveDistance = Math.abs(camera.position.z - item.viewStartZ);
+
+if (moveDistance > 2.8) {
+    item.dissolving = true;
+    item.viewing = false;
+}
   });
 
   checkTriggers();
