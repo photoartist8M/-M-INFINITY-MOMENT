@@ -32,7 +32,7 @@ composer.addPass(new RenderPass(scene, camera));
 
 const bloomPass = new UnrealBloomPass(
   new THREE.Vector2(window.innerWidth, window.innerHeight),
-  1.3, 0.5, 0.95
+  1.3, 0.5, 0.90
 );
 composer.addPass(bloomPass);
 
@@ -234,9 +234,12 @@ function loadPhotoItem(item) {
   img.onload = () => {
     item._img = img;
 
-    const baseHeight = 11;
-    const aspect = img.width / img.height;
-    const baseWidth = baseHeight * aspect;
+  const isMobile = window.innerWidth <= 768;
+
+const baseHeight = isMobile ? 11.5 : 11;  //11.5
+
+const aspect = img.width / img.height;
+const baseWidth = baseHeight * aspect;
 
     const w = 150;
     const h = Math.round(150 / aspect);
@@ -509,9 +512,8 @@ window.addEventListener('touchmove', (e) => {
   if (e.touches.length === 1) {
     const dx = e.touches[0].clientX - lastTouchX;
     const dy = e.touches[0].clientY - lastTouchY;
-    targetRotY -= dx * 0.002;
-    targetRotX -= dy * 0.001;
-    targetRotX = Math.max(-0.3, Math.min(0.3, targetRotX));
+    targetRotY -= dx * 0.0015; //スマホ感度
+  camera.position.z -= dy * 0.03;
     targetRotY = Math.max(-0.5, Math.min(0.5, targetRotY));
     lastTouchX = e.touches[0].clientX;
     lastTouchY = e.touches[0].clientY;
@@ -538,22 +540,28 @@ window.addEventListener('touchmove', (e) => {
 }, { passive: false });
 
 // ======================================================
+// 事前確保ベクトル（フレームごとの new/clone を排除）
+// ======================================================
+const _basePos = new THREE.Vector3();
+
+// ======================================================
 // アニメーションループ
 // ======================================================
 function animate() {
   requestAnimationFrame(animate);
 
+  // performance.now() は Date.now() より高精度かつ低コスト
+  // フレーム内で 1 回だけ取得して使い回す
+  const now = performance.now();
+
   camera.position.z -= 0.002;
   if (moveForward) {
-
-  camera.position.z += (moveTargetZ - camera.position.z) * 0.15;
-
-  if (Math.abs(moveTargetZ - camera.position.z) < 0.03) {
-    camera.position.z = moveTargetZ;
-    moveForward = false;
+    camera.position.z += (moveTargetZ - camera.position.z) * 0.15;
+    if (Math.abs(moveTargetZ - camera.position.z) < 0.03) {
+      camera.position.z = moveTargetZ;
+      moveForward = false;
+    }
   }
-
-}
 
   camera.rotation.y += (targetRotY - camera.rotation.y) * 0.08;
   camera.rotation.x += (targetRotX - camera.rotation.x) * 0.08;
@@ -562,38 +570,54 @@ function animate() {
   accentParticles.rotation.y     += 0.0002;
   accentParticles.rotation.x     += 0.00005;
 
-  photoItems.forEach(item => {
-    if (!item.viewing) return;
-  const moveDistance = Math.abs(camera.position.z - item.viewStartZ);
+  // camera.position.z をローカル変数にキャッシュ（プロパティアクセスを削減）
+  const camZ = camera.position.z;
 
-if (
-  Date.now() - item.viewStartTime > 10000 ||
-  moveDistance > 3
-) {
-  item.dissolving = true;
-  item.viewing = false;
-}
-  });
+  // forEach → for ループ（コールバック生成コストを削除）
+  for (let i = 0; i < photoItems.length; i++) {
+    const item = photoItems[i];
+    if (!item.viewing) continue;
+    if (
+      now - item.viewStartTime > 10000 ||
+      Math.abs(camZ - item.viewStartZ) > 3
+    ) {
+      item.dissolving = true;
+      item.viewing    = false;
+    }
+  }
 
   checkTriggers();
 
-  photoItems.forEach(item => {
+  // sin/cos 用の時間を 1 回だけ計算
+  const t = now * 0.0005;
+
+  for (let i = 0; i < photoItems.length; i++) {
+    const item = photoItems[i];
+
+    // 消滅済みは全処理をスキップ（最大の節約）
+    if (item.dissolved) continue;
+
     attractParticles(item);
     fadeInPhoto(item);
     checkFixed(item);
     dissolvePhoto(item);
 
     if (item.fixed && !item.dissolving && item.mesh) {
-      const t = Date.now() * 0.0005;
       const floatY = Math.sin(t + item.index * 1.5) * 0.8;
       const floatX = Math.cos(t * 0.7 + item.index * 1.2) * 0.4;
-      const basePos = item.position.clone().add(new THREE.Vector3(0, 0, 3));
-      item.mesh.position.set(basePos.x + floatX, basePos.y + floatY, basePos.z);
-      if (item.aura) {
-        item.aura.position.set(basePos.x + floatX, basePos.y + floatY, basePos.z);
-      }
+
+      // clone() + add() の代わりに事前確保ベクトルを再利用（GC ゼロ）
+      _basePos.copy(item.position);
+      _basePos.z += 3;
+
+      const mx = _basePos.x + floatX;
+      const my = _basePos.y + floatY;
+      const mz = _basePos.z;
+
+      item.mesh.position.set(mx, my, mz);
+      if (item.aura) item.aura.position.set(mx, my, mz);
     }
-  });
+  }
 
   updateParticleEffects();
   composer.render();
@@ -609,11 +633,14 @@ function dissolvePhoto(item) {
 
   if (item._dissolvePhase === 1) {
     if (item.aura) {
-      item.aura.visible = true;
-      item.aura.layers.enable(BLOOM_LAYER);
-      if (item.aura.material.opacity < 1.2) {
-        item.aura.material.opacity += 0.008;
-      } else {
+      // layers.enable / visible は状態変化時に 1 回だけ呼ぶ（毎フレーム不要）
+      if (!item._auraActivated) {
+        item.aura.visible = true;
+        item.aura.layers.enable(BLOOM_LAYER);
+        item._auraActivated = true;
+      }
+      item.aura.material.opacity += 0.008;
+      if (item.aura.material.opacity >= 1.2) {
         item._dissolvePhase = 2;
       }
     } else {
@@ -622,34 +649,37 @@ function dissolvePhoto(item) {
   }
 
   if (item._dissolvePhase === 2) {
-    if (item.material && item.material.opacity > 0) {
-      item.material.opacity -= 0.012;
-    }
-    if (item.aura && item.aura.material.opacity > 0) {
-      item.aura.material.opacity -= 0.02;
-    }
+    // 変数で状態を保持し、不要なプロパティアクセスを削減
+    const mat  = item.material;
+    const aura = item.aura;
 
-    if ((!item.material || item.material.opacity <= 0) &&
-        (!item.aura || item.aura.material.opacity <= 0)) {
-      item.dissolved = true;
+    if (mat  && mat.opacity  > 0) mat.opacity  -= 0.012;
+    if (aura && aura.material.opacity > 0) aura.material.opacity -= 0.02;
+
+    const meshDone = !mat  || mat.opacity  <= 0;
+    const auraDone = !aura || aura.material.opacity <= 0;
+
+    if (meshDone && auraDone) {
+      item.dissolved = true;  // 次フレームからループ先頭でスキップされる
+
       if (item.mesh) {
         scene.remove(item.mesh);
         item.mesh.geometry.dispose();
-        item.material.dispose();
+        mat.dispose();
         item.mesh = null;
       }
-      if (item.aura) {
-        scene.remove(item.aura);
-        item.aura.geometry.dispose();
-        item.aura.material.dispose();
+      if (aura) {
+        scene.remove(aura);
+        aura.geometry.dispose();
+        aura.material.dispose();
         item.aura = null;
       }
       if (item.particles) item.particles.visible = false;
     }
   }
 }
-animate();
 
+animate();
 // ======================================================
 // フルスクリーン（スマホ）
 // ======================================================
