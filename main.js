@@ -25,14 +25,16 @@ const renderer = new THREE.WebGLRenderer({
   antialias: true
 });
 renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setPixelRatio(
+ Math.min(window.devicePixelRatio,1.5)
+);
 
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
 
 const bloomPass = new UnrealBloomPass(
   new THREE.Vector2(window.innerWidth, window.innerHeight),
-  1.3, 0.5, 0.90
+  1.3, 0.5, 0.93
 );
 composer.addPass(bloomPass);
 
@@ -92,7 +94,6 @@ function createPhotoItem(src, index) {
     viewing: false,
 viewStartZ: null,
 _img: null,
-    viewStartZ: null,
   };
 }
 
@@ -167,7 +168,7 @@ function createSparkTexture(size = 128) {
 // 背景粒子 & アクセント粒子
 // ======================================================
 function createBackgroundParticles() {
-  const count = 3000;
+  const count = 2000;
   const positions = new Float32Array(count * 3);
   for (let i = 0; i < count; i++) {
     const r = 80 * Math.cbrt(Math.random());
@@ -195,7 +196,7 @@ function createBackgroundParticles() {
 }
 
 function createAccentParticles() {
-  const count = 250;
+  const count = 200;
   const positions = new Float32Array(count * 3);
   for (let i = 0; i < count; i++) {
     const r     = 60 * Math.cbrt(Math.random());
