@@ -9,6 +9,17 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x0a0805);
 scene.fog = new THREE.Fog(0x0a0805, 5, 35);
+const ambientLight = new THREE.AmbientLight(0xfff5e0, 0.25); // 暖色の環境光
+scene.add(ambientLight);
+
+const keyLight = new THREE.DirectionalLight(0xfff0d0, 0.9);  // キーライト（正面上方）
+keyLight.position.set(3, 8, 12);
+scene.add(keyLight);
+
+const fillLight = new THREE.DirectionalLight(0xd0e8ff, 0.25); // フィルライト（逆側）
+fillLight.position.set(-5, -3, 5);
+scene.add(fillLight);
+
 
 const camera = new THREE.PerspectiveCamera(
   75,
@@ -37,6 +48,39 @@ const bloomPass = new UnrealBloomPass(
   1.3, 2.0, 0.93
 );
 composer.addPass(bloomPass);
+// ── 手続き型環境テクスチャ生成 ───────────────────────────────
+function buildProceduralEnv() {
+  const pmrem = new THREE.PMREMGenerator(renderer);
+
+  // 小さなシーンを環境マップのソースとして使う
+  const envScene = new THREE.Scene();
+
+  // 暖色の光源（上方・前方）
+  const warm = new THREE.Mesh(
+    new THREE.SphereGeometry(6),
+    new THREE.MeshBasicMaterial({ color: 0xffd080 })
+  );
+  warm.position.set(10, 20, -10);
+  envScene.add(warm);
+
+  // 冷色の光源（下方・後方）
+  const cool = new THREE.Mesh(
+    new THREE.SphereGeometry(4),
+    new THREE.MeshBasicMaterial({ color: 0x1a2a50 })
+  );
+  cool.position.set(-15, -20, 5);
+  envScene.add(cool);
+
+  // 背景の暗闇
+  envScene.background = new THREE.Color(0x05040a);
+
+  const envRT = pmrem.fromScene(envScene, 0.04); // 0.04 = blur強度
+  pmrem.dispose();
+
+  scene.environment = envRT.texture;
+}
+
+buildProceduralEnv(); // ← renderer 初期化後・写真ロード前に呼ぶ
 
 // ======================================================
 // 写真リスト
@@ -440,12 +484,13 @@ function buildPhotoMesh(item, baseWidth, baseHeight) {
   tex.needsUpdate = true;
 
   const geo = new THREE.PlaneGeometry(baseWidth, baseHeight);
-  item.material = new THREE.MeshBasicMaterial({
-    map: tex,
-    transparent: true,
-    opacity: 0,
-    depthWrite: false
-  });
+
+item.material = new THREE.MeshBasicMaterial({
+  map: tex,
+  transparent: true,
+  opacity: 0,
+  depthWrite: false
+});
 
   item.mesh = new THREE.Mesh(geo, item.material);
   item.mesh.position.copy(item.position).add(new THREE.Vector3(0, 0, 3));
@@ -575,6 +620,7 @@ function checkFixed(item) {
     item.viewing = true;
 item.viewStartTime = Date.now();
 item.viewStartZ = camera.position.z;
+item._fixedAt = Date.now(); // 固定された時刻を記録
   }
 }
 
@@ -805,23 +851,44 @@ accentParticles.position.copy(camera.position);
     fadeInPhoto(item);
     checkFixed(item);
     dissolvePhoto(item);
+    dissolvePhoto(item);
     if (item.fixed && !item.dissolving && item.mesh) {
       const floatY = Math.sin(t + item.index * 1.5) * 0.8;
       const floatX = Math.cos(t * 0.7 + item.index * 1.2) * 0.4;
       _basePos.copy(item.position);
       _basePos.z += 3;
-      const mx = _basePos.x + floatX;
+
+  // カメラが近づいたら逃げる
+      const pdx = item.mesh.position.x - camera.position.x;
+      const pdz = item.mesh.position.z - camera.position.z;
+      const distXZ = Math.sqrt(pdx * pdx + pdz * pdz);
+      const repelDist = 12;
+
+      if (!item._repelX) { item._repelX = 0; item._repelZ = 0; }
+
+      if (distXZ < repelDist && distXZ > 0.01) {
+        const force = (repelDist - distXZ) / repelDist * 1.2;
+        item._repelX += (pdx / distXZ) * force;
+        item._repelZ += (pdz / distXZ) * force;
+      }
+      item._repelX *= 0.88;
+      item._repelZ *= 0.88;
+
+      const mx = _basePos.x + floatX + item._repelX;
       const my = _basePos.y + floatY;
-      const mz = _basePos.z;
-      item.mesh.position.set(mx, my, mz);
-      if (item.aura) item.aura.position.set(mx, my, mz);
+      const mz = _basePos.z + item._repelZ;
+          item.mesh.position.set(mx, my, mz);
       _basePos.copy(camera.position);
       _basePos.y = item.mesh.position.y;
       item.mesh.lookAt(_basePos);
-      if (item.aura) item.aura.lookAt(_basePos);
+
+      // auraを完全にmeshに同期
+      if (item.aura) {
+        item.aura.position.copy(item.mesh.position);
+        item.aura.quaternion.copy(item.mesh.quaternion);
     }
   }
-
+}
   backgroundParticles.material.uniforms.uTime.value = now * 0.001;
   updateParticleEffects();
 
@@ -836,58 +903,76 @@ accentParticles.position.copy(camera.position);
 // 光に溶けて消える
 // ======================================================
 function dissolvePhoto(item) {
-  if (!item.dissolving || item.dissolved) return;
+  if (!item.loaded || item.dissolved) return;
 
-  if (!item._dissolvePhase) item._dissolvePhase = 1;
-
-  if (item._dissolvePhase === 1) {
-    if (item.aura) {
-      // layers.enable / visible は状態変化時に 1 回だけ呼ぶ（毎フレーム不要）
-      if (!item._auraActivated) {
-        item.aura.visible = true;
-        item.aura.layers.enable(BLOOM_LAYER);
-        item._auraActivated = true;
-      }
-      item.aura.material.opacity += 0.008;
-      if (item.aura.material.opacity >= 1.2) {
-        item._dissolvePhase = 2;
-      }
-    } else {
-      item._dissolvePhase = 2;
+  // 8秒タイマー
+  if (item.viewing && item._fixedAt && !item.dissolving) {
+    if (Date.now() - item._fixedAt > 8000) {
+      item.dissolving = true;
+      item.viewing = false;
     }
   }
 
-  if (item._dissolvePhase === 2) {
-    // 変数で状態を保持し、不要なプロパティアクセスを削減
-    const mat  = item.material;
-    const aura = item.aura;
+  if (!item.dissolving) return;
 
-    if (mat  && mat.opacity  > 0) mat.opacity  -= 0.012;
-    if (aura && aura.material.opacity > 0) aura.material.opacity -= 0.02;
-
-    const meshDone = !mat  || mat.opacity  <= 0;
-    const auraDone = !aura || aura.material.opacity <= 0;
-
-    if (meshDone && auraDone) {
-      item.dissolved = true;  // 次フレームからループ先頭でスキップされる
-
-      if (item.mesh) {
-        scene.remove(item.mesh);
-        item.mesh.geometry.dispose();
-        mat.dispose();
-        item.mesh = null;
-      }
-      if (aura) {
-        scene.remove(aura);
-        aura.geometry.dispose();
-        aura.material.dispose();
-        item.aura = null;
-      }
-      if (item.particles) item.particles.visible = false;
+  // dissolve開始時に各パーティクルの散乱先をランダムに決める（buildParticlesの初期位置と同じ）
+  if (!item._dissolveTargets) {
+    item._dissolveTargets = [];
+    for (let i = 0; i < item.particleCount; i++) {
+      const r = 50 * Math.cbrt(Math.random());
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(2 * Math.random() - 1);
+      item._dissolveTargets.push(new THREE.Vector3(
+        r * Math.sin(phi) * Math.cos(theta),
+        r * Math.sin(phi) * Math.sin(theta),
+        r * Math.cos(phi)
+      ));
     }
+    // パーティクルをすぐ再表示
+    if (item.particles) {
+      item.particles.visible = true;
+      item.particles.material.opacity = 0.75;
+    }
+  }
+// fadeInPhoto の逆：写真とオーラを同時フェードアウト
+  if (item.mesh && item.material.opacity > 0) {
+    item.material.opacity -= 0.005;
+  }
+  if (item.aura && item.aura.material.opacity > 0) {
+    item.aura.material.opacity -= 0.005;
+  }
+
+  // attractParticles の逆：targetPositions からランダム散乱先へ移動
+  if (item.particles && item.particleGeo && item._dissolveTargets) {
+    const pos = item.particleGeo.attributes.position.array;
+    for (let i = 0; i < item.particleCount; i++) {
+      const ix = i * 3, iy = i * 3 + 1, iz = i * 3 + 2;
+      const p = new THREE.Vector3(pos[ix], pos[iy], pos[iz]);
+      const t = item._dissolveTargets[i];
+
+      // 目標座標を写真位置基準のワールド座標に変換
+      const worldTarget = t.clone().add(item.position);
+
+      const dir = worldTarget.clone().sub(p).multiplyScalar(0.008);
+      p.add(dir);
+      pos[ix] = p.x; pos[iy] = p.y; pos[iz] = p.z;
+    }
+    item.particleGeo.attributes.position.needsUpdate = true;
+
+    // 写真フェードに合わせてパーティクルも徐々に透明に
+    if (item.particles.material.opacity > 0) {
+      item.particles.material.opacity -= 0.003;
+    }
+  }
+
+  // 完全消滅
+  if (item.material.opacity <= 0) {
+    item.dissolved = true;
+    if (item.mesh)      { scene.remove(item.mesh);      item.mesh      = null; }
+    if (item.aura)      { scene.remove(item.aura);      item.aura      = null; }
+    if (item.particles) { scene.remove(item.particles); item.particles = null; }
   }
 }
-
 animate();
 // ======================================================
 // フルスクリーン（スマホ）
