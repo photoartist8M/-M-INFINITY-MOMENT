@@ -169,58 +169,168 @@ function createSparkTexture(size = 128) {
 // 背景粒子 & アクセント粒子
 // ======================================================
 function createBackgroundParticles() {
-  const count = 2000;
+  const count = 4500;
+
   const positions = new Float32Array(count * 3);
+  const speeds = new Float32Array(count);
+  const scales = new Float32Array(count);
+
   for (let i = 0; i < count; i++) {
-    const r = 80 * Math.cbrt(Math.random());
-    const theta = Math.random() * Math.PI * 2;
-    const phi = Math.acos(2 * Math.random() - 1);
-    positions[i * 3]     = r * Math.sin(phi) * Math.cos(theta);
-    positions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
-    positions[i * 3 + 2] = r * Math.cos(phi);
+
+    positions[i * 3] = (Math.random() - 0.5) * 40;
+    positions[i * 3 + 1] = (Math.random() - 0.5) * 24;
+    positions[i * 3 + 2] = (Math.random() - 0.5) * 180;
+    scales[i] = 0.6 + Math.random() * 1.4;
+
+    // 粒子ごとの速度
+    speeds[i] = 0.003 + Math.random() * 0.008;
   }
+
   const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  const mat = new THREE.PointsMaterial({
-    map: particleTexture,
-    color: 0xffd4a0,
-    size: 0.4,
-    transparent: true,
-    opacity: 0.6,
-    blending: THREE.AdditiveBlending,
-    depthWrite: false,
-    sizeAttenuation: true
-  });
+  geo.setAttribute(
+    "position",
+    new THREE.BufferAttribute(positions, 3)
+  );
+  geo.setAttribute(
+  'aScale',
+  new THREE.BufferAttribute(scales,1)
+);
+
+  const mat = new THREE.ShaderMaterial({
+
+  transparent: true,
+  depthWrite: false,
+  blending: THREE.AdditiveBlending,
+
+  uniforms: {
+    uTime: { value: 0 },
+    uTexture: { value: particleTexture }
+  },
+
+  vertexShader: `
+
+    attribute float aScale;
+
+    varying float vScale;
+
+    uniform float uTime;
+
+    void main(){
+
+      vScale = aScale;
+
+      vec3 p = position;
+
+      float breathe =
+          sin(uTime * 0.35 + aScale * 15.0) * 0.15;
+
+      p.xy += normalize(p.xy) * breathe;
+
+      vec4 mvPosition =
+          modelViewMatrix *
+          vec4(p,1.0);
+
+      gl_PointSize =
+          aScale *
+          (30.0 / -mvPosition.z);
+
+      gl_Position =
+          projectionMatrix *
+          mvPosition;
+
+    }
+
+  `,
+
+  fragmentShader: `
+
+    uniform sampler2D uTexture;
+uniform float uTime;
+
+    varying float vScale;
+
+    void main(){
+
+      vec4 tex =
+          texture2D(
+            uTexture,
+            gl_PointCoord
+          );
+
+      float pulse =
+    0.75 +
+    sin(
+        uTime * 1.2 +
+        vScale * 8.0
+    ) * 0.25;
+
+      vec3 color =
+    vec3(
+      1.0,
+      0.92,
+      0.78
+    ) * 2.3;
+
+gl_FragColor =
+    vec4(
+      color,
+      tex.a * pulse
+    );
+
+    }
+
+  `
+
+});
+
   const bg = new THREE.Points(geo, mat);
+
+  // ←速度を保存
+  bg.userData.speeds = speeds;
+
   scene.add(bg);
+
   return bg;
 }
 
 function createAccentParticles() {
+
   const count = 200;
+
   const positions = new Float32Array(count * 3);
+
   for (let i = 0; i < count; i++) {
-    const r     = 60 * Math.cbrt(Math.random());
+
+    const r = 25 * Math.cbrt(Math.random());
     const theta = Math.random() * Math.PI * 2;
-    const phi   = Math.acos(2 * Math.random() - 1);
-    positions[i * 3]     = r * Math.sin(phi) * Math.cos(theta);
+    const phi = Math.acos(2 * Math.random() - 1);
+
+    positions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
     positions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
     positions[i * 3 + 2] = r * Math.cos(phi);
   }
+
   const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute(
+    "position",
+    new THREE.BufferAttribute(positions, 3)
+  );
+
   const mat = new THREE.PointsMaterial({
-    map:             createSparkTexture(),
-    color:           0xffd27a,
-    size:            0.55,
-    transparent:     true,
-    opacity:         0.75,
-    blending:        THREE.AdditiveBlending,
-    depthWrite:      false,
+    map: createSparkTexture(),
+    color: 0xffd27a,
+    size: 0.30,
+    transparent: true,
+    opacity: 0.75,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
     sizeAttenuation: true,
   });
+
   const mesh = new THREE.Points(geo, mat);
+
   scene.add(mesh);
+
   return mesh;
 }
 
@@ -312,7 +422,7 @@ function buildParticles(item) {
   const mat = new THREE.PointsMaterial({
     map: createSparkTexture(),
     color: 0xffd27a,
-    size: 0.55,
+    size: 0.30,
     transparent: true,
     opacity: 0.75,
     blending: THREE.AdditiveBlending,
@@ -472,7 +582,7 @@ item.viewStartZ = camera.position.z;
 // 粒子エフェクト更新
 // ======================================================
 function updateParticleEffects() {
-  const t = Date.now() * 0.0015;
+  const t = Date.now() * 0.0035;
 
   // 背景粒子（変更なし）
   const sparkle = Math.pow(Math.random(), 15) * 0.5;
@@ -488,7 +598,7 @@ function updateParticleEffects() {
     if (!item.particles) return;
     const mat = item.particles.material;
     if (!mat._phase) mat._phase = Math.random() * 10;
-    const smooth       = 0.7  + Math.sin(t * 1.0 + mat._phase) * 0.15;
+    const smooth       = 0.72  + Math.sin(t * 0.15 + mat._phase) * 0.06;
     const photoSparkle = Math.pow(Math.random(), 100) * 0.12;
     mat.opacity = Math.min(1.0, smooth + photoSparkle);
     mat.size    = 0.8 + Math.sin(t * 1.3 + mat._phase) * 0.1 + photoSparkle * 0.8;
@@ -586,11 +696,11 @@ const _basePos = new THREE.Vector3();
 // ======================================================
 // アニメーションループ
 // ======================================================
+const LOOP_LENGTH = PHOTO_FILES.length * SPIRAL_CONFIG.zStep;
+
 function animate() {
   requestAnimationFrame(animate);
 
-  // performance.now() は Date.now() より高精度かつ低コスト
-  // フレーム内で 1 回だけ取得して使い回す
   const now = performance.now();
 
   camera.position.z -= 0.0005;
@@ -605,82 +715,120 @@ function animate() {
   camera.rotation.y += (targetRotY - camera.rotation.y) * 0.08;
   camera.rotation.x += (targetRotX - camera.rotation.x) * 0.08;
 
-  backgroundParticles.rotation.y += 0.0003;
+  backgroundParticles.rotation.y += 0.00008;
+  backgroundParticles.rotation.x += 0.00002;
   accentParticles.rotation.y     += 0.0002;
   accentParticles.rotation.x     += 0.00005;
 
-  checkTriggers();
-
-  // ─── 【修正】写真への自動回避ロジック（近づくと横にスッと逸れる） ───
-  const AVOID_RADIUS_Z = 12; // 回避を開始する奥方向の距離
-  const AVOID_RADIUS_X = 6;  // 回避する左右の幅
-
-  for (let i = 0; i < photoItems.length; i++) {
-    const item = photoItems[i];
-    // まだ消滅していない、正面にある写真のみ判定
-    if (!item.triggered || item.dissolved || !item.mesh) continue;
-
-    // カメラと写真の相対位置を計算
-    const dx = camera.position.x - item.mesh.position.x;
-    const dz = camera.position.z - item.mesh.position.z;
-    const distZ = Math.abs(dz);
-
-    // 写真の一定範囲内（Z軸方向）にカメラが近づいた場合
-    if (distZ < AVOID_RADIUS_Z) {
-      // Z軸の距離に応じて、回避する強さ（0.0 ～ 1.0）を計算
-      const ease = 1.0 - (distZ / AVOID_RADIUS_Z);
-      const avoidStrength = Math.pow(ease, 2); // なめらかに避けるためのカーブ
-
-      // 写真が右にあるか左にあるかに応じて、反対方向にカメラを押し出す（X軸）
-      const pushDir = dx >= 0 ? 1 : -1;
-      const targetX = item.mesh.position.x + pushDir * AVOID_RADIUS_X;
-
-      // カメラのX位置をなめらかにターゲットに近づける
-      camera.position.x += (targetX - camera.position.x) * avoidStrength * 0.1;
+  // 背景パーティクル個別移動
+  const positions = backgroundParticles.geometry.attributes.position.array;
+  const speeds = backgroundParticles.userData.speeds;
+  for (let i = 0; i < speeds.length; i++) {
+    positions[i * 3]     += Math.sin(now * 0.00015 + i) * 0.002;
+    positions[i * 3 + 1] += Math.cos(now * 0.00012 + i) * 0.0015;
+    positions[i * 3 + 2] += speeds[i];
+    if (positions[i * 3 + 2] > camera.position.z + 20) {
+      positions[i * 3 + 2] = camera.position.z - 160;
+      positions[i * 3]     = (Math.random() - 0.5) * 40;
+      positions[i * 3 + 1] = (Math.random() - 0.5) * 24;
     }
+  }
+  backgroundParticles.geometry.attributes.position.needsUpdate = true;
+
+  // ★パーティクルをカメラに追従
+backgroundParticles.position.copy(camera.position);
+accentParticles.position.copy(camera.position);
+
+  // ★テレポートループ
+  if (camera.position.z < -(LOOP_LENGTH - SPIRAL_CONFIG.zStep)) {
+    camera.position.z += LOOP_LENGTH;
+    photoItems.forEach(item => {
+      item.triggered       = false;
+      item.attract         = false;
+      item.formed          = false;
+      item.fixed           = false;
+      item.dissolving      = false;
+      item.dissolved       = false;
+      item.viewing         = false;
+      item._dissolvePhase  = null;
+      item._auraActivated  = false;
+      item._clickTriggered = false;
+      if (item.material) item.material.opacity = 0;
+      if (item.aura) {
+        item.aura.material.opacity = 0;
+        item.aura.visible = false;
+      }
+      if (item.particles) {
+        item.particles.visible = true;
+        item.particles.material.opacity = 0.75;
+      }
+      if (item.particleGeo) {
+        const pos = item.particleGeo.attributes.position.array;
+        for (let i = 0; i < item.particleCount; i++) {
+          const r     = 50 * Math.cbrt(Math.random());
+          const theta = Math.random() * Math.PI * 2;
+          const phi   = Math.acos(2 * Math.random() - 1);
+          pos[i*3]   = r * Math.sin(phi) * Math.cos(theta);
+          pos[i*3+1] = r * Math.sin(phi) * Math.sin(theta);
+          pos[i*3+2] = r * Math.cos(phi);
+        }
+        item.particleGeo.attributes.position.needsUpdate = true;
+      }
+    });
   }
 
   checkTriggers();
 
-  // sin/cos 用の時間を 1 回だけ計算
-  const t = now * 0.0005;
-
+  // 写真への自動回避ロジック
+  const AVOID_RADIUS_Z = 12;
+  const AVOID_RADIUS_X = 6;
   for (let i = 0; i < photoItems.length; i++) {
     const item = photoItems[i];
+    if (!item.triggered || item.dissolved || !item.mesh) continue;
+    const dx = camera.position.x - item.mesh.position.x;
+    const dz = camera.position.z - item.mesh.position.z;
+    const distZ = Math.abs(dz);
+    if (distZ < AVOID_RADIUS_Z) {
+      const ease = 1.0 - (distZ / AVOID_RADIUS_Z);
+      const avoidStrength = Math.pow(ease, 2);
+      const pushDir = dx >= 0 ? 1 : -1;
+      const targetX = item.mesh.position.x + pushDir * AVOID_RADIUS_X;
+      camera.position.x += (targetX - camera.position.x) * avoidStrength * 0.1;
+    }
+  }
 
-    // 消滅済みは全処理をスキップ（最大の節約）
+  const t = now * 0.0005;
+  for (let i = 0; i < photoItems.length; i++) {
+    const item = photoItems[i];
     if (item.dissolved) continue;
-
     attractParticles(item);
     fadeInPhoto(item);
     checkFixed(item);
     dissolvePhoto(item);
-
     if (item.fixed && !item.dissolving && item.mesh) {
       const floatY = Math.sin(t + item.index * 1.5) * 0.8;
       const floatX = Math.cos(t * 0.7 + item.index * 1.2) * 0.4;
-
-      // clone() + add() の代わりに事前確保ベクトルを再利用（GC ゼロ）
       _basePos.copy(item.position);
       _basePos.z += 3;
-
       const mx = _basePos.x + floatX;
       const my = _basePos.y + floatY;
       const mz = _basePos.z;
-
       item.mesh.position.set(mx, my, mz);
       if (item.aura) item.aura.position.set(mx, my, mz);
-      // ─── 【修正】写真の上下の傾きを防ぎ、左右だけをカメラに正対させる ───
       _basePos.copy(camera.position);
-      // 写真と同じ高さ（Y）をターゲットにすることで、上下の無駄な傾きを無くす
-      _basePos.y = item.mesh.position.y; 
-      
+      _basePos.y = item.mesh.position.y;
       item.mesh.lookAt(_basePos);
       if (item.aura) item.aura.lookAt(_basePos);
     }
   }
 
+  backgroundParticles.material.uniforms.uTime.value = now * 0.001;
   updateParticleEffects();
+
+  const bgMat = backgroundParticles.material;
+  bgMat.opacity = 0.38 + Math.sin(now * 0.0006) * 0.015;
+  bgMat.size    = 0.20 + Math.sin(now * 0.00012) * 0.035;
+
   composer.render();
 }
 
