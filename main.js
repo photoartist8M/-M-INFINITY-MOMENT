@@ -276,7 +276,7 @@ function createBackgroundParticles() {
 
       gl_PointSize =
           aScale *
-          (30.0 / -mvPosition.z);
+          (22.0 / -mvPosition.z);
 
       gl_Position =
           projectionMatrix *
@@ -313,7 +313,7 @@ uniform float uTime;
       1.0,
       0.92,
       0.78
-    ) * 2.3;
+    ) * 6.5;
 
 gl_FragColor =
     vec4(
@@ -774,7 +774,7 @@ function animate() {
     positions[i * 3 + 1] += Math.cos(now * 0.00012 + i) * 0.0015;
     positions[i * 3 + 2] += speeds[i];
     if (positions[i * 3 + 2] > camera.position.z + 20) {
-      positions[i * 3 + 2] = camera.position.z - 160;
+      positions[i * 3 + 2] = camera.position.z160 - Math.random() * 180;
       positions[i * 3]     = (Math.random() - 0.5) * 40;
       positions[i * 3 + 1] = (Math.random() - 0.5) * 24;
     }
@@ -822,7 +822,6 @@ accentParticles.position.copy(camera.position);
       }
     });
   }
-
   checkTriggers();
 
   // 写真への自動回避ロジック
@@ -850,7 +849,6 @@ accentParticles.position.copy(camera.position);
     attractParticles(item);
     fadeInPhoto(item);
     checkFixed(item);
-    dissolvePhoto(item);
     dissolvePhoto(item);
     if (item.fixed && !item.dissolving && item.mesh) {
       const floatY = Math.sin(t + item.index * 1.5) * 0.8;
@@ -934,12 +932,13 @@ function dissolvePhoto(item) {
       item.particles.material.opacity = 0.75;
     }
   }
-// fadeInPhoto の逆：写真とオーラを同時フェードアウト
+
+  // fadeInPhoto の逆：写真とオーラを同時フェードアウト
   if (item.mesh && item.material.opacity > 0) {
-    item.material.opacity -= 0.005;
+    item.material.opacity -= 0.01;
   }
   if (item.aura && item.aura.material.opacity > 0) {
-    item.aura.material.opacity -= 0.005;
+    item.aura.material.opacity -= 0.01;
   }
 
   // attractParticles の逆：targetPositions からランダム散乱先へ移動
@@ -949,20 +948,11 @@ function dissolvePhoto(item) {
       const ix = i * 3, iy = i * 3 + 1, iz = i * 3 + 2;
       const p = new THREE.Vector3(pos[ix], pos[iy], pos[iz]);
       const t = item._dissolveTargets[i];
-
-      // 目標座標を写真位置基準のワールド座標に変換
-      const worldTarget = t.clone().add(item.position);
-
-      const dir = worldTarget.clone().sub(p).multiplyScalar(0.008);
+      const dir = t.clone().sub(p).multiplyScalar(0.005);
       p.add(dir);
       pos[ix] = p.x; pos[iy] = p.y; pos[iz] = p.z;
     }
     item.particleGeo.attributes.position.needsUpdate = true;
-
-    // 写真フェードに合わせてパーティクルも徐々に透明に
-    if (item.particles.material.opacity > 0) {
-      item.particles.material.opacity -= 0.003;
-    }
   }
 
   // 完全消滅
