@@ -86,6 +86,7 @@ buildProceduralEnv(); // ← renderer 初期化後・写真ロード前に呼ぶ
 // 写真リスト
 // ======================================================
 const PHOTO_FILES = [
+  'assets/photo26.jpg',
   'assets/photo1.jpg',
   'assets/photo2.jpg',
   'assets/photo3.jpg',
@@ -569,7 +570,7 @@ function checkTriggers() {
     const activeItems = photoItems.filter(item => item.triggered && !item.dissolved);
     
     // 表示上限（3枚）を超えていたら、一番古いもの（配列の先頭）を消滅モードにする
-    if (activeItems.length > 3) {
+    if (activeItems.length > 4) {
       const oldest = activeItems[0];
       oldest.dissolving = true;
       oldest.viewing = false;
@@ -786,7 +787,7 @@ backgroundParticles.position.copy(camera.position);
 accentParticles.position.copy(camera.position);
 
   // ★テレポートループ
-  if (camera.position.z < -(LOOP_LENGTH - SPIRAL_CONFIG.zStep)) {
+  if (camera.position.z < -LOOP_LENGTH) {
     camera.position.z += LOOP_LENGTH;
     photoItems.forEach(item => {
       item.triggered       = false;
@@ -898,14 +899,14 @@ accentParticles.position.copy(camera.position);
 }
 
 // ======================================================
-// 光に溶けて消える
+// 粒子がランダムに渦巻き、再び光（中心）に戻って消える
 // ======================================================
 function dissolvePhoto(item) {
   if (!item.loaded || item.dissolved) return;
 
-  // 8秒タイマー
+  // 5秒タイマー
   if (item.viewing && item._fixedAt && !item.dissolving) {
-    if (Date.now() - item._fixedAt > 8000) {
+    if (Date.now() - item._fixedAt > 5000) {
       item.dissolving = true;
       item.viewing = false;
     }
@@ -913,53 +914,94 @@ function dissolvePhoto(item) {
 
   if (!item.dissolving) return;
 
-  // dissolve開始時に各パーティクルの散乱先をランダムに決める（buildParticlesの初期位置と同じ）
-  if (!item._dissolveTargets) {
-    item._dissolveTargets = [];
-    for (let i = 0; i < item.particleCount; i++) {
-      const r = 50 * Math.cbrt(Math.random());
-      const theta = Math.random() * Math.PI * 2;
-      const phi = Math.acos(2 * Math.random() - 1);
-      item._dissolveTargets.push(new THREE.Vector3(
-        r * Math.sin(phi) * Math.cos(theta),
-        r * Math.sin(phi) * Math.sin(theta),
-        r * Math.cos(phi)
-      ));
-    }
-    // パーティクルをすぐ再表示
+  // --------------------------------------------------
+  // ステップ1: 写真が消えて、粒子が浮かび上がる
+  // --------------------------------------------------
+  if (!item._photoFadedOut) {
     if (item.particles) {
       item.particles.visible = true;
-      item.particles.material.opacity = 0.75;
+      if (item.particles.material.opacity < 1.0) {
+        item.particles.material.opacity += 0.01;
+      }
     }
+
+    if (item.mesh && item.material.opacity > 0) item.material.opacity -= 0.01;
+    if (item.aura && item.aura.material.opacity > 0) item.aura.material.opacity -= 0.01;
+
+    if (item.material.opacity <= 0) {
+      item._photoFadedOut = true;
+      
+      if (item.mesh) { scene.remove(item.mesh); item.mesh = null; }
+      if (item.aura) { scene.remove(item.aura); item.aura = null; }
+
+      item._vortexTime = 0;
+
+  // 粒子ごとのランダムなノイズ（バラバラ感を大きく強化）
+      item._particleNoises = [];
+      for (let i = 0; i < item.particleCount; i++) {
+        item._particleNoises.push({
+          angleOffset: Math.random() * Math.PI * 2,
+          radiusOffset: Math.random() * 200 - 50,    // ★ 拡大: ばらつき範囲を広く (30->100)
+          speedMod: 0.3 + Math.random() * 1.2        // 回転速度のバラつきにメリハリをつける
+        });
+      }
+    }
+    return;
   }
 
-  // fadeInPhoto の逆：写真とオーラを同時フェードアウト
-  if (item.mesh && item.material.opacity > 0) {
-    item.material.opacity -= 0.01;
-  }
-  if (item.aura && item.aura.material.opacity > 0) {
-    item.aura.material.opacity -= 0.01;
-  }
-
-  // attractParticles の逆：targetPositions からランダム散乱先へ移動
-  if (item.particles && item.particleGeo && item._dissolveTargets) {
+  // --------------------------------------------------
+  // ステップ2: 粒子がバラバラに渦を巻き、中心（光）に戻りながら消える
+  // --------------------------------------------------
+  if (item.particles && item.particleGeo && item._particleNoises) {
     const pos = item.particleGeo.attributes.position.array;
+    
+    // 全体の進捗
+    item._vortexTime += 0.004; // ★ 渦巻くスピード（さらに少し遅く変更）
+    const progress = Math.min(1.0, item._vortexTime);
+
     for (let i = 0; i < item.particleCount; i++) {
       const ix = i * 3, iy = i * 3 + 1, iz = i * 3 + 2;
-      const p = new THREE.Vector3(pos[ix], pos[iy], pos[iz]);
-      const t = item._dissolveTargets[i];
-      const dir = t.clone().sub(p).multiplyScalar(0.005);
-      p.add(dir);
-      pos[ix] = p.x; pos[iy] = p.y; pos[iz] = p.z;
+      
+      const baseTarget = item.targetPositions[i];
+      const noise = item._particleNoises[i];
+      
+      // 元の位置から計算した基本の角度と半径
+      const initialAngle = Math.atan2(baseTarget.y, baseTarget.x);
+      const initialRadius = Math.sqrt(baseTarget.x * baseTarget.x + baseTarget.y * baseTarget.y);
+      
+      // ★ 修正: ノイズを混ぜて粒子をバラバラに渦巻かせる
+      // 各粒子が異なる速度・角度オフセットで回転する
+      const angle = initialAngle + noise.angleOffset + (item._vortexTime * 3.0 * noise.speedMod);
+      
+      // 半径もバラつかせつつ、最終的に 0（中心）に収束させる
+      const currentRadius = Math.max(0, (initialRadius + noise.radiusOffset) * (1.0 - progress));
+      
+      // Z軸（奥へ消えていく動きはそのまま維持）
+      const targetZ = baseTarget.z - (progress * 60);
+
+      // ターゲット座標
+      const vortexX = Math.cos(angle) * currentRadius;
+      const vortexY = Math.sin(angle) * currentRadius;
+      const vortexZ = targetZ;
+
+      // 線形補間（追従をさらに滑らかに）
+      pos[ix] += (vortexX - pos[ix]) * 0.04;
+      pos[iy] += (vortexY - pos[iy]) * 0.04;
+      pos[iz] += (vortexZ - pos[iz]) * 0.04;
     }
     item.particleGeo.attributes.position.needsUpdate = true;
+
+    // 光（中心）に集まる後半からフェードアウト
+    if (progress > 0.4) {
+      item.particles.material.opacity = Math.max(0, 1.0 - (progress - 0.4) * 1.6);
+    }
   }
 
-  // 完全消滅
-  if (item.material.opacity <= 0) {
+  // --------------------------------------------------
+  // 最終ステージ: 完全に消滅
+  // --------------------------------------------------
+  if (item._vortexTime >= 1.0 || (item.particles && item.particles.material.opacity <= 0)) {
     item.dissolved = true;
-    if (item.mesh)      { scene.remove(item.mesh);      item.mesh      = null; }
-    if (item.aura)      { scene.remove(item.aura);      item.aura      = null; }
     if (item.particles) { scene.remove(item.particles); item.particles = null; }
   }
 }
