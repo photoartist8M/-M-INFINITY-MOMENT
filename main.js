@@ -86,7 +86,6 @@ buildProceduralEnv(); // ← renderer 初期化後・写真ロード前に呼ぶ
 // 写真リスト
 // ======================================================
 const PHOTO_FILES = [
-  'assets/photo26.jpg',
   'assets/photo1.jpg',
   'assets/photo2.jpg',
   'assets/photo3.jpg',
@@ -499,7 +498,7 @@ item.material = new THREE.MeshBasicMaterial({
 }
 
 function buildAura(item, baseWidth, baseHeight) {
-  const borderSize = 0.14; // 枠の太さ
+  const borderSize = 0.04; // 枠の太さ
   const outerW = baseWidth  + borderSize * 2;
   const outerH = baseHeight + borderSize * 2;
 
@@ -604,7 +603,7 @@ function fadeInPhoto(item) {
   if (item.aura) {
     // 写真が出始めたらすぐ枠も表示・フェードイン
     if (!item.aura.visible) item.aura.visible = true;
-    if (item.aura.material.opacity < 0.6) {
+    if (item.aura.material.opacity < 1.2) { //枠の透明度
       item.aura.material.opacity += 0.01; // 写真と同じ速度でフェードイン
     }
   }
@@ -857,29 +856,46 @@ accentParticles.position.copy(camera.position);
       _basePos.copy(item.position);
       _basePos.z += 3;
 
-  // カメラが近づいたら逃げる
-      const pdx = item.mesh.position.x - camera.position.x;
-      const pdz = item.mesh.position.z - camera.position.z;
-      const distXZ = Math.sqrt(pdx * pdx + pdz * pdz);
-      const repelDist = 12;
+  // カメラが近づいたら、斜め後ろへ「ふんわり」と漂うように後退
+  const pdx = item.mesh.position.x - camera.position.x;
+  const pdz = item.mesh.position.z - camera.position.z;
+  const distXZ = Math.sqrt(pdx * pdx + pdz * pdz);
+  
+  const hitDist = 7.0;    // 判定距離（少し手前からフワッと反応させる）
+  const pushPower = 0.4;  // 後退の初速（数値を小さくして「遅く」する）
 
-      if (!item._repelX) { item._repelX = 0; item._repelZ = 0; }
+  // 速度ベクトルの初期化
+  if (item._vx === undefined) { item._vx = 0; item._vz = 0; }
 
-      if (distXZ < repelDist && distXZ > 0.01) {
-        const force = (repelDist - distXZ) / repelDist * 1.2;
-        item._repelX += (pdx / distXZ) * force;
-        item._repelZ += (pdz / distXZ) * force;
-      }
-      item._repelX *= 0.88;
-      item._repelZ *= 0.88;
+  // 1. 衝突・接近判定
+  if (distXZ < hitDist && distXZ > 0.01) {
+    const dirX = pdx / distXZ;
+    const dirZ = pdz / distXZ;
 
-      const mx = _basePos.x + floatX + item._repelX;
-      const my = _basePos.y + floatY;
-      const mz = _basePos.z + item._repelZ;
-          item.mesh.position.set(mx, my, mz);
-      _basePos.copy(camera.position);
-      _basePos.y = item.mesh.position.y;
-      item.mesh.lookAt(_basePos);
+    // 押し出す力を徐々に加算（＝一瞬で吹っ飛ばず、フワッと加速する）
+    item._vx += dirX * pushPower * 0.6; // X軸（左右）への逃げ。0.6をいじると斜めの角度が変わる
+    item._vz += (dirZ >= 0 ? 1 : -1) * pushPower; // Z軸（前後）への逃げ
+  }
+
+  // 2. 慣性移動と超低摩擦（1.0に近いほど、速度が落ちずに「ふんわり」長く漂う）
+  item._vx *= 0.98;
+  item._vz *= 0.98;
+
+  // 位置への適用
+  if (item._repelX === undefined) { item._repelX = 0; item._repelZ = 0; }
+  item._repelX += item._vx;
+  item._repelZ += item._vz;
+
+  // 元の位置に戻ろうとする力（ここも極限まで減衰を緩くして、遠くまで行かせる）
+  item._repelX *= 0.997;
+  item._repelZ *= 0.997;
+
+  // 最終座標の計算
+  const mx = _basePos.x + floatX + item._repelX;
+  const my = _basePos.y + floatY;
+  const mz = _basePos.z + item._repelZ;
+  
+  item.mesh.position.set(mx, my, mz);
 
       // auraを完全にmeshに同期
       if (item.aura) {
