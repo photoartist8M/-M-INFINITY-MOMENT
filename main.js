@@ -83,6 +83,44 @@ function buildProceduralEnv() {
 buildProceduralEnv(); // ← renderer 初期化後・写真ロード前に呼ぶ
 
 // ======================================================
+// 視点クランプ（写真の端に合わせて水平回転を制限）
+// ======================================================
+function getYawLimits() {
+  const viewingItem = photoItems.find(it => it.viewing && it.fixed && it.mesh);
+  if (!viewingItem) return null;
+
+  const mesh = viewingItem.mesh;
+  const hw     = mesh.geometry.parameters.width / 2;
+  const margin = 0.5; // 外側の余白
+
+  const px = mesh.position.x;
+  const pz = mesh.position.z;
+  const cx = camera.position.x;
+  const cz = camera.position.z;
+  const dz = cz - pz;
+
+  const side = viewingItem.index % 2 === 0 ? 1 : -1; // 偶数=右, 奇数=左
+
+  let innerX, outerX;
+  if (side === 1) {
+    // 右側の写真：内側=中央(0)、外側=写真右端
+    innerX = 0;
+    outerX = px + hw + margin;
+  } else {
+    // 左側の写真：内側=中央(0)、外側=写真左端
+    innerX = px - hw - margin;
+    outerX = 0;
+  }
+
+  const angleA = -Math.atan2(innerX - cx, dz);
+  const angleB = -Math.atan2(outerX - cx, dz);
+
+  return {
+    min: Math.min(angleA, angleB),
+    max: Math.max(angleA, angleB),
+  };
+}
+// ======================================================
 // 写真リスト
 // ======================================================
 const PHOTO_FILES = [
@@ -96,7 +134,7 @@ const PHOTO_FILES = [
 // ======================================================
 const SPIRAL_CONFIG = {
   radius: 6,         // 左右に振る幅（0から6に変更）
-  zStep: 16,         // 奥への間隔（14から16に少し広げて見やすく）
+  zStep: 12,         // 写真と写真Z軸の間隔（14から16に少し広げて見やすく）
   yAmplitude: 1.2,   // 上下の緩やかな高低差
 };
 
@@ -545,34 +583,40 @@ const TRIGGER_DISTANCE = 25;
 
 function checkTriggers() {
   const now = Date.now();
-  let newlyTriggered = null;
 
   for (let i = 0; i < photoItems.length; i++) {
     const item = photoItems[i];
-    if (!item.loaded || item.triggered) continue;
+    if (!item.loaded) continue;
 
-    const dist = camera.position.distanceTo(item.position);
-    const byDistance = dist < TRIGGER_DISTANCE;
-    const byClick    = item._clickTriggered === true;
-    const byTime     = item.index === 0 && item._loadedAt && (now - item._loadedAt) > 5000;
+    // まだトリガーされていない場合の出現判定
+    if (!item.triggered) {
+      const dist = camera.position.distanceTo(item.position);
+      const byDistance = dist < TRIGGER_DISTANCE;
+      const byClick    = item._clickTriggered === true;
+      const byTime     = item.index === 0 && item._loadedAt && (now - item._loadedAt) > 5000;
 
-    if (byDistance || byClick || byTime) {
-      item.triggered = true;
-      item.attract   = true;
-      newlyTriggered = item;
-    }
+      if (byDistance || byClick || byTime) {
+        item.triggered = true;
+        item.attract   = true;
+      }
+
+      // 【数珠つなぎ】前の写真（i-2）が消え始めたら、この写真（i）を出現させる
+if (i >= 1) {
+  const prevItem = photoItems[i - 1];
+  if (prevItem && prevItem.dissolving) {
+    item.triggered = true;
+    item.attract   = true;
   }
+}
+    }
 
-  // 新しく写真が出現した場合のみ、表示中の枚数をチェックして古いものを消す
-  if (newlyTriggered) {
-    // 現在画面に存在する（トリガー済み、かつ、まだ完全に消滅していない）写真をインデックス順に集める
-    const activeItems = photoItems.filter(item => item.triggered && !item.dissolved);
-    
-    // 表示上限（3枚）を超えていたら、一番古いもの（配列の先頭）を消滅モードにする
-    if (activeItems.length > 4) {
-      const oldest = activeItems[0];
-      oldest.dissolving = true;
-      oldest.viewing = false;
+    // 「2つ前の写真が完全に固定（表示中）になったら、自分（i-2）を消滅させる」
+if (i >= 1 && item.fixed && !item.dissolving && !item.dissolved) {
+  const oldestItem = photoItems[i - 1];
+      if (oldestItem && !oldestItem.dissolving && !oldestItem.dissolved) {
+        oldestItem.dissolving = true;
+        oldestItem.viewing = false;
+      }
     }
   }
 }
@@ -662,7 +706,10 @@ let targetRotX = 0;
 let targetRotY = 0;
 
 window.addEventListener('mousemove', (e) => {
-  targetRotY = (e.clientX / window.innerWidth  - 0.5) * 0.5;
+  let ty = (e.clientX / window.innerWidth  - 0.5) * 0.5;
+  const _ml = getYawLimits();
+  if (_ml) ty = Math.max(_ml.min, Math.min(_ml.max, ty));
+  targetRotY = ty;
   targetRotX = (e.clientY / window.innerHeight - 0.5) * 0.3;
 });
 
@@ -709,7 +756,12 @@ window.addEventListener('touchmove', (e) => {
     const dy = e.touches[0].clientY - lastTouchY;
     targetRotY -= dx * 0.0015; //スマホ感度
   camera.position.z -= dy * 0.03;
-    targetRotY = Math.max(-0.5, Math.min(0.5, targetRotY));
+    const _yawLimits = getYawLimits();
+if (_yawLimits) {
+  targetRotY = Math.max(_yawLimits.min, Math.min(_yawLimits.max, targetRotY));
+} else {
+  targetRotY = Math.max(-0.5, Math.min(0.5, targetRotY)); // 写真表示外はそのまま
+}
     lastTouchX = e.touches[0].clientX;
     lastTouchY = e.touches[0].clientY;
   }
@@ -856,52 +908,60 @@ accentParticles.position.copy(camera.position);
       _basePos.copy(item.position);
       _basePos.z += 3;
 
-  // カメラが近づいたら、斜め後ろへ「ふんわり」と漂うように後退
+ // カメラが近づいたら、斜め後ろへ「超ふんわり」と後退
   const pdx = item.mesh.position.x - camera.position.x;
   const pdz = item.mesh.position.z - camera.position.z;
   const distXZ = Math.sqrt(pdx * pdx + pdz * pdz);
   
-  const hitDist = 7.0;    // 判定距離（少し手前からフワッと反応させる）
-  const pushPower = 0.4;  // 後退の初速（数値を小さくして「遅く」する）
+  const hitDist = 10.0; //衝突距離   
+  const pushPower = 0.15; // 【調整】さらに数値を小さくして極限まで遅く
 
-  // 速度ベクトルの初期化
   if (item._vx === undefined) { item._vx = 0; item._vz = 0; }
 
-  // 1. 衝突・接近判定
   if (distXZ < hitDist && distXZ > 0.01) {
     const dirX = pdx / distXZ;
     const dirZ = pdz / distXZ;
 
-    // 押し出す力を徐々に加算（＝一瞬で吹っ飛ばず、フワッと加速する）
-    item._vx += dirX * pushPower * 0.6; // X軸（左右）への逃げ。0.6をいじると斜めの角度が変わる
-    item._vz += (dirZ >= 0 ? 1 : -1) * pushPower; // Z軸（前後）への逃げ
+    const pushDirX = dirX >= 0 ? 1 : -1;
+    item._vx += pushDirX * pushPower * 0.5; 
+    item._vz += (dirZ >= 0 ? 1 : -1) * pushPower; 
   }
 
-  // 2. 慣性移動と超低摩擦（1.0に近いほど、速度が落ちずに「ふんわり」長く漂う）
-  item._vx *= 0.98;
-  item._vz *= 0.98;
+  // 慣性移動（抵抗を少し強めて、さらにゆっくりな挙動に）
+  item._vx *= 0.95;
+  item._vz *= 0.95;
 
-  // 位置への適用
   if (item._repelX === undefined) { item._repelX = 0; item._repelZ = 0; }
   item._repelX += item._vx;
   item._repelZ += item._vz;
 
-  // 元の位置に戻ろうとする力（ここも極限まで減衰を緩くして、遠くまで行かせる）
-  item._repelX *= 0.997;
-  item._repelZ *= 0.997;
+  item._repelX *= 0.995;
+  item._repelZ *= 0.995;
 
   // 最終座標の計算
   const mx = _basePos.x + floatX + item._repelX;
   const my = _basePos.y + floatY;
   const mz = _basePos.z + item._repelZ;
-  
   item.mesh.position.set(mx, my, mz);
 
-      // auraを完全にmeshに同期
-      if (item.aura) {
-        item.aura.position.copy(item.mesh.position);
-        item.aura.quaternion.copy(item.mesh.quaternion);
-    }
+  // 【修正】カメラの方を「ゆっくり」振り向かせるロジック
+  // 一時的にターゲットの方向（カメラ位置）を向かせたクォータニオンを計算
+  _basePos.copy(camera.position);
+  _basePos.y = item.mesh.position.y; // Y軸の傾きは固定
+  
+  const currentRotation = item.mesh.quaternion.clone(); // 現在の回転保持
+  item.mesh.lookAt(_basePos);                           // 一瞬カメラを向かせる
+  const targetRotation = item.mesh.quaternion.clone();  // 目標の回転を保持
+  
+  // 元の回転に戻してから、目標へ向かってゆっくり補間（0.05 でじわっと動く）
+  item.mesh.quaternion.copy(currentRotation);
+  item.mesh.quaternion.slerp(targetRotation, 0.005);
+
+  // auraを完全にmeshに同期
+  if (item.aura) {
+    item.aura.position.copy(item.mesh.position);
+    item.aura.quaternion.copy(item.mesh.quaternion);
+  }
   }
 }
   backgroundParticles.material.uniforms.uTime.value = now * 0.001;
@@ -920,9 +980,27 @@ accentParticles.position.copy(camera.position);
 function dissolvePhoto(item) {
   if (!item.loaded || item.dissolved) return;
 
-  // 5秒タイマー
+  // --------------------------------------------------
+  // 【修正】消滅トリガー（5秒経過 OR カメラが一定距離まで前進・接近）
+  // --------------------------------------------------
   if (item.viewing && item._fixedAt && !item.dissolving) {
-    if (Date.now() - item._fixedAt > 5000) {
+    // パターン1: 時間経過（5秒）
+    const timeElapsed = (Date.now() - item._fixedAt) > 5000;
+
+    // パターン2: 前進による接近（カメラとのXZ平面上の距離が 6.0 未満）
+    let cameraApproached = false;
+    if (item.mesh) {
+      const pdx = item.mesh.position.x - camera.position.x;
+      const pdz = item.mesh.position.z - camera.position.z;
+      const distXZ = Math.sqrt(pdx * pdx + pdz * pdz);
+      
+      if (distXZ < 6.0) { // ★この数字を大きくすると、より手前で消えて次が出ます
+        cameraApproached = true;
+      }
+    }
+
+    // どちらかの条件を満たしたら粒子化（消滅）を開始
+    if (timeElapsed || cameraApproached) {
       item.dissolving = true;
       item.viewing = false;
     }
@@ -931,7 +1009,7 @@ function dissolvePhoto(item) {
   if (!item.dissolving) return;
 
   // --------------------------------------------------
-  // ステップ1: 写真が消えて、粒子が浮かび上がる
+  // ステップ1: 写真が消えて、粒子が浮かび上がる（これ以降は元のコードのまま）
   // --------------------------------------------------
   if (!item._photoFadedOut) {
     if (item.particles) {
