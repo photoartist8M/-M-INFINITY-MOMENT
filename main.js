@@ -183,6 +183,17 @@ _img: null,
 }
 
 const photoItems = PHOTO_FILES.map((src, i) => createPhotoItem(src, i));
+// ======================================================
+// 光蓄積・ドア形成システム（追加）
+// ======================================================
+const ACCUM_POINT = new THREE.Vector3(0, 0, -((PHOTO_FILES.length - 1) * SPIRAL_CONFIG.zStep + 8));
+let accumulatedCount = 0;
+let accumulationGlow = null;
+let doorSys          = null;
+let doorPhase        = 'none';
+let doorTime         = 0;
+let loopDisabled     = false;
+let _dissolvedFlags  = new Array(PHOTO_FILES.length).fill(false);
 
 // ======================================================
 // テクスチャ
@@ -420,6 +431,25 @@ function createAccentParticles() {
 
 const backgroundParticles = createBackgroundParticles();
 const accentParticles     = createAccentParticles();
+createAccumulationGlow();
+
+// ======================================================
+// 蓄積光メッシュの作成（追加）
+// ======================================================
+function createAccumulationGlow() {
+  const geo = new THREE.SphereGeometry(0.8, 16, 16);
+  const mat = new THREE.MeshBasicMaterial({
+    color: new THREE.Color(1.2, 1.0, 0.7),
+    transparent: true,
+    opacity: 0,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+  accumulationGlow = new THREE.Mesh(geo, mat);
+  accumulationGlow.position.copy(ACCUM_POINT);
+  accumulationGlow.layers.enable(BLOOM_LAYER);
+  scene.add(accumulationGlow);
+}
 
 // ======================================================
 // 写真ロード & オブジェクト生成
@@ -577,6 +607,242 @@ function buildAura(item, baseWidth, baseHeight) {
 }
 
 photoItems.forEach(item => loadPhotoItem(item));
+
+// ======================================================
+// dissolvedになった瞬間を検知（追加）
+// ======================================================
+function checkDissolvedAndAccumulate() {
+  for (let i = 0; i < photoItems.length; i++) {
+    const item = photoItems[i];
+    if (item.dissolved && !_dissolvedFlags[i]) {
+      _dissolvedFlags[i] = true;
+      onPhotoArrivedAtLight(i);
+    }
+  }
+}
+
+// ======================================================
+// 写真粒子が蓄積ポイントに到達したときの処理（追加）
+// ======================================================
+function onPhotoArrivedAtLight(index) {
+  accumulatedCount++;
+
+  if (accumulationGlow) {
+    const ratio = accumulatedCount / PHOTO_FILES.length;
+    accumulationGlow.material.opacity = Math.min(0.95, ratio * 0.85);
+    accumulationGlow.scale.setScalar(1 + ratio * 4.5);
+  }
+
+  console.log(`蓄積: ${accumulatedCount} / ${PHOTO_FILES.length}`);
+
+  if (accumulatedCount >= PHOTO_FILES.length) {
+    loopDisabled = true;
+    // ↓ これを追加：カメラをドア手前まで自動前進
+    moveTargetZ = ACCUM_POINT.z + 12;
+    moveForward = true;
+    setTimeout(() => {
+      doorPhase = 'spiraling';
+      doorTime  = 0;
+      createDoorParticles();
+    }, 1500);
+  }
+}
+
+// ======================================================
+// ドアの輪郭ターゲット座標を生成（追加）
+// ======================================================
+function getDoorTargetPositions(count) {
+  const targets = [];
+  const W  = 7;
+  const H  = 11;
+  const cx = ACCUM_POINT.x;
+  const cy = ACCUM_POINT.y;
+  const cz = ACCUM_POINT.z;
+  const perimeter = 2 * (W + H);
+
+  for (let i = 0; i < count; i++) {
+    const t = (i / count) * perimeter;
+    let x, y;
+
+    if (t < W) {
+      x = cx - W / 2 + t;
+      y = cy - H / 2;
+    } else if (t < W + H) {
+      x = cx + W / 2;
+      y = cy - H / 2 + (t - W);
+    } else if (t < 2 * W + H) {
+      x = cx + W / 2 - (t - W - H);
+      y = cy + H / 2;
+    } else {
+      x = cx - W / 2;
+      y = cy + H / 2 - (t - 2 * W - H);
+    }
+
+    x += (Math.random() - 0.5) * 0.15;
+    y += (Math.random() - 0.5) * 0.15;
+    targets.push(new THREE.Vector3(x, y, cz));
+  }
+  return targets;
+}
+
+// ======================================================
+// ドアパーティクルシステムの作成（追加）
+// ======================================================
+function createDoorParticles() {
+  const count = 4000;
+  const pos   = new Float32Array(count * 3);
+
+  for (let i = 0; i < count; i++) {
+    const r     = Math.random() * 2.5;
+    const theta = Math.random() * Math.PI * 2;
+    const phi   = Math.acos(2 * Math.random() - 1);
+    pos[i * 3]     = ACCUM_POINT.x + r * Math.sin(phi) * Math.cos(theta);
+    pos[i * 3 + 1] = ACCUM_POINT.y + r * Math.sin(phi) * Math.sin(theta);
+    pos[i * 3 + 2] = ACCUM_POINT.z + r * Math.cos(phi);
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+
+  const mat = new THREE.PointsMaterial({
+    map: particleTexture,
+    color: 0xffe8a0,
+    size: 0.22,
+    transparent: true,
+    opacity: 0,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    sizeAttenuation: true,
+  });
+
+  const points = new THREE.Points(geo, mat);
+  points.layers.enable(BLOOM_LAYER);
+  scene.add(points);
+
+  const noises = [];
+  for (let i = 0; i < count; i++) {
+    noises.push({
+      angleOffset: Math.random() * Math.PI * 2,
+      radiusMod:   (Math.random() - 0.5) * 6,
+      speedMod:    0.4 + Math.random() * 1.4,
+    });
+  }
+
+  doorSys = {
+    mesh:    points,
+    geo:     geo,
+    count:   count,
+    targets: getDoorTargetPositions(count),
+    noises:  noises,
+  };
+}
+
+// ======================================================
+// 蓄積光のアニメーション更新（追加）
+// ======================================================
+function updateAccumulationGlow() {
+  if (!accumulationGlow || accumulatedCount === 0) return;
+  const t     = Date.now() * 0.001;
+  const ratio = accumulatedCount / PHOTO_FILES.length;
+  const pulse = 1.0 + Math.sin(t * 2.0) * 0.18;
+  accumulationGlow.material.opacity =
+    Math.min(0.95, ratio * 0.85 * pulse);
+  accumulationGlow.scale.setScalar(
+    (1 + ratio * 4.5) * (1 + Math.sin(t * 1.5) * 0.08)
+  );
+}
+
+// ======================================================
+// ドアアニメーションの更新（追加）
+// ======================================================
+function updateDoor() {
+  if (doorPhase === 'none' || !doorSys) return;
+
+  doorTime += 0.004;
+  const pos = doorSys.geo.attributes.position.array;
+
+  if (doorPhase === 'spiraling') {
+    doorSys.mesh.material.opacity = Math.min(0.45, doorTime * 1.5);
+    const SPIRAL_DUR = 1.2;
+    const sp = Math.min(1.0, doorTime / SPIRAL_DUR);
+
+    for (let i = 0; i < doorSys.count; i++) {
+      const ix = i * 3, iy = i * 3 + 1, iz = i * 3 + 2;
+      const noise  = doorSys.noises[i];
+      const target = doorSys.targets[i];
+      const dx     = target.x - ACCUM_POINT.x;
+      const dy     = target.y - ACCUM_POINT.y;
+      const finalR   = Math.sqrt(dx * dx + dy * dy);
+      const finalAng = Math.atan2(dy, dx);
+      const curR   = (finalR + noise.radiusMod * (1 - sp)) * sp;
+      const curAng = finalAng
+                   + noise.angleOffset * (1 - sp) * 0.5
+                   + doorTime * noise.speedMod;
+      const tx = ACCUM_POINT.x + Math.cos(curAng) * curR;
+      const ty = ACCUM_POINT.y + Math.sin(curAng) * curR;
+      pos[ix] += (tx - pos[ix]) * 0.06;
+      pos[iy] += (ty - pos[iy]) * 0.06;
+      pos[iz] += (ACCUM_POINT.z - pos[iz]) * 0.04;
+    }
+
+    if (doorTime > SPIRAL_DUR + 0.5) {
+      doorPhase = 'forming';
+      doorTime  = 0;
+    }
+  }
+
+  if (doorPhase === 'forming') {
+    const FORM_DUR      = 2.0;
+    const fp            = Math.min(1.0, doorTime / FORM_DUR);
+    const swirlStrength = 1.0 - fp;
+
+    for (let i = 0; i < doorSys.count; i++) {
+      const ix = i * 3, iy = i * 3 + 1, iz = i * 3 + 2;
+      const noise  = doorSys.noises[i];
+      const target = doorSys.targets[i];
+      const dx     = target.x - ACCUM_POINT.x;
+      const dy     = target.y - ACCUM_POINT.y;
+      const finalR   = Math.sqrt(dx * dx + dy * dy);
+      const finalAng = Math.atan2(dy, dx);
+      const curR   = finalR + noise.radiusMod * swirlStrength * 0.3;
+      const curAng = finalAng
+                   + noise.angleOffset * swirlStrength * 0.2
+                   + doorTime * noise.speedMod * 0.3;
+      const vx = ACCUM_POINT.x + Math.cos(curAng) * curR;
+      const vy = ACCUM_POINT.y + Math.sin(curAng) * curR;
+      const tx = target.x + (vx - target.x) * swirlStrength;
+      const ty = target.y + (vy - target.y) * swirlStrength;
+      pos[ix] += (tx - pos[ix]) * 0.05;
+      pos[iy] += (ty - pos[iy]) * 0.05;
+      pos[iz] += (target.z - pos[iz]) * 0.04;
+    }
+
+    if (doorTime > FORM_DUR) {
+      doorPhase = 'complete';
+    }
+  }
+
+  if (doorPhase === 'complete') {
+    const t = Date.now() * 0.001;
+doorSys.mesh.material.opacity = 0.35 + Math.sin(t * 1.5) * 0.08;
+doorSys.mesh.material.size    = 0.14 + Math.sin(t * 0.8) * 0.03;
+
+    for (let i = 0; i < doorSys.count; i++) {
+      const ix = i * 3, iy = i * 3 + 1;
+      const target = doorSys.targets[i];
+      pos[ix] += (target.x - pos[ix]) * 0.08;
+      pos[iy] += (target.y - pos[iy]) * 0.08;
+    }
+
+    // カメラがドアに近づいたらfinalへ遷移
+    const distToDoor = Math.abs(camera.position.z - ACCUM_POINT.z);
+    if (distToDoor < 8) {
+      window.location.href = '../final/index.html';
+    }
+  }
+
+  doorSys.geo.attributes.position.needsUpdate = true;
+}
 
 // ======================================================
 // トリガー・吸引・フェード・固定
@@ -840,7 +1106,7 @@ backgroundParticles.position.copy(camera.position);
 accentParticles.position.copy(camera.position);
 
   // ★テレポートループ
-  if (camera.position.z < -LOOP_LENGTH) {
+  if (!loopDisabled && camera.position.z < -LOOP_LENGTH) {   //とりあえず無効
     camera.position.z += LOOP_LENGTH;
     photoItems.forEach(item => {
       item.triggered       = false;
@@ -973,6 +1239,9 @@ accentParticles.position.copy(camera.position);
   bgMat.opacity = 0.38 + Math.sin(now * 0.0006) * 0.015;
   bgMat.size    = 0.20 + Math.sin(now * 0.00012) * 0.035;
 
+    checkDissolvedAndAccumulate();
+  updateAccumulationGlow(); 
+  updateDoor(); 
   composer.render();
 }
 
