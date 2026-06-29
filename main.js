@@ -431,24 +431,40 @@ function createAccentParticles() {
 
 const backgroundParticles = createBackgroundParticles();
 const accentParticles     = createAccentParticles();
-createAccumulationGlow();
 
 // ======================================================
 // 蓄積光メッシュの作成（追加）
 // ======================================================
 function createAccumulationGlow() {
-  const geo = new THREE.SphereGeometry(0.8, 16, 16);
-  const mat = new THREE.MeshBasicMaterial({
-    color: new THREE.Color(1.2, 1.0, 0.7),
-    transparent: true,
-    opacity: 0,
-    blending: THREE.AdditiveBlending,
-    depthWrite: false,
-  });
-  accumulationGlow = new THREE.Mesh(geo, mat);
+  accumulationGlow = new THREE.Group();
   accumulationGlow.position.copy(ACCUM_POINT);
-  accumulationGlow.layers.enable(BLOOM_LAYER);
   scene.add(accumulationGlow);
+
+  // にじんだ光を複数レイヤーで重ねる
+  const layers = [
+    { size: 0.8,  opacity: 0.6  },
+    { size: 2.0,  opacity: 0.25 },
+    { size: 4.0,  opacity: 0.12 },
+    { size: 7.0,  opacity: 0.06 },
+    { size: 12.0, opacity: 0.03 },
+  ];
+
+  layers.forEach(({ size, opacity }) => {
+    const geo = new THREE.PlaneGeometry(size, size);
+    const mat = new THREE.MeshBasicMaterial({
+      map: particleTexture, // 既存のグローテクスチャを流用
+      color: new THREE.Color(1.8, 1.4, 0.9),
+      transparent: true,
+      opacity: 0,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.userData.baseOpacity = opacity;
+    mesh.layers.enable(BLOOM_LAYER);
+    accumulationGlow.add(mesh);
+  });
 }
 
 // ======================================================
@@ -607,6 +623,7 @@ function buildAura(item, baseWidth, baseHeight) {
 }
 
 photoItems.forEach(item => loadPhotoItem(item));
+createAccumulationGlow();
 
 // ======================================================
 // dissolvedになった瞬間を検知（追加）
@@ -626,13 +643,6 @@ function checkDissolvedAndAccumulate() {
 // ======================================================
 function onPhotoArrivedAtLight(index) {
   accumulatedCount++;
-
-  if (accumulationGlow) {
-    const ratio = accumulatedCount / PHOTO_FILES.length;
-    accumulationGlow.material.opacity = Math.min(0.95, ratio * 0.85);
-    accumulationGlow.scale.setScalar(1 + ratio * 4.5);
-  }
-
   console.log(`蓄積: ${accumulatedCount} / ${PHOTO_FILES.length}`);
 
   if (accumulatedCount >= PHOTO_FILES.length) {
@@ -742,14 +752,29 @@ function createDoorParticles() {
 // ======================================================
 function updateAccumulationGlow() {
   if (!accumulationGlow || accumulatedCount === 0) return;
+
   const t     = Date.now() * 0.001;
   const ratio = accumulatedCount / PHOTO_FILES.length;
-  const pulse = 1.0 + Math.sin(t * 2.0) * 0.18;
-  accumulationGlow.material.opacity =
-    Math.min(0.95, ratio * 0.85 * pulse);
-  accumulationGlow.scale.setScalar(
-    (1 + ratio * 4.5) * (1 + Math.sin(t * 1.5) * 0.08)
-  );
+
+  accumulationGlow.children.forEach((mesh, i) => {
+    // レイヤーごとに異なる呼吸リズム
+    const breathe = Math.sin(t * 0.9 + i * 0.8) * 0.5
+                  + Math.sin(t * 0.4 + i * 0.3) * 0.3
+                  + Math.sin(t * 1.6 + i * 1.2) * 0.2;
+
+    // 0〜1の範囲に正規化（0.5基準）
+    const pulse = 0.5 + breathe * 0.5;
+
+    mesh.material.opacity =
+      mesh.userData.baseOpacity * ratio * pulse;
+
+    // 外側レイヤーほどゆっくり大きくなる
+    const scaleBreath = 1.0 + Math.sin(t * 0.7 + i * 0.6) * 0.12;
+    mesh.scale.setScalar(scaleBreath);
+
+    // 常にカメラの方を向かせてスプライトっぽく
+    mesh.lookAt(camera.position); //★削除
+  });
 }
 
 // ======================================================
@@ -761,57 +786,90 @@ function updateDoor() {
   doorTime += 0.004;
   const pos = doorSys.geo.attributes.position.array;
 
+ // ────────────────────────────────────────
+  // Phase 1: ゆっくりから加速する渦巻き
+  // ────────────────────────────────────────
   if (doorPhase === 'spiraling') {
-    doorSys.mesh.material.opacity = Math.min(0.45, doorTime * 1.5);
-    const SPIRAL_DUR = 1.2;
+    const SPIRAL_DUR = 2.5; // 少し長くして加速感を出す
     const sp = Math.min(1.0, doorTime / SPIRAL_DUR);
+
+    // 速度がゆっくり→爆速に加速するカーブ
+    const accel = Math.pow(sp, 2.5);
+
+    doorSys.mesh.material.opacity = Math.min(0.45, doorTime * 0.5);
+    // 粒子サイズも加速に合わせて大きくなる
+    doorSys.mesh.material.size = 0.14 + accel * 0.35;
 
     for (let i = 0; i < doorSys.count; i++) {
       const ix = i * 3, iy = i * 3 + 1, iz = i * 3 + 2;
       const noise  = doorSys.noises[i];
       const target = doorSys.targets[i];
-      const dx     = target.x - ACCUM_POINT.x;
-      const dy     = target.y - ACCUM_POINT.y;
+
+      const dx       = target.x - ACCUM_POINT.x;
+      const dy       = target.y - ACCUM_POINT.y;
       const finalR   = Math.sqrt(dx * dx + dy * dy);
       const finalAng = Math.atan2(dy, dx);
-      const curR   = (finalR + noise.radiusMod * (1 - sp)) * sp;
-      const curAng = finalAng
-                   + noise.angleOffset * (1 - sp) * 0.5
-                   + doorTime * noise.speedMod;
+
+      // 半径：最初は中心付近→外へ広がる
+      const curR = (finalR + noise.radiusMod * (1 - sp)) * sp;
+
+      // 回転速度：最初は0.3→最大18.0まで加速
+      const rotSpeed = 0.3 + accel * 17.7;
+      const curAng   = finalAng
+                     + noise.angleOffset * (1 - sp) * 0.5
+                     + doorTime * noise.speedMod * rotSpeed;
+
       const tx = ACCUM_POINT.x + Math.cos(curAng) * curR;
       const ty = ACCUM_POINT.y + Math.sin(curAng) * curR;
-      pos[ix] += (tx - pos[ix]) * 0.06;
-      pos[iy] += (ty - pos[iy]) * 0.06;
+
+      // 追従速度も加速に合わせて上げる
+      const followSpeed = 0.04 + accel * 0.08;
+      pos[ix] += (tx - pos[ix]) * followSpeed;
+      pos[iy] += (ty - pos[iy]) * followSpeed;
       pos[iz] += (ACCUM_POINT.z - pos[iz]) * 0.04;
     }
 
-    if (doorTime > SPIRAL_DUR + 0.5) {
+    if (doorTime > SPIRAL_DUR + 0.3) {
       doorPhase = 'forming';
       doorTime  = 0;
     }
   }
 
+  // ────────────────────────────────────────
+  // Phase 2: 高速回転を維持しながら輪郭へ収束
+  // ────────────────────────────────────────
   if (doorPhase === 'forming') {
     const FORM_DUR      = 2.0;
     const fp            = Math.min(1.0, doorTime / FORM_DUR);
     const swirlStrength = 1.0 - fp;
 
+    // 最初は高速→収束するにつれて減速
+    const rotSpeed = 12.0 * swirlStrength;
+
+    doorSys.mesh.material.size =
+      0.49 - fp * 0.35; // 収束とともにサイズを戻す
+
     for (let i = 0; i < doorSys.count; i++) {
       const ix = i * 3, iy = i * 3 + 1, iz = i * 3 + 2;
       const noise  = doorSys.noises[i];
       const target = doorSys.targets[i];
-      const dx     = target.x - ACCUM_POINT.x;
-      const dy     = target.y - ACCUM_POINT.y;
+
+      const dx       = target.x - ACCUM_POINT.x;
+      const dy       = target.y - ACCUM_POINT.y;
       const finalR   = Math.sqrt(dx * dx + dy * dy);
       const finalAng = Math.atan2(dy, dx);
+
       const curR   = finalR + noise.radiusMod * swirlStrength * 0.3;
       const curAng = finalAng
                    + noise.angleOffset * swirlStrength * 0.2
-                   + doorTime * noise.speedMod * 0.3;
+                   + doorTime * noise.speedMod * rotSpeed;
+
       const vx = ACCUM_POINT.x + Math.cos(curAng) * curR;
       const vy = ACCUM_POINT.y + Math.sin(curAng) * curR;
+
       const tx = target.x + (vx - target.x) * swirlStrength;
       const ty = target.y + (vy - target.y) * swirlStrength;
+
       pos[ix] += (tx - pos[ix]) * 0.05;
       pos[iy] += (ty - pos[iy]) * 0.05;
       pos[iz] += (target.z - pos[iz]) * 0.04;
@@ -821,7 +879,6 @@ function updateDoor() {
       doorPhase = 'complete';
     }
   }
-
   if (doorPhase === 'complete') {
     const t = Date.now() * 0.001;
 doorSys.mesh.material.opacity = 0.35 + Math.sin(t * 1.5) * 0.08;
