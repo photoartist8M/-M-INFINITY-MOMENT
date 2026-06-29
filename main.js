@@ -194,14 +194,7 @@ let doorPhase        = 'none';
 let doorTime         = 0;
 let loopDisabled     = false;
 let _dissolvedFlags  = new Array(PHOTO_FILES.length).fill(false);
-// 空間粒子を渦に巻き込むパラメータ（追加）
-const VORTEX = {
-  enabled:   false,
-  strength:  0.0012,
-  swirl:     0.0020,
-  maxRadius: 120.0,
-};
-let riftMesh = null;
+let portalPlane = null;
 
 // ======================================================
 // テクスチャ
@@ -438,19 +431,22 @@ function createAccentParticles() {
 }
 
 const backgroundParticles = createBackgroundParticles();
-const accentParticles     = createAccentParticles();
+const accentParticles = createAccentParticles();
+
+createAccumulationGlow();
+createPortalPlane();
 
 // ======================================================
-// 蓄積光メッシュの作成（追加）
+// 蓄積光メッシュの作成
 // ======================================================
 function createAccumulationGlow() {
+
   accumulationGlow = new THREE.Group();
   accumulationGlow.position.copy(ACCUM_POINT);
   scene.add(accumulationGlow);
 
-  // にじんだ光を複数レイヤーで重ねる
   const layers = [
-    { size: 0.8,  opacity: 0.6  },
+    { size: 0.8,  opacity: 0.60 },
     { size: 2.0,  opacity: 0.25 },
     { size: 4.0,  opacity: 0.12 },
     { size: 7.0,  opacity: 0.06 },
@@ -458,23 +454,64 @@ function createAccumulationGlow() {
   ];
 
   layers.forEach(({ size, opacity }) => {
-    const geo = new THREE.PlaneGeometry(size, size);
-    const mat = new THREE.MeshBasicMaterial({
-      map: particleTexture, // 既存のグローテクスチャを流用
-      color: new THREE.Color(1.8, 1.4, 0.9),
-      transparent: true,
-      opacity: 0,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-      side: THREE.DoubleSide,
-    });
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.userData.baseOpacity = opacity;
-    mesh.layers.enable(BLOOM_LAYER);
-    accumulationGlow.add(mesh);
-  });
-}
 
+    const geo = new THREE.PlaneGeometry(size, size);
+
+    const mat = new THREE.MeshBasicMaterial({
+
+      map: particleTexture,
+      color: new THREE.Color(1.8,1.4,0.9),
+
+      transparent:true,
+      opacity:0,
+
+      blending:THREE.AdditiveBlending,
+
+      depthWrite:false,
+
+      side:THREE.DoubleSide
+
+    });
+
+    const mesh = new THREE.Mesh(geo,mat);
+
+    mesh.userData.baseOpacity = opacity;
+
+    mesh.layers.enable(BLOOM_LAYER);
+
+    accumulationGlow.add(mesh);
+
+  });
+
+}
+// ======================================================
+// ポータル面
+// ======================================================
+function createPortalPlane() {
+
+  const geo = new THREE.PlaneGeometry(30,30);
+
+  const mat = new THREE.MeshBasicMaterial({
+
+    color:0xeef8ff,
+
+    transparent:true,
+
+    opacity:0,
+
+    depthWrite:false
+
+  });
+
+  portalPlane = new THREE.Mesh(geo,mat);
+
+  portalPlane.position.copy(ACCUM_POINT);
+
+  portalPlane.position.z -= 0.2;
+
+  scene.add(portalPlane);
+
+}
 // ======================================================
 // 写真ロード & オブジェクト生成
 // ======================================================
@@ -655,6 +692,7 @@ function onPhotoArrivedAtLight(index) {
 
   if (accumulatedCount >= PHOTO_FILES.length) {
     loopDisabled = true;
+    // ↓ これを追加：カメラをドア手前まで自動前進
     moveTargetZ = ACCUM_POINT.z + 12;
     moveForward = true;
     setTimeout(() => {
@@ -664,30 +702,77 @@ function onPhotoArrivedAtLight(index) {
     }, 1500);
   }
 }
+// ======================================================
+// 記憶の裂け目（Organic Crack）
+// ======================================================
+function getDoorTargetPositions(count) {
 
-// ======================================================
-// 裂け目の粒子ターゲット座標を生成（縦長の楕円＋ノイズ）
-// ======================================================
-function getRiftTargetPositions(count) {
   const targets = [];
-  const H  = 14;
-  const W  = 1.2;
+
   const cx = ACCUM_POINT.x;
   const cy = ACCUM_POINT.y;
   const cz = ACCUM_POINT.z;
 
-  for (let i = 0; i < count; i++) {
-    const t = (i / count) * Math.PI * 2;
-    const x = cx + Math.cos(t) * W + (Math.random() - 0.5) * 0.4;
-    const y = cy + Math.sin(t) * (H / 2) + (Math.random() - 0.5) * 0.6;
-    const z = cz + (Math.random() - 0.5) * 0.8;
-    targets.push(new THREE.Vector3(x, y, z));
-  }
-  return targets;
-}
+  const height = 12;
 
+  for (let i = 0; i < count; i++) {
+
+    const t = i / count;
+
+    // 高さ
+    const y = cy - height * 0.5 + t * height;
+
+    // 裂け目の中心線
+    const center =
+          Math.sin(t * 3.8) * 0.8
+        + Math.sin(t * 8.5) * 0.45
+        + Math.sin(t * 18.0) * 0.18;
+
+    // 上下で広がり方を変える
+    const width =
+        0.3
+      + Math.sin(t * Math.PI) * 2.0;
+
+    // 左右
+    const side = Math.random() < 0.5 ? -1 : 1;
+
+    // 外側へ広げる
+    const x =
+        center +
+        side * width +
+        (Math.random()-0.5)*0.18;
+
+    // 中央付近だけ少し枝分かれ
+    let yy = y;
+
+    if(Math.random() < 0.18){
+
+        yy +=
+        (Math.random()-0.5)*0.8;
+
+    }
+
+    targets.push(
+
+      new THREE.Vector3(
+
+        cx + x,
+
+        yy,
+
+        cz
+
+      )
+
+    );
+
+  }
+
+  return targets;
+
+}
 // ======================================================
-// ドアパーティクルシステムの作成（追加）
+// 裂け目パーティクルシステムの作成（追加）
 // ======================================================
 function createDoorParticles() {
   const count = 4000;
@@ -733,80 +818,10 @@ function createDoorParticles() {
     mesh:    points,
     geo:     geo,
     count:   count,
-    targets: getRiftTargetPositions(count), // ← 修正済み
+    targets: getDoorTargetPositions(count),
     noises:  noises,
   };
-
-  // 裂け目の光膜（ShaderMaterial）← } の前
-  const riftGeo = new THREE.PlaneGeometry(3.5, 15, 20, 60);
-  const riftMat = new THREE.ShaderMaterial({
-    transparent: true,
-    depthWrite:  false,
-    blending:    THREE.AdditiveBlending,
-    side:        THREE.DoubleSide,
-    uniforms: {
-      uTime:    { value: 0 },
-      uOpacity: { value: 0 },
-    },
-    vertexShader: `
-      uniform float uTime;
-      varying vec2  vUv;
-      varying float vDistort;
-
-      void main() {
-        vUv = uv;
-        vec3 p = position;
-
-        float wave =
-          sin(p.y * 1.8 + uTime * 2.1) * 0.18 +
-          sin(p.y * 3.5 + uTime * 1.3) * 0.08 +
-          sin(p.y * 0.7 + uTime * 0.9) * 0.22;
-
-        p.x += wave;
-        vDistort = abs(wave);
-
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
-      }
-    `,
-    fragmentShader: `
-      uniform float uTime;
-      uniform float uOpacity;
-      varying vec2  vUv;
-      varying float vDistort;
-
-      void main() {
-        float vertFade = sin(vUv.y * 3.14159);
-
-        float horzFade = 1.0 - abs(vUv.x - 0.5) * 2.0;
-        horzFade = pow(horzFade, 1.5);
-
-        float t = uTime * 0.4;
-        vec3 col1 = vec3(0.85, 0.75, 1.00);
-        vec3 col2 = vec3(1.00, 0.90, 0.70);
-        vec3 col3 = vec3(0.70, 0.90, 1.00);
-
-        float colorShift = sin(vUv.y * 2.0 + t) * 0.5 + 0.5;
-        vec3  color = mix(col1, col2, colorShift);
-        color = mix(color, col3, sin(vUv.y * 4.0 + t * 1.3) * 0.3 + 0.3);
-
-        float crack = pow(horzFade, 4.0) * 2.5;
-        color += vec3(1.0, 0.97, 0.90) * crack;
-
-        color += vDistort * 0.6;
-
-        float alpha = vertFade * horzFade * uOpacity;
-        alpha = clamp(alpha, 0.0, 1.0);
-
-        gl_FragColor = vec4(color, alpha);
-      }
-    `,
-  });
-
-  riftMesh = new THREE.Mesh(riftGeo, riftMat);
-  riftMesh.position.copy(ACCUM_POINT);
-  riftMesh.layers.enable(BLOOM_LAYER);
-  scene.add(riftMesh);
-} // ← createDoorParticles の閉じ括弧
+}
 
 // ======================================================
 // 蓄積光のアニメーション更新（追加）
@@ -818,18 +833,23 @@ function updateAccumulationGlow() {
   const ratio = accumulatedCount / PHOTO_FILES.length;
 
   accumulationGlow.children.forEach((mesh, i) => {
+    // レイヤーごとに異なる呼吸リズム
     const breathe = Math.sin(t * 0.9 + i * 0.8) * 0.5
                   + Math.sin(t * 0.4 + i * 0.3) * 0.3
                   + Math.sin(t * 1.6 + i * 1.2) * 0.2;
 
+    // 0〜1の範囲に正規化（0.5基準）
     const pulse = 0.5 + breathe * 0.5;
 
     mesh.material.opacity =
       mesh.userData.baseOpacity * ratio * pulse;
 
+    // 外側レイヤーほどゆっくり大きくなる
     const scaleBreath = 1.0 + Math.sin(t * 0.7 + i * 0.6) * 0.12;
     mesh.scale.setScalar(scaleBreath);
-    // lookAt 削除済み
+
+    // 常にカメラの方を向かせてスプライトっぽく
+    mesh.lookAt(camera.position); //★削除
   });
 }
 
@@ -842,42 +862,47 @@ function updateDoor() {
   doorTime += 0.004;
   const pos = doorSys.geo.attributes.position.array;
 
-  // ────────────────────────────────
-  // Phase 1: ゆっくり→爆速の渦巻き
-  // ────────────────────────────────
+ // ────────────────────────────────────────
+  // Phase 1: ゆっくりから加速する渦巻き
+  // ────────────────────────────────────────
   if (doorPhase === 'spiraling') {
-    const SPIRAL_DUR = 2.5;
-    const sp    = Math.min(1.0, doorTime / SPIRAL_DUR);
+    const SPIRAL_DUR = 2.5; // 少し長くして加速感を出す
+    const sp = Math.min(1.0, doorTime / SPIRAL_DUR);
+
+    // 速度がゆっくり→爆速に加速するカーブ
     const accel = Math.pow(sp, 2.5);
 
-    doorSys.mesh.material.opacity = Math.min(0.5, doorTime * 0.4);
-    doorSys.mesh.material.size    = 0.14 + accel * 0.4;
+    doorSys.mesh.material.opacity = Math.min(0.45, doorTime * 0.5);
+    // 粒子サイズも加速に合わせて大きくなる
+    doorSys.mesh.material.size = 0.14 + accel * 0.35;
 
     for (let i = 0; i < doorSys.count; i++) {
       const ix = i * 3, iy = i * 3 + 1, iz = i * 3 + 2;
       const noise  = doorSys.noises[i];
       const target = doorSys.targets[i];
+
       const dx       = target.x - ACCUM_POINT.x;
       const dy       = target.y - ACCUM_POINT.y;
       const finalR   = Math.sqrt(dx * dx + dy * dy);
       const finalAng = Math.atan2(dy, dx);
-      const curR     = (finalR + noise.radiusMod * (1 - sp)) * sp;
+
+      // 半径：最初は中心付近→外へ広がる
+      const curR = (finalR + noise.radiusMod * (1 - sp)) * sp;
+
+      // 回転速度：最初は0.3→最大18.0まで加速
       const rotSpeed = 0.3 + accel * 17.7;
       const curAng   = finalAng
                      + noise.angleOffset * (1 - sp) * 0.5
                      + doorTime * noise.speedMod * rotSpeed;
+
       const tx = ACCUM_POINT.x + Math.cos(curAng) * curR;
       const ty = ACCUM_POINT.y + Math.sin(curAng) * curR;
+
+      // 追従速度も加速に合わせて上げる
       const followSpeed = 0.04 + accel * 0.08;
       pos[ix] += (tx - pos[ix]) * followSpeed;
       pos[iy] += (ty - pos[iy]) * followSpeed;
       pos[iz] += (ACCUM_POINT.z - pos[iz]) * 0.04;
-    }
-
-    if (sp > 0.4) {
-      VORTEX.enabled  = true;
-      VORTEX.strength = 0.0012 + sp * 0.015;
-      VORTEX.swirl    = 0.0020 + sp * 0.008;
     }
 
     if (doorTime > SPIRAL_DUR + 0.3) {
@@ -885,83 +910,6 @@ function updateDoor() {
       doorTime  = 0;
     }
   }
-
-  // ────────────────────────────────
-  // Phase 2: 渦を維持しながら裂け目へ収束
-  // ────────────────────────────────
-  if (doorPhase === 'forming') {
-    const FORM_DUR      = 2.2;
-    const fp            = Math.min(1.0, doorTime / FORM_DUR);
-    const swirlStrength = 1.0 - fp;
-    const rotSpeed      = 12.0 * swirlStrength;
-
-    doorSys.mesh.material.size = 0.54 - fp * 0.40;
-
-    if (riftMesh) {
-      riftMesh.material.uniforms.uOpacity.value =
-        Math.min(0.85, fp * 1.2);
-    }
-
-    for (let i = 0; i < doorSys.count; i++) {
-      const ix = i * 3, iy = i * 3 + 1, iz = i * 3 + 2;
-      const noise  = doorSys.noises[i];
-      const target = doorSys.targets[i];
-      const dx       = target.x - ACCUM_POINT.x;
-      const dy       = target.y - ACCUM_POINT.y;
-      const finalR   = Math.sqrt(dx * dx + dy * dy);
-      const finalAng = Math.atan2(dy, dx);
-      const curR     = finalR + noise.radiusMod * swirlStrength * 0.3;
-      const curAng   = finalAng
-                     + noise.angleOffset * swirlStrength * 0.2
-                     + doorTime * noise.speedMod * rotSpeed;
-      const vx = ACCUM_POINT.x + Math.cos(curAng) * curR;
-      const vy = ACCUM_POINT.y + Math.sin(curAng) * curR;
-      const tx = target.x + (vx - target.x) * swirlStrength;
-      const ty = target.y + (vy - target.y) * swirlStrength;
-      pos[ix] += (tx - pos[ix]) * 0.05;
-      pos[iy] += (ty - pos[iy]) * 0.05;
-      pos[iz] += (target.z - pos[iz]) * 0.04;
-    }
-
-    if (doorTime > FORM_DUR) {
-      doorPhase = 'complete';
-    }
-  }
-
-  // ────────────────────────────────
-  // Phase 3: 裂け目が完成・脈打つ・カメラを引き寄せる
-  // ────────────────────────────────
-  if (doorPhase === 'complete') {
-    const t = Date.now() * 0.001;
-
-    doorSys.mesh.material.opacity = 0.3 + Math.sin(t * 1.5) * 0.1;
-    doorSys.mesh.material.size    = 0.14 + Math.sin(t * 0.8) * 0.04;
-
-    for (let i = 0; i < doorSys.count; i++) {
-      const ix = i * 3, iy = i * 3 + 1;
-      const target = doorSys.targets[i];
-      pos[ix] += (target.x - pos[ix]) * 0.06;
-      pos[iy] += (target.y - pos[iy]) * 0.06;
-    }
-
-    if (riftMesh) {
-      riftMesh.material.uniforms.uTime.value    = t;
-      riftMesh.material.uniforms.uOpacity.value =
-        0.75 + Math.sin(t * 1.2) * 0.15;
-    }
-
-    const distToDoor = Math.abs(camera.position.z - ACCUM_POINT.z);
-    if (distToDoor > 2) {
-      const pullStrength = Math.max(0.002, 0.015 * (1.0 - distToDoor / 60));
-      camera.position.z -= pullStrength * distToDoor;
-    }
-
-    if (distToDoor < 3) {
-      window.location.href = '../final/index.html';
-    }
-  }
-
-  doorSys.geo.attributes.position.needsUpdate = true;
 
   // ────────────────────────────────────────
   // Phase 2: 高速回転を維持しながら輪郭へ収束
@@ -1274,45 +1222,12 @@ function animate() {
   // 背景パーティクル個別移動
   const positions = backgroundParticles.geometry.attributes.position.array;
   const speeds = backgroundParticles.userData.speeds;
- for (let i = 0; i < speeds.length; i++) {
-    const bx = positions[i * 3];
-    const by = positions[i * 3 + 1];
-    const bz = positions[i * 3 + 2];
-
-    // 既存のゆらぎ
+  for (let i = 0; i < speeds.length; i++) {
     positions[i * 3]     += Math.sin(now * 0.00015 + i) * 0.002;
     positions[i * 3 + 1] += Math.cos(now * 0.00012 + i) * 0.0015;
     positions[i * 3 + 2] += speeds[i];
-
-    // VORTEX: 渦に巻き込む
-    if (VORTEX.enabled) {
-      const dx   = ACCUM_POINT.x - bx;
-      const dy   = ACCUM_POINT.y - by;
-      const dz   = ACCUM_POINT.z - bz;
-      const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
-
-      if (dist < VORTEX.maxRadius) {
-        // 吸引（中心へ引き寄せる）
-        positions[i * 3]     += dx * VORTEX.strength;
-        positions[i * 3 + 1] += dy * VORTEX.strength;
-        positions[i * 3 + 2] += dz * VORTEX.strength;
-
-        // 渦（XZ平面で回転させる）
-        const cx      = ACCUM_POINT.x;
-        const cz      = ACCUM_POINT.z;
-        const vx      = bx - cx;
-        const vz      = bz - cz;
-        const angle   = Math.atan2(vz, vx);
-        const radius  = Math.sqrt(vx * vx + vz * vz);
-        const newAng  = angle + VORTEX.swirl;
-        positions[i * 3]     += (cx + Math.cos(newAng) * radius - bx) * 0.02;
-        positions[i * 3 + 2] += (cz + Math.sin(newAng) * radius - bz) * 0.02;
-      }
-    }
-
-    // リスポーン（通常時のみ）
-    if (!VORTEX.enabled && positions[i * 3 + 2] > camera.position.z + 20) {
-      positions[i * 3 + 2] = camera.position.z - 160 - Math.random() * 180;
+    if (positions[i * 3 + 2] > camera.position.z + 20) {
+      positions[i * 3 + 2] = camera.position.z160 - Math.random() * 180;
       positions[i * 3]     = (Math.random() - 0.5) * 40;
       positions[i * 3 + 1] = (Math.random() - 0.5) * 24;
     }
