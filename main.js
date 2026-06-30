@@ -739,7 +739,7 @@ function onPhotoArrivedAtLight(index) {
   if (accumulatedCount >= PHOTO_FILES.length) {
     loopDisabled = true;
     // ↓ これを追加：カメラをドア手前まで自動前進
-    moveTargetZ = ACCUM_POINT.z + 12;
+    moveTargetZ = ACCUM_POINT.z + 6;
     moveForward = true;
     setTimeout(() => {
       doorPhase = 'spiraling';
@@ -1249,7 +1249,7 @@ function animate() {
 
   camera.position.z -= 0.0005;
   if (moveForward) {
-    camera.position.z += (moveTargetZ - camera.position.z) * 0.15;
+    camera.position.z += (moveTargetZ - camera.position.z) * 0.15; //カメラ吸引速度
     if (Math.abs(moveTargetZ - camera.position.z) < 0.03) {
       camera.position.z = moveTargetZ;
       moveForward = false;
