@@ -260,6 +260,28 @@ function createSparkTexture(size = 128) {
   ctx.globalCompositeOperation = 'source-over';
   return new THREE.CanvasTexture(canvas);
 }
+// ======================================================
+// 星団風テクスチャ（中心白熱→金色のグラデーション）
+// ======================================================
+function createClusterGlowTexture(size = 64) {
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  const half = size / 2;
+
+  const grad = ctx.createRadialGradient(half, half, 0, half, half, half);
+  grad.addColorStop(0.00, 'rgba(255,255,250,1.0)');
+  grad.addColorStop(0.15, 'rgba(255,240,205,0.95)');
+  grad.addColorStop(0.40, 'rgba(255,210,150,0.55)');
+  grad.addColorStop(0.75, 'rgba(220,165,95,0.15)');
+  grad.addColorStop(1.00, 'rgba(180,120,60,0)');
+
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, size, size);
+  return new THREE.CanvasTexture(canvas);
+}
+
+const clusterGlowTexture = createClusterGlowTexture();
 
 // ======================================================
 // 背景粒子 & アクセント粒子
@@ -300,7 +322,7 @@ function createBackgroundParticles() {
 
   uniforms: {
     uTime: { value: 0 },
-    uTexture: { value: particleTexture }
+    uTexture: { value: clusterGlowTexture }
   },
 
   vertexShader: `
@@ -338,7 +360,7 @@ function createBackgroundParticles() {
 
   `,
 
-  fragmentShader: `
+    fragmentShader: `
 
     uniform sampler2D uTexture;
 uniform float uTime;
@@ -360,12 +382,11 @@ uniform float uTime;
         vScale * 8.0
     ) * 0.25;
 
-      vec3 color =
-    vec3(
-      1.0,
-      0.92,
-      0.78
-    ) * 6.5;
+      // 粒子ごとに白〜金のばらつき（vScaleを利用）
+      float warmth = fract(vScale * 12.9898);
+      vec3 whiteHot = vec3(1.0, 0.98, 0.92);
+      vec3 gold     = vec3(1.0, 0.78, 0.45);
+      vec3 color = mix(whiteHot, gold, warmth) * 2.5;
 
 gl_FragColor =
     vec4(
@@ -1464,12 +1485,12 @@ function dissolvePhoto(item) {
     if (item.particles) {
       item.particles.visible = true;
       if (item.particles.material.opacity < 1.0) {
-        item.particles.material.opacity += 0.01;
+        item.particles.material.opacity += 0.005;
       }
     }
 
-    if (item.mesh && item.material.opacity > 0) item.material.opacity -= 0.01;
-    if (item.aura && item.aura.material.opacity > 0) item.aura.material.opacity -= 0.01;
+    if (item.mesh && item.material.opacity > 0) item.material.opacity -= 0.005;
+    if (item.aura && item.aura.material.opacity > 0) item.aura.material.opacity -= 0.005;
 
     if (item.material.opacity <= 0) {
       item._photoFadedOut = true;
