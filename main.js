@@ -125,8 +125,8 @@ function getYawLimits() {
 // ======================================================
 const PHOTO_FILES = [
   'assets/photo1.jpg',
-  'assets/photo2.jpg',
-  'assets/photo3.jpg',
+  'assets/photo8.jpg',
+  'assets/photo9.jpg',
   'assets/photo4.jpg',
   'assets/photo5.jpg',
 ];
@@ -260,28 +260,6 @@ function createSparkTexture(size = 128) {
   ctx.globalCompositeOperation = 'source-over';
   return new THREE.CanvasTexture(canvas);
 }
-// ======================================================
-// 星団風テクスチャ（中心白熱→金色のグラデーション）
-// ======================================================
-function createClusterGlowTexture(size = 64) {
-  const canvas = document.createElement('canvas');
-  canvas.width = canvas.height = size;
-  const ctx = canvas.getContext('2d');
-  const half = size / 2;
-
-  const grad = ctx.createRadialGradient(half, half, 0, half, half, half);
-  grad.addColorStop(0.00, 'rgba(255,255,250,1.0)');
-  grad.addColorStop(0.15, 'rgba(255,240,205,0.95)');
-  grad.addColorStop(0.40, 'rgba(255,210,150,0.55)');
-  grad.addColorStop(0.75, 'rgba(220,165,95,0.15)');
-  grad.addColorStop(1.00, 'rgba(180,120,60,0)');
-
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, size, size);
-  return new THREE.CanvasTexture(canvas);
-}
-
-const clusterGlowTexture = createClusterGlowTexture();
 
 // ======================================================
 // 背景粒子 & アクセント粒子
@@ -322,7 +300,7 @@ function createBackgroundParticles() {
 
   uniforms: {
     uTime: { value: 0 },
-    uTexture: { value: clusterGlowTexture }
+    uTexture: { value: particleTexture }
   },
 
   vertexShader: `
@@ -360,7 +338,7 @@ function createBackgroundParticles() {
 
   `,
 
-    fragmentShader: `
+  fragmentShader: `
 
     uniform sampler2D uTexture;
 uniform float uTime;
@@ -382,11 +360,12 @@ uniform float uTime;
         vScale * 8.0
     ) * 0.25;
 
-      // 粒子ごとに白〜金のばらつき（vScaleを利用）
-      float warmth = fract(vScale * 12.9898);
-      vec3 whiteHot = vec3(1.0, 0.98, 0.92);
-      vec3 gold     = vec3(1.0, 0.78, 0.45);
-      vec3 color = mix(whiteHot, gold, warmth) * 2.5;
+      vec3 color =
+    vec3(
+      1.0,
+      0.92,
+      0.78
+    ) * 6.5;
 
 gl_FragColor =
     vec4(
@@ -582,12 +561,15 @@ function createPortalPlane() {
 // ======================================================
 // 写真ロード & オブジェクト生成
 // ======================================================
-function loadPhotoItem(item) {
+ function loadPhotoItem(item) {
   const img = new Image();
   img.src = item.src;
   img.onload = () => {
+    if (!img.naturalWidth || !img.naturalHeight) {
+      console.error(`画像が壊れています: ${item.src}`);
+      return; // 不正な画像は処理しない
+    }
     item._img = img;
-
   const isMobile = window.innerWidth <= 768;
 
 const frameHeight = isMobile ? 9.5 : 10;
@@ -620,7 +602,7 @@ if (baseHeight > maxHeight) {
     const cx = c.getContext('2d');
     cx.drawImage(img, 0, 0, w, h);
     const data = cx.getImageData(0, 0, w, h).data;
-   let rSum = 0, gSum = 0, bSum = 0, count = 0;
+    let rSum = 0, gSum = 0, bSum = 0, count = 0;
     for (let y = 0; y < h; y += 2) {
       for (let x = 0; x < w; x += 2) {
         const i = (y * w + x) * 4;
@@ -635,33 +617,10 @@ if (baseHeight > maxHeight) {
         }
       }
     }
-
-    // ★暗い写真など、明るいピクセルが少なすぎる場合の保険
-    // 最低限の粒子数を必ず確保し、NaN・空ジオメトリを防ぐ
-    const MIN_PARTICLES = 60;
-    if (item.targetPositions.length < MIN_PARTICLES) {
-      outer:
-      for (let y = 2; y < h - 2; y += 3) {
-        for (let x = 2; x < w - 2; x += 3) {
-          if (item.targetPositions.length >= MIN_PARTICLES) break outer;
-          const i = (y * w + x) * 4;
-          const r = data[i], g = data[i+1], b = data[i+2];
-          item.targetPositions.push(new THREE.Vector3(
-            (x - w/2) * (baseWidth/w),
-            (h/2 - y) * (baseHeight/h),
-            3
-          ));
-          rSum += r; gSum += g; bSum += b; count++;
-        }
-      }
-    }
-
     if (count > 0) {
       item.particleColor = new THREE.Color(rSum/count/255, gSum/count/255, bSum/count/255);
-    } else {
-      // 万一それでも0件なら安全な白色にしておく
-      item.particleColor = new THREE.Color(1, 1, 1);
     }
+
     buildParticles(item);
     buildPhotoMesh(item, baseWidth, baseHeight);
     buildAura(item, baseWidth, baseHeight);
@@ -783,7 +742,7 @@ function onPhotoArrivedAtLight(index) {
   if (accumulatedCount >= PHOTO_FILES.length) {
     loopDisabled = true;
     // ↓ これを追加：カメラをドア手前まで自動前進
-    moveTargetZ = ACCUM_POINT.z + 6;
+    moveTargetZ = ACCUM_POINT.z + 4.5;
     moveForward = true;
     setTimeout(() => {
       doorPhase = 'spiraling';
@@ -990,7 +949,7 @@ function updateDoor() {
     if (uni) {
       uni.uWarp.value     = 1.0 - fp;
       uni.uCrack.value    = fp;
-      uni.uOpacity.value  = 0.85;
+      uni.uOpacity.value  = 0.55;
     }
 
     for (let i = 0; i < doorSys.count; i++) {
@@ -1039,7 +998,7 @@ function updateDoor() {
 
     if (uni) {
       uni.uCrack.value   = pulse;
-      uni.uOpacity.value = 0.9;
+      uni.uOpacity.value = 0.6;
     }
 
     for (let i = 0; i < doorSys.count; i++) {
@@ -1508,12 +1467,12 @@ function dissolvePhoto(item) {
     if (item.particles) {
       item.particles.visible = true;
       if (item.particles.material.opacity < 1.0) {
-        item.particles.material.opacity += 0.005;
+        item.particles.material.opacity += 0.01;
       }
     }
 
-    if (item.mesh && item.material.opacity > 0) item.material.opacity -= 0.005;
-    if (item.aura && item.aura.material.opacity > 0) item.aura.material.opacity -= 0.005;
+    if (item.mesh && item.material.opacity > 0) item.material.opacity -= 0.01;
+    if (item.aura && item.aura.material.opacity > 0) item.aura.material.opacity -= 0.01;
 
     if (item.material.opacity <= 0) {
       item._photoFadedOut = true;
