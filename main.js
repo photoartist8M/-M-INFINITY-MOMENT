@@ -547,7 +547,7 @@ function createPortalPlane() {
         float warpGlow = ripple * uWarp * smoothstep(1.0, 0.0, dist * 1.3);
 
         // 中心の渦の眼（明るい核）
-        float eye = smoothstep(0.35, 0.0, dist) * uWarp;* 0.5;
+        float eye = smoothstep(0.35, 0.0, dist) * uWarp * 0.5;
 
         // ── 縦長の裂け目 ──
         float crackLine = uv.x
