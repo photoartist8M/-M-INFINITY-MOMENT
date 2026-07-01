@@ -620,7 +620,7 @@ if (baseHeight > maxHeight) {
     const cx = c.getContext('2d');
     cx.drawImage(img, 0, 0, w, h);
     const data = cx.getImageData(0, 0, w, h).data;
-    let rSum = 0, gSum = 0, bSum = 0, count = 0;
+   let rSum = 0, gSum = 0, bSum = 0, count = 0;
     for (let y = 0; y < h; y += 2) {
       for (let x = 0; x < w; x += 2) {
         const i = (y * w + x) * 4;
@@ -635,10 +635,33 @@ if (baseHeight > maxHeight) {
         }
       }
     }
-    if (count > 0) {
-      item.particleColor = new THREE.Color(rSum/count/255, gSum/count/255, bSum/count/255);
+
+    // ★暗い写真など、明るいピクセルが少なすぎる場合の保険
+    // 最低限の粒子数を必ず確保し、NaN・空ジオメトリを防ぐ
+    const MIN_PARTICLES = 60;
+    if (item.targetPositions.length < MIN_PARTICLES) {
+      outer:
+      for (let y = 2; y < h - 2; y += 3) {
+        for (let x = 2; x < w - 2; x += 3) {
+          if (item.targetPositions.length >= MIN_PARTICLES) break outer;
+          const i = (y * w + x) * 4;
+          const r = data[i], g = data[i+1], b = data[i+2];
+          item.targetPositions.push(new THREE.Vector3(
+            (x - w/2) * (baseWidth/w),
+            (h/2 - y) * (baseHeight/h),
+            3
+          ));
+          rSum += r; gSum += g; bSum += b; count++;
+        }
+      }
     }
 
+    if (count > 0) {
+      item.particleColor = new THREE.Color(rSum/count/255, gSum/count/255, bSum/count/255);
+    } else {
+      // 万一それでも0件なら安全な白色にしておく
+      item.particleColor = new THREE.Color(1, 1, 1);
+    }
     buildParticles(item);
     buildPhotoMesh(item, baseWidth, baseHeight);
     buildAura(item, baseWidth, baseHeight);
