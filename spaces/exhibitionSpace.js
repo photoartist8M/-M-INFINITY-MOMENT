@@ -1,35 +1,34 @@
 import * as THREE from 'three';
+import { Water } from 'three/addons/objects/Water.js';
 
 // ======================================================
 // 写真リスト（自動配置版）
 // ======================================================
 const PHOTO_SOURCES = [
   '../assets/photo1.jpg',
-  '../assets/photo2.jpg',
-  '../assets/photo3.jpg',
+  '../assets/photo12.jpg',
+  '../assets/photo13.jpg',
   '../assets/photo4.jpg',
   '../assets/photo5.jpg',
   '../assets/photo6.jpg',
   '../assets/photo7.jpg',
   '../assets/photo8.jpg',
   '../assets/photo9.jpg',
-  '../assets/photo0.jpg',
-  // 今後ここに追加していくだけでOK
+  '../assets/photo.jpg',
 ];
 
-const GALLERY_RADIUS = 20; // 円の半径（イメージのような広がりにはこのくらい）
+const GALLERY_RADIUS = 20;
 
 function buildPhotoConfig(sources) {
   const count = sources.length;
   return sources.map((src, i) => {
-    // 均等配置 + わずかなランダム性で有機的に
     const baseAngle = (360 / count) * i;
-    const jitter = (Math.random() - 0.5) * (360 / count) * 0.3; // 隙間の30%以内でランダムにずらす
+    const jitter = (Math.random() - 0.5) * (360 / count) * 0.3;
     const angle = baseAngle + jitter;
 
-    const height = (Math.random() - 0.5) * 4;       // 上下のばらつき
-    const scale = 0.6 + Math.random() * 0.7;          // 大小のばらつき（0.6〜1.3倍）
-    const radius = GALLERY_RADIUS + (Math.random() - 0.5) * 3; // 前後にも少しばらつき
+    const height = (Math.random() - 0.5) * 4;
+    const scale = 0.6 + Math.random() * 0.7;
+    const radius = GALLERY_RADIUS + (Math.random() - 0.5) * 3;
 
     return { src, angle, radius, height, scale };
   });
@@ -66,8 +65,8 @@ function hslToColor(h, s, l) {
 
 function toPastel(r, g, b) {
   const [h] = rgbToHsl(r, g, b);
-  const s = 0.45 + Math.random() * 0.15; // 彩度: 45〜60%（もう少ししっかり）
-  const l = 0.78 + Math.random() * 0.08; // 明度: 78〜86%（淡いけど分かる濃さ）
+  const s = 0.55 + Math.random() * 0.15;
+  const l = 0.40 + Math.random() * 0.10;
   return hslToColor(h, s, l);
 }
 
@@ -101,45 +100,119 @@ function extractPastelColors(img) {
 
 // ======================================================
 // エントリーポイント：外部(test.html)から呼び出される
-// renderer, camera は外部から渡される
 // ======================================================
 export function startExhibitionSpace(renderer, camera) {
   const scene = new THREE.Scene();
 
   camera.position.set(0, 0, 0);
 
-  const ambientLight = new THREE.AmbientLight(0xffffff, 0.9);
+  const ambientLight = new THREE.AmbientLight(0xffffff, 0.35);
   scene.add(ambientLight);
   const keyLight = new THREE.DirectionalLight(0xfff5e8, 0.6);
   keyLight.position.set(3, 8, 5);
   scene.add(keyLight);
 
-  // ── 背景グラデーション ──
+  // ── 背景グラデーション（5色: 隣接写真も混ぜる） ──
   const bgCanvas = document.createElement('canvas');
-  bgCanvas.width = 4;
+  bgCanvas.width = 64;
   bgCanvas.height = 256;
   const bgCtx = bgCanvas.getContext('2d');
   const bgTexture = new THREE.CanvasTexture(bgCanvas);
 
   let currentColors = [
-    new THREE.Color(0xfaf3ec),
-    new THREE.Color(0xf7ece9),
-    new THREE.Color(0xf3eef7),
+    new THREE.Color(0xf6d9c9),
+    new THREE.Color(0xf3c9d9),
+    new THREE.Color(0xd9c9f3),
+    new THREE.Color(0xc9e0f3),
+    new THREE.Color(0xc9f3d9),
   ];
   let targetColors = currentColors.map(c => c.clone());
 
   function drawBackgroundGradient() {
-    const grad = bgCtx.createLinearGradient(0, 0, 0, bgCanvas.height);
-    grad.addColorStop(0.0, `#${currentColors[0].getHexString()}`);
-    grad.addColorStop(0.5, `#${currentColors[1].getHexString()}`);
-    grad.addColorStop(1.0, `#${currentColors[2].getHexString()}`);
-    bgCtx.fillStyle = grad;
+    bgCtx.clearRect(0, 0, bgCanvas.width, bgCanvas.height);
+    bgCtx.fillStyle = `#${currentColors[2].getHexString()}`;
     bgCtx.fillRect(0, 0, bgCanvas.width, bgCanvas.height);
+
+    currentColors.forEach((c, i) => {
+      const cx = (Math.sin(i * 137.5) * 0.5 + 0.5) * bgCanvas.width;
+      const cy = ((i + 0.5) / currentColors.length) * bgCanvas.height;
+      const radius = bgCanvas.height * 0.6;
+
+      const grad = bgCtx.createRadialGradient(cx, cy, 0, cx, cy, radius);
+      grad.addColorStop(0, `#${c.getHexString()}`);
+      grad.addColorStop(1, `#${c.getHexString()}00`);
+
+      bgCtx.fillStyle = grad;
+      bgCtx.fillRect(0, 0, bgCanvas.width, bgCanvas.height);
+    });
+
     bgTexture.needsUpdate = true;
   }
   drawBackgroundGradient();
   scene.background = bgTexture;
-  scene.fog = new THREE.Fog(0xffffff, 20, 60);
+  scene.fog = new THREE.Fog(0xffffff, 60, 140);
+
+  // ======================================================
+  // 水面（静かでキラキラした反射床、面積は控えめ）
+  // ======================================================
+  const waterGeo = new THREE.CircleGeometry(18, 64); // 面積を縮小
+  const water = new Water(waterGeo, {
+    textureWidth: 1024,
+    textureHeight: 1024,
+    waterNormals: new THREE.TextureLoader().load(
+      'https://threejs.org/examples/textures/waternormals.jpg',
+      (tex) => {
+        tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+        tex.repeat.set(3, 3); // 細かい反射でキラキラ感アップ
+      }
+    ),
+    sunDirection: new THREE.Vector3(0, 0.6, -1).normalize(),
+    sunColor: 0xfff6dd,
+    waterColor: 0xdfe9ea,
+    distortionScale: 1.0,
+    alpha: 0.9,
+    fog: !!scene.fog,
+  });
+  water.rotation.x = -Math.PI / 2;
+  water.position.y = -8; // 写真から距離を取る
+  scene.add(water);
+
+  // 奥の水平線に、ほんのり光る球状のグロー
+  const horizonGlowGeo = new THREE.SphereGeometry(150, 32, 32);
+  const horizonGlowMat = new THREE.MeshBasicMaterial({
+    color: 0xfff3da,
+    transparent: true,
+    opacity: 0.15,
+    side: THREE.BackSide,
+  });
+  const horizonGlow = new THREE.Mesh(horizonGlowGeo, horizonGlowMat);
+  scene.add(horizonGlow);
+
+  // 水平線の光のライン（太陽のような一筋の光）
+  const sunLineGeo = new THREE.PlaneGeometry(400, 1.2);
+  const sunLineMat = new THREE.MeshBasicMaterial({
+    color: 0xfff6da,
+    transparent: true,
+    opacity: 0.5,
+    blending: THREE.AdditiveBlending,
+    side: THREE.DoubleSide,
+  });
+  const sunLine = new THREE.Mesh(sunLineGeo, sunLineMat);
+  sunLine.position.set(0, -0.5, -80);
+  scene.add(sunLine);
+
+  // 光のラインの上にもう少し柔らかいグロー
+  const sunGlowGeo = new THREE.PlaneGeometry(400, 8);
+  const sunGlowMat = new THREE.MeshBasicMaterial({
+    color: 0xfff6da,
+    transparent: true,
+    opacity: 0.12,
+    blending: THREE.AdditiveBlending,
+    side: THREE.DoubleSide,
+  });
+  const sunGlow = new THREE.Mesh(sunGlowGeo, sunGlowMat);
+  sunGlow.position.set(0, -0.5, -80);
+  scene.add(sunGlow);
 
   // ── 写真アイテム ──
   const photoItems = [];
@@ -148,7 +221,7 @@ export function startExhibitionSpace(renderer, camera) {
     const rad = THREE.MathUtils.degToRad(config.angle);
     const position = new THREE.Vector3(
       Math.sin(rad) * config.radius,
-      config.height,
+      config.height + 1.0, // 少し見上げる高さに
       -Math.cos(rad) * config.radius
     );
 
@@ -158,10 +231,11 @@ export function startExhibitionSpace(renderer, camera) {
       position,
       mesh: null,
       aura: null,
+      floatPhase: Math.random() * Math.PI * 2,
       pastelColors: [
-        new THREE.Color(0xfaf3ec),
-        new THREE.Color(0xf7ece9),
-        new THREE.Color(0xf3eef7),
+        new THREE.Color(0xf6d9c9),
+        new THREE.Color(0xf3c9d9),
+        new THREE.Color(0xd9c9f3),
       ],
       loaded: false,
     };
@@ -175,7 +249,7 @@ export function startExhibitionSpace(renderer, camera) {
       }
 
       const aspect = img.width / img.height;
-      const frameHeight = 3.2 * config.scale;
+      const frameHeight = 4.5 * config.scale;
       const baseWidth = frameHeight * aspect;
       const baseHeight = frameHeight;
 
@@ -187,6 +261,7 @@ export function startExhibitionSpace(renderer, camera) {
         map: tex,
         transparent: true,
         side: THREE.DoubleSide,
+        opacity: 1,
       });
 
       item.mesh = new THREE.Mesh(geo, mat);
@@ -203,7 +278,7 @@ export function startExhibitionSpace(renderer, camera) {
         side: THREE.DoubleSide,
       });
       item.aura = new THREE.Mesh(auraGeo, auraMat);
-      item.aura.position.copy(position).multiplyScalar(0.998);
+      item.aura.position.copy(position).multiplyScalar(1.002);
       item.aura.lookAt(0, position.y, 0);
       scene.add(item.aura);
 
@@ -314,13 +389,20 @@ export function startExhibitionSpace(renderer, camera) {
   let bgUpdateTimer = 0;
 
   // ======================================================
-  // update(dt) : test.html の animate() から毎フレーム呼ばれる
+  // update(dt)
   // ======================================================
   function update(dt) {
     yaw += (targetYaw - yaw) * 0.08;
     pitch += (targetPitch - pitch) * 0.08;
 
     approachProgress += (approachTarget - approachProgress) * 0.06;
+
+    // 拡大中(十分近づいたら)は水面・水平線の光を隠す
+    const zoomedIn = viewingItem && approachProgress > 0.3;
+    water.visible = !zoomedIn;
+    horizonGlow.visible = !zoomedIn;
+    sunLine.visible = !zoomedIn;
+    sunGlow.visible = !zoomedIn;
 
     if (viewingItem && approachProgress > 0.01) {
       camera.position.lerpVectors(cameraHomePos, cameraApproachPos, approachProgress);
@@ -338,28 +420,62 @@ export function startExhibitionSpace(renderer, camera) {
       camera.position.lerp(cameraHomePos, 0.1);
       camera.rotation.set(pitch, yaw, 0, 'YXZ');
 
+      const t = performance.now() * 0.0006;
       photoItems.forEach(item => {
         if (!item.mesh) return;
         item.mesh.material.opacity += (1.0 - item.mesh.material.opacity) * 0.05;
         if (item.aura) {
           item.aura.material.opacity += (0.5 - item.aura.material.opacity) * 0.05;
         }
+
+        // ふわふわ上下浮遊
+        const floatY = Math.sin(t + item.floatPhase) * 0.25;
+        item.mesh.position.y = item.position.y + floatY;
+        if (item.aura) item.aura.position.y = item.position.y + floatY;
       });
     }
 
+    // ── 水面のアニメーション：常時ゆっくり、視点を動かすと少し強まる ──
+    water.material.uniforms['time'].value += dt * 0.06;
+
+    if (water.userData.lastYaw === undefined) {
+      water.userData.lastYaw = yaw;
+      water.userData.lastPitch = pitch;
+      water.userData.rippleBoost = 0;
+    }
+    const viewMoveDist = Math.abs(yaw - water.userData.lastYaw) + Math.abs(pitch - water.userData.lastPitch);
+    water.userData.lastYaw = yaw;
+    water.userData.lastPitch = pitch;
+
+    water.userData.rippleBoost += viewMoveDist * 3;
+    water.userData.rippleBoost *= 0.92;
+
+    water.material.uniforms['distortionScale'].value = 0.4 + water.userData.rippleBoost;
+
+    // 背景グラデーション：現在見ている写真 + 隣接写真の色を混ぜて5色に
     bgUpdateTimer++;
     if (bgUpdateTimer % 3 === 0) {
       const facing = viewingItem || getFacingItem();
+
       if (facing && facing.loaded) {
-        targetColors = facing.pastelColors;
+        const idx = photoItems.indexOf(facing);
+        const prevItem = photoItems[(idx - 1 + photoItems.length) % photoItems.length];
+        const nextItem = photoItems[(idx + 1) % photoItems.length];
+
+        targetColors = [
+          (prevItem && prevItem.loaded) ? prevItem.pastelColors[2] : facing.pastelColors[0],
+          facing.pastelColors[0],
+          facing.pastelColors[1],
+          facing.pastelColors[2],
+          (nextItem && nextItem.loaded) ? nextItem.pastelColors[0] : facing.pastelColors[2],
+        ];
       }
-      let changed = false;
-      for (let i = 0; i < 3; i++) {
-        const before = currentColors[i].clone();
-        currentColors[i].lerp(targetColors[i], 0.02);
-        if (!currentColors[i].equals(before)) changed = true;
+
+      for (let i = 0; i < currentColors.length; i++) {
+        if (!targetColors[i]) continue;
+        currentColors[i].lerp(targetColors[i], 0.06);
       }
-      if (changed) drawBackgroundGradient();
+      drawBackgroundGradient();
     }
   }
 
