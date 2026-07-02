@@ -177,8 +177,9 @@ function createPhotoItem(src, index) {
     dissolved: false,
     dissolveParticles: null,
     viewing: false,
-viewStartZ: null,
-_img: null,
+    viewStartZ: null,
+    _img: null,
+    failed: false, // 画像の読み込みに失敗したかどうか
   };
 }
 
@@ -265,7 +266,7 @@ function createSparkTexture(size = 128) {
 // 背景粒子 & アクセント粒子
 // ======================================================
 function createBackgroundParticles() {
-  const count = 4500;
+  const count = 3000; // 描画負荷軽減のため4500から削減
 
   const positions = new Float32Array(count * 3);
   const speeds = new Float32Array(count);
@@ -559,41 +560,90 @@ function createPortalPlane() {
   scene.add(portalPlane);
 }
 // ======================================================
+// 写真ロードに失敗した場合のフォールバック処理
+// ----------------------------------------------------
+// 画像の読み込みエラー・破損・タイムアウトが起きても、
+// その写真は「即座に到達済み」として扱い、蓄積カウントに
+// 加算する。これにより1枚以上の写真が表示できない場合でも
+// 裂け目演出（ドア）が必ず発生するようにする。
+// ======================================================
+function markPhotoFailed(item) {
+  if (item.failed || item.dissolved) return; // 二重処理防止
+  console.warn(`写真の表示をスキップします（読み込み失敗）: ${item.src}`);
+
+  item.failed     = true;
+  item.loaded     = true;
+  item.triggered  = true;
+  item.attract    = true;
+  item.formed     = true;
+  item.fixed      = true;
+  item.dissolving = true;
+  item._photoFadedOut = true;
+  item.dissolved  = true; // checkDissolvedAndAccumulate が検知し蓄積カウントへ加算する
+}
+
+// ======================================================
 // 写真ロード & オブジェクト生成
 // ======================================================
- function loadPhotoItem(item) {
+function loadPhotoItem(item) {
   const img = new Image();
-  img.src = item.src;
+  let settled = false;
+
+  // ネットワーク遅延やハングで onload/onerror が発火しない場合の保険
+  const failTimeoutId = setTimeout(() => {
+    if (settled) return;
+    settled = true;
+    console.warn(`画像の読み込みがタイムアウトしました: ${item.src}`);
+    markPhotoFailed(item);
+  }, 8000);
+
+  img.onerror = () => {
+    if (settled) return;
+    settled = true;
+    clearTimeout(failTimeoutId);
+    console.error(`画像の読み込みに失敗しました: ${item.src}`);
+    markPhotoFailed(item);
+  };
+
   img.onload = () => {
+    if (settled) return;
+
     if (!img.naturalWidth || !img.naturalHeight) {
+      settled = true;
+      clearTimeout(failTimeoutId);
       console.error(`画像が壊れています: ${item.src}`);
+      markPhotoFailed(item);
       return; // 不正な画像は処理しない
     }
+
+    settled = true;
+    clearTimeout(failTimeoutId);
+
     item._img = img;
-  const isMobile = window.innerWidth <= 768;
+    const isMobile = window.innerWidth <= 768;
 
-const frameHeight = isMobile ? 9.5 : 10;
+    const frameHeight = isMobile ? 9.5 : 10;
 
-const aspect = img.width / img.height;
+    const aspect = img.width / img.height;
 
-let baseWidth = frameHeight * aspect;
-let baseHeight = frameHeight;
-
-
-// 横長写真を制限
-if (baseWidth > 14) {
-  baseWidth = 14;
-  baseHeight = baseWidth / aspect;
-}
+    let baseWidth = frameHeight * aspect;
+    let baseHeight = frameHeight;
 
 
-// 縦写真を制限
-const maxHeight = isMobile ? 13 : 14;
+    // 横長写真を制限
+    if (baseWidth > 14) {
+      baseWidth = 14;
+      baseHeight = baseWidth / aspect;
+    }
 
-if (baseHeight > maxHeight) {
-  baseHeight = maxHeight;
-  baseWidth = baseHeight * aspect;
-}
+
+    // 縦写真を制限
+    const maxHeight = isMobile ? 13 : 14;
+
+    if (baseHeight > maxHeight) {
+      baseHeight = maxHeight;
+      baseWidth = baseHeight * aspect;
+    }
 
     const w = 150;
     const h = Math.round(150 / aspect);
@@ -627,6 +677,8 @@ if (baseHeight > maxHeight) {
     item.loaded = true;
     item._loadedAt = Date.now();
   };
+
+  img.src = item.src;
 }
 
 function buildParticles(item) {
@@ -717,7 +769,6 @@ function buildAura(item, baseWidth, baseHeight) {
 }
 
 photoItems.forEach(item => loadPhotoItem(item));
-createAccumulationGlow();
 
 // ======================================================
 // dissolvedになった瞬間を検知（追加）
@@ -738,18 +789,19 @@ function checkDissolvedAndAccumulate() {
 function onPhotoArrivedAtLight(index) {
   accumulatedCount++;
   console.log(`蓄積: ${accumulatedCount} / ${PHOTO_FILES.length}`);
+if (accumulatedCount >= PHOTO_FILES.length) {
+  loopDisabled = true;
 
-  if (accumulatedCount >= PHOTO_FILES.length) {
-    loopDisabled = true;
-    // ↓ これを追加：カメラをドア手前まで自動前進
-    moveTargetZ = ACCUM_POINT.z + 4.5;
-    moveForward = true;
-    setTimeout(() => {
-      doorPhase = 'spiraling';
-      doorTime  = 0;
-      createDoorParticles();
-    }, 1500);
-  }
+  moveTargetZ = ACCUM_POINT.z + 4.5;
+  moveForward = true;
+
+  setTimeout(() => {
+    cameraLocked = true;      // ← 裂け目演出の間、カメラ操作を完全に停止
+    doorPhase = 'spiraling';
+    doorTime = 0;
+    createDoorParticles();
+  }, 1500);
+}
 }
 // ======================================================
 // 記憶の裂け目（Organic Crack）ターゲット座標
@@ -1008,7 +1060,7 @@ function updateDoor() {
       pos[iy] += (target.y - pos[iy]) * 0.08;
     }
 
-    // カメラを裂け目へ吸い込む
+    // カメラを裂け目へ吸い込む（演出専用の移動なので cameraLocked とは独立して動かす）
     const distToDoor = ACCUM_POINT.z - camera.position.z;
     if (distToDoor < -1.5) {
       const pull = Math.min(0.06, 0.012 + t * 0.01);
@@ -1029,6 +1081,7 @@ function updateDoor() {
 // トリガー・吸引・フェード・固定
 // ======================================================
 const TRIGGER_DISTANCE = 25;
+const DISSOLVE_CAMERA_PUSH = 18; // 粒子化開始時にカメラから遠ざける距離（近距離での白トビ防止）
 
 function checkTriggers() {
   const now = Date.now();
@@ -1049,19 +1102,20 @@ function checkTriggers() {
         item.attract   = true;
       }
 
-      // 【数珠つなぎ】前の写真（i-2）が消え始めたら、この写真（i）を出現させる
-if (i >= 1) {
-  const prevItem = photoItems[i - 1];
-  if (prevItem && prevItem.dissolving) {
-    item.triggered = true;
-    item.attract   = true;
-  }
-}
+      // 【数珠つなぎ】前の写真（i-1）が消え始めたら、この写真（i）を出現させる
+      // ※ 読み込み失敗で即座に dissolving/dissolved になった写真も対象に含まれる
+      if (i >= 1) {
+        const prevItem = photoItems[i - 1];
+        if (prevItem && prevItem.dissolving) {
+          item.triggered = true;
+          item.attract   = true;
+        }
+      }
     }
 
-    // 「2つ前の写真が完全に固定（表示中）になったら、自分（i-2）を消滅させる」
-if (i >= 1 && item.fixed && !item.dissolving && !item.dissolved) {
-  const oldestItem = photoItems[i - 1];
+    // 「1つ前の写真が完全に固定（表示中）になったら、自分（i-1）を消滅させる」
+    if (i >= 1 && item.fixed && !item.dissolving && !item.dissolved) {
+      const oldestItem = photoItems[i - 1];
       if (oldestItem && !oldestItem.dissolving && !oldestItem.dissolved) {
         oldestItem.dissolving = true;
         oldestItem.viewing = false;
@@ -1153,8 +1207,10 @@ function updateParticleEffects() {
 // ======================================================
 let targetRotX = 0;
 let targetRotY = 0;
+let cameraLocked = false; // 裂け目演出開始と同時に true になり、以後の手動カメラ操作を無効化する
 
 window.addEventListener('mousemove', (e) => {
+  if (cameraLocked) return; // 裂け目演出中はマウスでの視点操作を無効化
   let ty = (e.clientX / window.innerWidth  - 0.5) * 0.5;
   const _ml = getYawLimits();
   if (_ml) ty = Math.max(_ml.min, Math.min(_ml.max, ty));
@@ -1163,6 +1219,7 @@ window.addEventListener('mousemove', (e) => {
 });
 
 window.addEventListener('keydown', (e) => {
+  if (cameraLocked) return; // 裂け目演出中はキーボードでの移動を無効化
   if (e.key === 'ArrowUp')   camera.position.z -= 1.5;
   if (e.key === 'ArrowDown') camera.position.z += 1.5;
 });
@@ -1178,10 +1235,10 @@ window.addEventListener('touchstart', (e) => {
 
   const now = Date.now();
 
- if (now - lastTapTime < 300) {
-  moveTargetZ = camera.position.z - 3;
-  moveForward = true;
-}
+  if (!cameraLocked && now - lastTapTime < 300) {
+    moveTargetZ = camera.position.z - 3;
+    moveForward = true;
+  }
 
   lastTapTime = now;
 
@@ -1198,6 +1255,7 @@ window.addEventListener('touchstart', (e) => {
 }, { passive: true });
 
 window.addEventListener('touchmove', (e) => {
+  if (cameraLocked) return; // 裂け目演出中はタッチでの視点・移動操作を無効化
   e.preventDefault();
 
   if (e.touches.length === 1) {
@@ -1250,17 +1308,24 @@ function animate() {
 
   const now = performance.now();
 
+if (!cameraLocked) {
   camera.position.z -= 0.0005;
-  if (moveForward) {
-    camera.position.z += (moveTargetZ - camera.position.z) * 0.15; //カメラ吸引速度
-    if (Math.abs(moveTargetZ - camera.position.z) < 0.03) {
-      camera.position.z = moveTargetZ;
-      moveForward = false;
-    }
-  }
+}
 
-  camera.rotation.y += (targetRotY - camera.rotation.y) * 0.08;
-  camera.rotation.x += (targetRotX - camera.rotation.x) * 0.08;
+// 自動演出（裂け目へ向かう移動・吸い込み）はロック中でも動かす
+if (moveForward) {
+  camera.position.z += (moveTargetZ - camera.position.z) * 0.15;
+  if (Math.abs(moveTargetZ - camera.position.z) < 0.03) {
+    camera.position.z = moveTargetZ;
+    moveForward = false;
+  }
+}
+
+  // 裂け目演出中（cameraLocked === true）は視点回転も完全に凍結する
+  if (!cameraLocked) {
+    camera.rotation.y += (targetRotY - camera.rotation.y) * 0.08;
+    camera.rotation.x += (targetRotX - camera.rotation.x) * 0.08;
+  }
 
   backgroundParticles.rotation.y += 0.00008;
   backgroundParticles.rotation.x += 0.00002;
@@ -1275,9 +1340,13 @@ function animate() {
     positions[i * 3 + 1] += Math.cos(now * 0.00012 + i) * 0.0015;
     positions[i * 3 + 2] += speeds[i];
     if (positions[i * 3 + 2] > camera.position.z + 20) {
-      positions[i * 3 + 2] = camera.position.z160 - Math.random() * 180;
-      positions[i * 3]     = (Math.random() - 0.5) * 40;
-      positions[i * 3 + 1] = (Math.random() - 0.5) * 24;
+      // 一斉リサイクルで「壁」のように塊に見えないよう、Z方向を大きく・
+      // ランダムにばらつかせつつ、X/Yも球状に近い分布で再配置する
+      positions[i * 3 + 2] = camera.position.z - 40 - Math.random() * 260;
+      const spreadAngle = Math.random() * Math.PI * 2;
+      const spreadR = 15 + Math.pow(Math.random(), 0.5) * 70; // 広範囲に分散させ密度を下げる
+      positions[i * 3]     = Math.cos(spreadAngle) * spreadR;
+      positions[i * 3 + 1] = Math.sin(spreadAngle) * spreadR * 0.5; // Y方向はやや狭める
     }
   }
   backgroundParticles.geometry.attributes.position.needsUpdate = true;
@@ -1325,21 +1394,23 @@ accentParticles.position.copy(camera.position);
   }
   checkTriggers();
 
-  // 写真への自動回避ロジック
-  const AVOID_RADIUS_Z = 12;
-  const AVOID_RADIUS_X = 6;
-  for (let i = 0; i < photoItems.length; i++) {
-    const item = photoItems[i];
-    if (!item.triggered || item.dissolved || !item.mesh) continue;
-    const dx = camera.position.x - item.mesh.position.x;
-    const dz = camera.position.z - item.mesh.position.z;
-    const distZ = Math.abs(dz);
-    if (distZ < AVOID_RADIUS_Z) {
-      const ease = 1.0 - (distZ / AVOID_RADIUS_Z);
-      const avoidStrength = Math.pow(ease, 2);
-      const pushDir = dx >= 0 ? 1 : -1;
-      const targetX = item.mesh.position.x + pushDir * AVOID_RADIUS_X;
-      camera.position.x += (targetX - camera.position.x) * avoidStrength * 0.1;
+  // 写真への自動回避ロジック（裂け目演出中はカメラを動かさないため無効化）
+  if (!cameraLocked) {
+    const AVOID_RADIUS_Z = 12;
+    const AVOID_RADIUS_X = 6;
+    for (let i = 0; i < photoItems.length; i++) {
+      const item = photoItems[i];
+      if (!item.triggered || item.dissolved || !item.mesh) continue;
+      const dx = camera.position.x - item.mesh.position.x;
+      const dz = camera.position.z - item.mesh.position.z;
+      const distZ = Math.abs(dz);
+      if (distZ < AVOID_RADIUS_Z) {
+        const ease = 1.0 - (distZ / AVOID_RADIUS_Z);
+        const avoidStrength = Math.pow(ease, 2);
+        const pushDir = dx >= 0 ? 1 : -1;
+        const targetX = item.mesh.position.x + pushDir * AVOID_RADIUS_X;
+        camera.position.x += (targetX - camera.position.x) * avoidStrength * 0.1;
+      }
     }
   }
 
@@ -1363,7 +1434,7 @@ accentParticles.position.copy(camera.position);
   const distXZ = Math.sqrt(pdx * pdx + pdz * pdz);
   
   const hitDist = 10.0; //衝突距離   
-  const pushPower = 0.15; // 【調整】さらに数値を小さくして極限まで遅く
+  const pushPower = 0.10; // 【調整】さらに数値を小さくして極限まで遅く
 
   if (item._vx === undefined) { item._vx = 0; item._vz = 0; }
 
@@ -1377,8 +1448,8 @@ accentParticles.position.copy(camera.position);
   }
 
   // 慣性移動（抵抗を少し強めて、さらにゆっくりな挙動に）
-  item._vx *= 0.95;
-  item._vz *= 0.95;
+  item._vx *= 0.98;
+  item._vz *= 0.98;
 
   if (item._repelX === undefined) { item._repelX = 0; item._repelZ = 0; }
   item._repelX += item._vx;
@@ -1446,7 +1517,7 @@ function dissolvePhoto(item) {
       const pdz = item.mesh.position.z - camera.position.z;
       const distXZ = Math.sqrt(pdx * pdx + pdz * pdz);
       
-      if (distXZ < 6.0) { // ★この数字を大きくすると、より手前で消えて次が出ます
+      if (distXZ < 5.0) { // ★この数字を大きくすると、より手前で消えて次が出ます
         cameraApproached = true;
       }
     }
@@ -1477,10 +1548,30 @@ function dissolvePhoto(item) {
     if (item.material.opacity <= 0) {
       item._photoFadedOut = true;
       
-      if (item.mesh) { scene.remove(item.mesh); item.mesh = null; }
-      if (item.aura) { scene.remove(item.aura); item.aura = null; }
+      if (item.mesh) {
+        scene.remove(item.mesh);
+        item.mesh.geometry.dispose();
+        item.material.dispose();
+        item.mesh = null;
+      }
+      if (item.aura) {
+        scene.remove(item.aura);
+        item.aura.geometry.dispose();
+        item.aura.material.dispose();
+        item.aura = null;
+      }
 
       item._vortexTime = 0;
+
+      // 粒子化する瞬間、カメラに近すぎて加算合成＋Bloomで白トビしないよう
+      // カメラから見た方向にパーティクル群をわずかに遠ざける
+      if (item.particles) {
+        const camToParticle = item.particles.position.clone().sub(camera.position);
+        if (camToParticle.lengthSq() > 0.0001) {
+          camToParticle.normalize();
+          item.particles.position.addScaledVector(camToParticle, DISSOLVE_CAMERA_PUSH);
+        }
+      }
 
   // 粒子ごとのランダムなノイズ（バラバラ感を大きく強化）
       item._particleNoises = [];
@@ -1548,7 +1639,12 @@ function dissolvePhoto(item) {
   // --------------------------------------------------
   if (item._vortexTime >= 1.0 || (item.particles && item.particles.material.opacity <= 0)) {
     item.dissolved = true;
-    if (item.particles) { scene.remove(item.particles); item.particles = null; }
+    if (item.particles) {
+      scene.remove(item.particles);
+      item.particleGeo.dispose();
+      item.particles.material.dispose();
+      item.particles = null;
+    }
   }
 }
 animate();
