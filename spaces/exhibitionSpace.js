@@ -9,6 +9,11 @@ const PHOTO_SOURCES = [
   '../assets/photo3.jpg',
   '../assets/photo4.jpg',
   '../assets/photo5.jpg',
+  '../assets/photo6.jpg',
+  '../assets/photo7.jpg',
+  '../assets/photo8.jpg',
+  '../assets/photo9.jpg',
+  '../assets/photo0.jpg',
   // 今後ここに追加していくだけでOK
 ];
 
@@ -61,8 +66,8 @@ function hslToColor(h, s, l) {
 
 function toPastel(r, g, b) {
   const [h] = rgbToHsl(r, g, b);
-  const s = 0.28 + Math.random() * 0.10;
-  const l = 0.88 + Math.random() * 0.06;
+  const s = 0.45 + Math.random() * 0.15; // 彩度: 45〜60%（もう少ししっかり）
+  const l = 0.78 + Math.random() * 0.08; // 明度: 78〜86%（淡いけど分かる濃さ）
   return hslToColor(h, s, l);
 }
 
