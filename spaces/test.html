@@ -1,49 +1,76 @@
-import * as THREE from 'three';
-import { startExhibitionSpace } from './exhibitionSpace.js';
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>Exhibition Space Test</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background: #000;
+      width: 100%;
+      height: 100%;
+    }
+    canvas {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="canvas"></canvas>
 
-// --- renderer ---
-const canvas = document.getElementById('canvas');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
 
-// --- camera ---
-const camera = new THREE.PerspectiveCamera(
-  75,
-  window.innerWidth / window.innerHeight,
-  0.1,
-  1000
-);
+  <script type="module">
+    import * as THREE from 'three';
+    import { startExhibitionSpace } from './exhibitionSpace.js';
 
-// exhibitionSpace.js を起動
-let exhibition = startExhibitionSpace(renderer, camera);
+    // --- renderer ---
+    const canvas = document.getElementById('canvas');
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
-// --- アニメーションループ ---
-const clock = new THREE.Clock();
+    // --- camera ---
+    const camera = new THREE.PerspectiveCamera(
+      75,
+      window.innerWidth / window.innerHeight,
+      0.1,
+      1000
+    );
 
-function animate() {
-  requestAnimationFrame(animate);
+    // exhibitionSpace.js を起動
+    let exhibition = startExhibitionSpace(renderer, camera);
 
-  const dt = clock.getDelta();
+    // --- アニメーションループ ---
+    const clock = new THREE.Clock();
 
-  exhibition.update(dt);   // ← exhibitionSpace.js の update が動く
+    function animate() {
+      requestAnimationFrame(animate);
 
-  renderer.render(exhibition.scene, camera);
-}
+      const dt = clock.getDelta();
 
-animate();
+      exhibition.update(dt);
 
-// --- リサイズ ---
-window.addEventListener('resize', () => {
-  camera.aspect = window.innerWidth / window.innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
-});
+      renderer.render(exhibition.scene, camera);
+    }
 
-// --- 動作確認用：将来的に本番のポータル空間から呼ばれる想定の切り替え関数 ---
-// 例: 別の空間へ差し替えるときは必ず dispose() してから次を start する
-async function switchToNextSpace(startNextSpaceFn) {
-  const next = startNextSpaceFn(renderer, camera);
-  exhibition.dispose();
-  exhibition = next;
-}
+    animate();
+
+    // --- リサイズ ---
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  </script>
+</body>
+</html>
