@@ -5,6 +5,7 @@ let exhibitionGroup;
 
 let ambientLight;
 let mainLight;
+let fillLight;
 
 let colorTime = 0;
 
@@ -25,7 +26,7 @@ export function startExhibitionSpace(renderer, camera) {
         0
     );
 
-    camera.rotation.set(0,0,0);
+    camera.rotation.set(0, 0, 0);
 
     exhibitionGroup = new THREE.Group();
 
@@ -37,17 +38,62 @@ export function startExhibitionSpace(renderer, camera) {
 
         scene: exhibitionScene,
 
-        update(dt){
+        update(dt) {
 
             updateEnvironment(dt);
 
+        },
+
+        // 次の空間へシームレスに切り替える際、この空間が保持している
+        // GPUリソース（ジオメトリ・マテリアル・テクスチャ）を明示的に解放する。
+        // window.location.href によるページ遷移をやめてリロードなしで
+        // 繋ぐ場合は、切り替え時に必ずこれを呼ぶこと。
+        dispose() {
+
+            exhibitionScene.traverse((obj) => {
+
+                if (obj.geometry) {
+                    obj.geometry.dispose();
+                }
+
+                if (obj.material) {
+                    const materials = Array.isArray(obj.material)
+                        ? obj.material
+                        : [obj.material];
+
+                    materials.forEach((mat) => {
+                        // マテリアルが保持しているテクスチャ類も個別に破棄
+                        Object.keys(mat).forEach((key) => {
+                            const value = mat[key];
+                            if (value && value.isTexture) {
+                                value.dispose();
+                            }
+                        });
+                        mat.dispose();
+                    });
+                }
+
+            });
+
+            // ライト自体はGPUリソースを持たないが、シーン参照を明示的に切っておく
+            exhibitionScene.remove(ambientLight);
+            exhibitionScene.remove(mainLight);
+            exhibitionScene.remove(fillLight);
+
+            exhibitionScene.clear();
+
+            ambientLight   = null;
+            mainLight      = null;
+            fillLight      = null;
+            exhibitionGroup = null;
+            exhibitionScene = null;
         }
 
     };
 
 }
 
-function createLights(){
+function createLights() {
 
     ambientLight =
         new THREE.AmbientLight(
@@ -72,23 +118,24 @@ function createLights(){
 
     exhibitionScene.add(mainLight);
 
-    const fill =
+    fillLight =
         new THREE.PointLight(
             0xddeeff,
             2,
             80
         );
 
-    fill.position.set(
+    fillLight.position.set(
         0,
         -5,
         0
     );
 
-    exhibitionScene.add(fill);
+    exhibitionScene.add(fillLight);
 
 }
-function updateEnvironment(dt){
+
+function updateEnvironment(dt) {
 
     colorTime += dt * 0.05;
 

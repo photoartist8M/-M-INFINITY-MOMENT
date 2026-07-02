@@ -1,0 +1,49 @@
+import * as THREE from 'three';
+import { startExhibitionSpace } from './exhibitionSpace.js';
+
+// --- renderer ---
+const canvas = document.getElementById('canvas');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+// --- camera ---
+const camera = new THREE.PerspectiveCamera(
+  75,
+  window.innerWidth / window.innerHeight,
+  0.1,
+  1000
+);
+
+// exhibitionSpace.js を起動
+let exhibition = startExhibitionSpace(renderer, camera);
+
+// --- アニメーションループ ---
+const clock = new THREE.Clock();
+
+function animate() {
+  requestAnimationFrame(animate);
+
+  const dt = clock.getDelta();
+
+  exhibition.update(dt);   // ← exhibitionSpace.js の update が動く
+
+  renderer.render(exhibition.scene, camera);
+}
+
+animate();
+
+// --- リサイズ ---
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// --- 動作確認用：将来的に本番のポータル空間から呼ばれる想定の切り替え関数 ---
+// 例: 別の空間へ差し替えるときは必ず dispose() してから次を start する
+async function switchToNextSpace(startNextSpaceFn) {
+  const next = startNextSpaceFn(renderer, camera);
+  exhibition.dispose();
+  exhibition = next;
+}
