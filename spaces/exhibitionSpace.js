@@ -219,13 +219,14 @@ export function startExhibitionSpace(renderer, camera) {
 
         // 複数方向・複数周波数の波を重ねて、揺らめく波紋に
         float ripple = sin(dist * 16.0 - time * 1.3) * 0.5 + 0.5;
+        float waveFade = exp(-dist * 0.8);
+        ripple *= mix(0.4, 1.0, waveFade);
         ripple += sin(dist * 26.0 - time * 2.1 + 1.7) * 0.3;
         ripple += sin(angle * 6.0 + time * 0.9) * 0.2;
         ripple += sin(dist * 40.0 + angle * 3.0 - time * 1.6) * 0.15;
         ripple *= amp;
 
-        float edgeFade = smoothstep(1.0, 0.15, dist);
-
+        float edgeFade = smoothstep(1.05, 0.05, dist);
         // 色相が時間・角度・距離とともに巡回し、揺らめきながらカラフルに移り変わる
        float colorPhase = fract(dist * 0.6 - time * 0.06 + angle * 0.09 + ripple * 0.08);
   vec3 baseColor;
