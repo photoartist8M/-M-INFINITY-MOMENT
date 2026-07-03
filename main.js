@@ -2,6 +2,14 @@ import * as THREE from 'three';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import {
+  initPortal,
+  updatePortal,
+  getPortalState,
+  completePortalSwitch,
+  getExhibition,
+  resizePortal,
+} from './portal.js';
 
 // ======================================================
 // 基本セットアップ
@@ -489,7 +497,8 @@ function createAccumulationGlow() {
 // 時空の歪み・裂け目（ポータル面）
 // ======================================================
 function createPortalPlane() {
-  const geo = new THREE.PlaneGeometry(18, 18, 1, 1);
+  // ★裂け目サイズを縮小（見切れ対策）: 18 → 12
+  const geo = new THREE.PlaneGeometry(12, 12, 1, 1);
 
   const mat = new THREE.ShaderMaterial({
     transparent: true,
@@ -501,6 +510,9 @@ function createPortalPlane() {
       uWarp:    { value: 0 }, // 0=歪みなし 1=最大歪み
       uCrack:   { value: 0 }, // 0=裂け目なし 1=裂け目完成
       uOpacity: { value: 0 },
+      // ▼Portal(RenderTarget)方式のために追加
+      uPortalTex:    { value: null },
+      uPortalReveal: { value: 0 }, // 0=次空間非表示 〜 0.9=ほぼ画面いっぱい
     },
     vertexShader: `
       varying vec2 vUv;
@@ -514,6 +526,8 @@ function createPortalPlane() {
       uniform float uWarp;
       uniform float uCrack;
       uniform float uOpacity;
+      uniform sampler2D uPortalTex;
+      uniform float uPortalReveal;
       varying vec2 vUv;
 
       void main() {
@@ -549,7 +563,13 @@ function createPortalPlane() {
         vec3 color = warpColor + crackColor + haloColor;
         float alpha = clamp(warpGlow * 0.6 + crack + halo * 0.4 + eye * 0.3, 0.0, 1.0) * uOpacity;
 
-        gl_FragColor = vec4(color, alpha);
+        // ── ここからPortal合成：裂け目の中心だけ次の空間を覗かせる ──
+        float apertureMask = smoothstep(uPortalReveal, uPortalReveal - 0.18, dist);
+        vec3 portalColor = texture2D(uPortalTex, vUv).rgb;
+        vec3 finalColor = mix(color, portalColor, apertureMask);
+        float finalAlpha = max(alpha, apertureMask);
+
+        gl_FragColor = vec4(finalColor, finalAlpha);
       }
     `,
   });
@@ -811,7 +831,8 @@ function getDoorTargetPositions(count) {
   const cx = ACCUM_POINT.x;
   const cy = ACCUM_POINT.y;
   const cz = ACCUM_POINT.z;
-  const height = 12;
+  // ★裂け目サイズ縮小に合わせて高さも調整: 12 → 8
+  const height = 8;
 
   for (let i = 0; i < count; i++) {
     const t = i / count;
@@ -893,6 +914,9 @@ function createDoorParticles() {
   };
 
   if (!portalPlane) createPortalPlane();
+
+  // ▼追加：Portal(RenderTarget)方式の初期化。ここから次空間のプリロードが始まる
+  initPortal(renderer, portalPlane);
 }
 // ======================================================
 // 蓄積光のアニメーション更新（追加）
@@ -1040,7 +1064,7 @@ function updateDoor() {
   }
 
   // ────────────────────────────────────────
-  // Phase 3: 裂け目が脈動 → カメラが吸い込まれる
+  // Phase 3: 裂け目が脈動 → カメラが吸い込まれる → ポータル拡大開始
   // ────────────────────────────────────────
   if (doorPhase === 'complete') {
     const t = doorTime;
@@ -1069,8 +1093,30 @@ function updateDoor() {
       camera.updateProjectionMatrix();
     }
 
-    if (Math.abs(distToDoor) < 1.2) {
-      window.location.href = '../final/index.html';
+    // ★ページ遷移(window.location.href)は廃止。ここからPortal拡大フェーズへ
+    if (Math.abs(distToDoor) < 6.0) {
+      doorPhase = 'portal-open';
+    }
+  }
+
+  // ────────────────────────────────────────
+  // Phase 4: 裂け目(Portal)が画面いっぱいに拡大していく
+  // ────────────────────────────────────────
+  if (doorPhase === 'portal-open') {
+    const distToDoor = Math.abs(ACCUM_POINT.z - camera.position.z);
+    const pull = 0.02;
+    camera.position.z -= pull * distToDoor * 0.3;
+    camera.fov = Math.min(100, camera.fov + 0.2);
+    camera.updateProjectionMatrix();
+
+    if (uni) {
+      // 距離 6.0 → 0.5 の間で uPortalReveal を 0 → 0.9 まで拡大
+      const t2 = THREE.MathUtils.clamp(1 - (distToDoor - 0.5) / (6.0 - 0.5), 0, 1);
+      uni.uPortalReveal.value = t2 * 0.9;
+    }
+
+    if (distToDoor < 0.5) {
+      doorPhase = 'switched'; // main.js側の役目はここで終了
     }
   }
 
@@ -1299,12 +1345,90 @@ if (_yawLimits) {
 const _basePos = new THREE.Vector3();
 
 // ======================================================
+// mainScene 完全破棄（GPUメモリ解放）
+// ======================================================
+let mainSceneDisposed = false;
+
+function disposeMainScene() {
+  if (mainSceneDisposed) return;
+  mainSceneDisposed = true;
+
+  console.log('mainScene を破棄しています（GPUメモリ解放）...');
+
+  function disposeMaterial(mat) {
+    if (!mat) return;
+    if (Array.isArray(mat)) { mat.forEach(disposeMaterial); return; }
+    Object.keys(mat).forEach((key) => {
+      const value = mat[key];
+      if (value && value.isTexture) value.dispose();
+    });
+    mat.dispose();
+  }
+
+  // シーン内の全メッシュ・ポイントを走査してGeometry/Material/Textureを破棄
+  scene.traverse((obj) => {
+    if (obj.geometry) obj.geometry.dispose();
+    if (obj.material) disposeMaterial(obj.material);
+  });
+
+  // シーンからすべてのオブジェクトを除去
+  while (scene.children.length > 0) {
+    scene.remove(scene.children[0]);
+  }
+
+  // 個別に保持しているテクスチャ類
+  if (particleTexture) particleTexture.dispose();
+
+  // 写真アイテムの参照を解放
+  photoItems.forEach((item) => {
+    item.mesh = null;
+    item.material = null;
+    item.aura = null;
+    item.particles = null;
+    item.particleGeo = null;
+    item._img = null;
+  });
+
+  // ドアパーティクル・ポータル面の参照解放
+  doorSys = null;
+  portalPlane = null;
+  accumulationGlow = null;
+
+  // composer（EffectComposer）が内部に保持しているRenderTargetを解放
+  composer.passes.forEach((pass) => {
+    if (pass.renderTarget) pass.renderTarget.dispose?.();
+    if (pass.renderTargetsHorizontal) {
+      pass.renderTargetsHorizontal.forEach((rt) => rt.dispose?.());
+    }
+    if (pass.renderTargetsVertical) {
+      pass.renderTargetsVertical.forEach((rt) => rt.dispose?.());
+    }
+    if (pass.renderTargetBright) pass.renderTargetBright.dispose?.();
+  });
+  if (composer.renderTarget1) composer.renderTarget1.dispose();
+  if (composer.renderTarget2) composer.renderTarget2.dispose();
+
+  console.log('mainScene の破棄が完了しました。');
+}
+
+// ======================================================
 // アニメーションループ
 // ======================================================
 const LOOP_LENGTH = PHOTO_FILES.length * SPIRAL_CONFIG.zStep;
+const mainClock = new THREE.Clock();
 
 function animate() {
   requestAnimationFrame(animate);
+
+  // ★完全遷移後は、mainScene関連の処理を一切行わず
+  //   exhibitionspace.js の描画だけを行う軽量ループに切り替える
+  if (getPortalState() === 'switched') {
+    const { scene: exScene, camera: exCamera, update: exUpdate } = getExhibition();
+    const delta = mainClock.getDelta();
+    exUpdate(delta);
+    renderer.render(exScene, exCamera);
+    return;
+  }
 
   const now = performance.now();
 
@@ -1364,7 +1488,7 @@ accentParticles.position.copy(camera.position);
       item.formed          = false;
       item.fixed           = false;
       item.dissolving      = false;
-      item.dissolved       = false;
+      item.dissolved        = false;
       item.viewing         = false;
       item._dissolvePhase  = null;
       item._auraActivated  = false;
@@ -1493,7 +1617,17 @@ accentParticles.position.copy(camera.position);
 
     checkDissolvedAndAccumulate();
   updateAccumulationGlow(); 
-  updateDoor(); 
+  updateDoor();
+  updatePortal();
+
+  // ★ポータルが画面いっぱいに拡大しきったら、Portal(RenderTarget)を破棄し
+  //   mainScene本体も完全に破棄してGPUメモリを解放する
+  if (doorPhase === 'switched') {
+    completePortalSwitch(); // portal.js側のRenderTargetを解放
+    disposeMainScene();     // main.js側のGeometry/Material/Texture/RenderTargetを解放
+    return; // このフレームはcomposer.renderせず、次フレームから上のswitched分岐へ入る
+  }
+
   composer.render();
 }
 
@@ -1644,4 +1778,5 @@ window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
   composer.setSize(window.innerWidth, window.innerHeight);
   bloomPass.resolution.set(window.innerWidth, window.innerHeight);
+  resizePortal(); // ▼追加：Portal(RenderTarget)とexhibitionCameraのアスペクト比も追従
 });
