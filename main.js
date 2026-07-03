@@ -1517,7 +1517,7 @@ function dissolvePhoto(item) {
       const pdz = item.mesh.position.z - camera.position.z;
       const distXZ = Math.sqrt(pdx * pdx + pdz * pdz);
       
-      if (distXZ < 5.0) { // ★この数字を大きくすると、より手前で消えて次が出ます
+      if (distXZ < 6.0) { // ★この数字を大きくすると、より手前で消えて次が出ます
         cameraApproached = true;
       }
     }
@@ -1538,40 +1538,20 @@ function dissolvePhoto(item) {
     if (item.particles) {
       item.particles.visible = true;
       if (item.particles.material.opacity < 1.0) {
-        item.particles.material.opacity += 0.01;
+        item.particles.material.opacity += 0.005;
       }
     }
 
-    if (item.mesh && item.material.opacity > 0) item.material.opacity -= 0.01;
-    if (item.aura && item.aura.material.opacity > 0) item.aura.material.opacity -= 0.01;
+    if (item.mesh && item.material.opacity > 0) item.material.opacity -= 0.005;
+    if (item.aura && item.aura.material.opacity > 0) item.aura.material.opacity -= 0.005;
 
     if (item.material.opacity <= 0) {
       item._photoFadedOut = true;
       
-      if (item.mesh) {
-        scene.remove(item.mesh);
-        item.mesh.geometry.dispose();
-        item.material.dispose();
-        item.mesh = null;
-      }
-      if (item.aura) {
-        scene.remove(item.aura);
-        item.aura.geometry.dispose();
-        item.aura.material.dispose();
-        item.aura = null;
-      }
+      if (item.mesh) { scene.remove(item.mesh); item.mesh = null; }
+      if (item.aura) { scene.remove(item.aura); item.aura = null; }
 
       item._vortexTime = 0;
-
-      // 粒子化する瞬間、カメラに近すぎて加算合成＋Bloomで白トビしないよう
-      // カメラから見た方向にパーティクル群をわずかに遠ざける
-      if (item.particles) {
-        const camToParticle = item.particles.position.clone().sub(camera.position);
-        if (camToParticle.lengthSq() > 0.0001) {
-          camToParticle.normalize();
-          item.particles.position.addScaledVector(camToParticle, DISSOLVE_CAMERA_PUSH);
-        }
-      }
 
   // 粒子ごとのランダムなノイズ（バラバラ感を大きく強化）
       item._particleNoises = [];
@@ -1639,12 +1619,7 @@ function dissolvePhoto(item) {
   // --------------------------------------------------
   if (item._vortexTime >= 1.0 || (item.particles && item.particles.material.opacity <= 0)) {
     item.dissolved = true;
-    if (item.particles) {
-      scene.remove(item.particles);
-      item.particleGeo.dispose();
-      item.particles.material.dispose();
-      item.particles = null;
-    }
+    if (item.particles) { scene.remove(item.particles); item.particles = null; }
   }
 }
 animate();
