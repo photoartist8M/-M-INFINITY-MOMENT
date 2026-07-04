@@ -4,29 +4,45 @@ import * as THREE from 'three';
 // 写真リスト（自動配置版）
 // ======================================================
 const PHOTO_SOURCES = [
+  '../assets/photo.jpg',
   '../assets/photo1.jpg',
-  '../assets/photo12.jpg',
-  '../assets/photo13.jpg',
+  '../assets/photo2.jpg',
   '../assets/photo4.jpg',
   '../assets/photo5.jpg',
   '../assets/photo6.jpg',
   '../assets/photo7.jpg',
   '../assets/photo8.jpg',
   '../assets/photo9.jpg',
-  '../assets/photo.jpg',
+  '../assets/photo15.jpg',
+  '../assets/photo12.jpg',
+  '../assets/photo13.jpg',
+  '../assets/photo15.jpg',
+  '../assets/photo19.jpg',
+  '../assets/photo20.jpg',
+  '../assets/photo21.jpg',
 ];
 
-const GALLERY_RADIUS = 20;
+const GALLERY_RADIUS = 21;
 
 function buildPhotoConfig(sources) {
   const count = sources.length;
   return sources.map((src, i) => {
+    // 1. 角度のズレ（jitter）を完全にゼロにして、円周上の重なりを100%防ぐ
     const baseAngle = (360 / count) * i;
-    const jitter = (Math.random() - 0.5) * (360 / count) * 0.3;
-    const angle = baseAngle + jitter;
+    const angle = baseAngle; 
 
-    const height = (Math.random() - 0.5) * 4;
-    const scale = 0.6 + Math.random() * 0.7;
+    // 2. 上下の配置を大きく散らす（偶数は上め、奇数は下めに配置。上段・下段の二段構成）
+    const isEven = i % 2 === 0;
+    const baseHeight = isEven ? 6.0 : -2.5; 
+    const height = baseHeight + (Math.random() - 0.5) * 2.5; 
+
+    // 3. 【ここを修正】サイズ（scale）の大小にさらにメリハリをつける
+    // - 最低サイズを大きく： 0.65倍 → **0.85倍**
+    // - 最大サイズを大きく： 0.65 + 0.7 = 1.35倍 → 0.85 + 0.75 = **1.6倍**
+    // これにより、すべての写真がより大きく、かつ、大小の差が強調される。
+    const scale = 0.85 + Math.random() * 0.75; // 0.85〜1.6倍の範囲でばらつかせる
+
+    // 4. 前後の奥行き（半径）にも緩やかな変化をつける
     const radius = GALLERY_RADIUS + (Math.random() - 0.5) * 3;
 
     return { src, angle, radius, height, scale };
@@ -217,33 +233,36 @@ export function startExhibitionSpace(renderer, camera) {
 
         float amp = 0.5 + rippleBoost;
 
-        // 複数方向・複数周波数の波を重ねて、揺らめく波紋に
+        // 【修正1】angle を直接足さず、sin/cos を使って360度で繋がる波にする
         float ripple = sin(dist * 16.0 - time * 1.3) * 0.5 + 0.5;
         float waveFade = exp(-dist * 0.8);
         ripple *= mix(0.4, 1.0, waveFade);
         ripple += sin(dist * 26.0 - time * 2.1 + 1.7) * 0.3;
         ripple += sin(angle * 6.0 + time * 0.9) * 0.2;
-        ripple += sin(dist * 40.0 + angle * 3.0 - time * 1.6) * 0.15;
+        ripple += sin(dist * 40.0 + sin(angle * 3.0) * 2.0 - time * 1.6) * 0.15; // angleをsinで包む
         ripple *= amp;
 
-        float edgeFade = smoothstep(1.05, 0.05, dist);
-        // 色相が時間・角度・距離とともに巡回し、揺らめきながらカラフルに移り変わる
-       float colorPhase = fract(dist * 0.6 - time * 0.06 + angle * 0.09 + ripple * 0.08);
-  vec3 baseColor;
-  
-  if (colorPhase < 0.166) {
-    baseColor = mix(color1, color2, colorPhase / 0.166);
-  } else if (colorPhase < 0.333) {
-    baseColor = mix(color2, color3, (colorPhase - 0.166) / 0.167);
-  } else if (colorPhase < 0.5) {
-    baseColor = mix(color3, color4, (colorPhase - 0.333) / 0.167);
-  } else if (colorPhase < 0.666) {
-    baseColor = mix(color4, color5, (colorPhase - 0.5) / 0.166);
-  } else if (colorPhase < 0.833) {
-    baseColor = mix(color5, color6, (colorPhase - 0.666) / 0.167);
-  } else {
-    baseColor = mix(color6, color7, (colorPhase - 0.833) / 0.167);
-  }
+        float edgeFade = smoothstep(0.95, 0.05, dist);
+        
+        // 【修正2】colorPhase から不連続な angle を排除、または連続的な変化に変える
+        // ここでは繋ぎ目を完全に消すため、angle の代わりに sin(angle) を利用する形に修正
+        float colorPhase = fract(dist * 0.6 - time * 0.06 + sin(angle) * 0.1 + ripple * 0.08);
+        
+        vec3 baseColor;
+        
+        if (colorPhase < 0.166) {
+          baseColor = mix(color1, color2, colorPhase / 0.166);
+        } else if (colorPhase < 0.333) {
+          baseColor = mix(color2, color3, (colorPhase - 0.166) / 0.167);
+        } else if (colorPhase < 0.5) {
+          baseColor = mix(color3, color4, (colorPhase - 0.333) / 0.167);
+        } else if (colorPhase < 0.666) {
+          baseColor = mix(color4, color5, (colorPhase - 0.5) / 0.166);
+        } else if (colorPhase < 0.833) {
+          baseColor = mix(color5, color6, (colorPhase - 0.666) / 0.167);
+        } else {
+          baseColor = mix(color6, color7, (colorPhase - 0.833) / 0.167);
+        }
         vec3 finalColor = baseColor + ripple * 0.16;
 
         float alpha = (0.18 + ripple * 0.32) * edgeFade;
@@ -268,7 +287,8 @@ function createFlareTexture() {
     // 横方向の帯：明るいゴールドベージュに戻して芯を作る
     const vGrad = ctx.createLinearGradient(0, 0, 0, h);
     vGrad.addColorStop(0, 'rgba(255,235,200,0)');
-    vGrad.addColorStop(0.5, 'rgba(255,235,200,0.35)'); // 0.25 → 0.35 に戻す
+    vGrad.addColorStop(0.5, 'rgba(255,235,200,0.27)'); // 0.25にしたらもう少し暗くなる。太陽光
+
     vGrad.addColorStop(1, 'rgba(255,235,200,0)');
     ctx.fillStyle = vGrad;
     ctx.fillRect(0, 0, w, h);

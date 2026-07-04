@@ -138,13 +138,12 @@ const PHOTO_FILES = [
   'assets/photo4.jpg',
   'assets/photo5.jpg',
 ];
-
 // ======================================================
 // 写真配置
 // ======================================================
 const SPIRAL_CONFIG = {
   radius: 6,         // 左右に振る幅（0から6に変更）
-  zStep: 12,         // 写真と写真Z軸の間隔（14から16に少し広げて見やすく）
+  zStep: 10,         // 写真と写真Z軸の間隔（14から16に少し広げて見やすく）
   yAmplitude: 1.2,   // 上下の緩やかな高低差
 };
 
@@ -497,8 +496,7 @@ function createAccumulationGlow() {
 // 時空の歪み・裂け目（ポータル面）
 // ======================================================
 function createPortalPlane() {
-  // ★裂け目サイズを縮小（見切れ対策）: 18 → 12
-  const geo = new THREE.PlaneGeometry(12, 12, 1, 1);
+  const geo = new THREE.PlaneGeometry(9, 9, 1, 1);
 
   const mat = new THREE.ShaderMaterial({
     transparent: true,
@@ -507,12 +505,11 @@ function createPortalPlane() {
     side: THREE.DoubleSide,
     uniforms: {
       uTime:    { value: 0 },
-      uWarp:    { value: 0 }, // 0=歪みなし 1=最大歪み
-      uCrack:   { value: 0 }, // 0=裂け目なし 1=裂け目完成
+      uWarp:    { value: 0 },
+      uCrack:   { value: 0 }, // ワームホールの"開き具合"として流用
       uOpacity: { value: 0 },
-      // ▼Portal(RenderTarget)方式のために追加
       uPortalTex:    { value: null },
-      uPortalReveal: { value: 0 }, // 0=次空間非表示 〜 0.9=ほぼ画面いっぱい
+      uPortalReveal: { value: 0 },
     },
     vertexShader: `
       varying vec2 vUv;
@@ -535,39 +532,33 @@ function createPortalPlane() {
         float dist = length(uv);
         float ang  = atan(uv.y, uv.x);
 
-        // ── 渦巻く歪み（台風の目のように同心円が回転）──
-        float swirlAng = ang + (1.0 - dist) * 2.5 - uTime * 0.8;
-        float ripple = sin(dist * 16.0 - uTime * 3.0 + swirlAng) * 0.5 + 0.5;
-        float warpGlow = ripple * uWarp * smoothstep(1.0, 0.0, dist * 1.3);
+        // ★外周は問答無用でカット（白いオーラ完全排除）
+        float hardCutoff = smoothstep(0.46, 0.40, dist);
 
-        // 中心の渦の眼（明るい核）
-        float eye = smoothstep(0.35, 0.0, dist) * uWarp * 0.5;
+        // ── ワームホール：中心に向かって回転しながら収縮するリング ──
+        // dist を対数的に歪ませてトンネルの奥行き感を出す
+        float tunnel = 1.0 / (dist * 6.0 + 0.15);
+        float spiral = ang * 2.0 + tunnel * 1.5 - uTime * 2.8;
+        float rings = sin(spiral) * 0.5 + 0.5;
+        // リングをシャープに（本数を絞る）
+        rings = pow(rings, 3.0);
 
-        // ── 縦長の裂け目 ──
-        float crackLine = uv.x
-          + sin(uv.y * 6.0 + uTime * 0.6) * 0.06
-          + sin(uv.y * 14.0) * 0.025;
-        float crackWidth = 0.022 + uCrack * 0.05;
-        float crack = smoothstep(crackWidth, 0.0, abs(crackLine));
-        crack *= smoothstep(0.55, 0.0, abs(uv.y));
-        crack *= uCrack;
+        // ワームホールの「開き具合」：uCrackが0→1で出現
+        float wormhole = rings * uCrack * smoothstep(0.42, 0.05, dist);
+float core = smoothstep(0.14, 0.0, dist) * uCrack * 0.5;   // 0.8→0.5
 
-        // 外側のにじむ光輪（グロー強化でクオリティ向上）
-        float halo = smoothstep(0.9, 0.3, dist) * smoothstep(0.0, 0.5, dist);
-        halo *= (uWarp * 0.5 + uCrack * 0.5);
+vec3 tunnelColor = vec3(0.55, 0.7, 1.0) * wormhole * 0.65;  // 1.1→0.65
+vec3 coreColor   = vec3(1.0, 0.95, 0.85) * core;
 
-        vec3 warpColor  = vec3(0.62, 0.76, 1.0)  * (warpGlow + eye * 1.4);
-        vec3 crackColor = vec3(1.0, 0.92, 0.75)  * crack * 1.2;  
-        vec3 haloColor  = vec3(0.85, 0.88, 1.0)  * halo * 0.5;
+vec3 color = (tunnelColor + coreColor) * hardCutoff;
+float alpha = clamp(wormhole * 0.5 + core, 0.0, 1.0) * uOpacity * hardCutoff; // 0.8→0.5
 
-        vec3 color = warpColor + crackColor + haloColor;
-        float alpha = clamp(warpGlow * 0.6 + crack + halo * 0.4 + eye * 0.3, 0.0, 1.0) * uOpacity;
-
-        // ── ここからPortal合成：裂け目の中心だけ次の空間を覗かせる ──
-        float apertureMask = smoothstep(uPortalReveal, uPortalReveal - 0.18, dist);
+        // ── Portal合成 ──
+        float reveal = min(uPortalReveal, 0.42);
+        float apertureMask = smoothstep(reveal, reveal - 0.30, dist);
         vec3 portalColor = texture2D(uPortalTex, vUv).rgb;
         vec3 finalColor = mix(color, portalColor, apertureMask);
-        float finalAlpha = max(alpha, apertureMask);
+        float finalAlpha = max(alpha, apertureMask * hardCutoff);
 
         gl_FragColor = vec4(finalColor, finalAlpha);
       }
@@ -832,7 +823,7 @@ function getDoorTargetPositions(count) {
   const cy = ACCUM_POINT.y;
   const cz = ACCUM_POINT.z;
   // ★裂け目サイズ縮小に合わせて高さも調整: 12 → 8
-  const height = 8;
+  const height = 6;
 
   for (let i = 0; i < count; i++) {
     const t = i / count;
@@ -882,7 +873,7 @@ function createDoorParticles() {
   const mat = new THREE.PointsMaterial({
     map: particleTexture,
     color: 0xffe8a0,
-    size: 0.26,
+    size: 0.1,
     transparent: true,
     opacity: 0,
     blending: THREE.AdditiveBlending,
@@ -1102,7 +1093,7 @@ function updateDoor() {
   // ────────────────────────────────────────
   // Phase 4: 裂け目(Portal)が画面いっぱいに拡大していく
   // ────────────────────────────────────────
-  if (doorPhase === 'portal-open') {
+if (doorPhase === 'portal-open') {
     const distToDoor = Math.abs(ACCUM_POINT.z - camera.position.z);
     const pull = 0.02;
     camera.position.z -= pull * distToDoor * 0.3;
@@ -1110,13 +1101,14 @@ function updateDoor() {
     camera.updateProjectionMatrix();
 
     if (uni) {
-      // 距離 6.0 → 0.5 の間で uPortalReveal を 0 → 0.9 まで拡大
+      // 距離 6.0 → 0.5 の間で uPortalReveal を 0 → 0.42 まで拡大
+      // ★シェーダー側のクランプ上限(0.42)と一致させる
       const t2 = THREE.MathUtils.clamp(1 - (distToDoor - 0.5) / (6.0 - 0.5), 0, 1);
-      uni.uPortalReveal.value = t2 * 0.9;
+      uni.uPortalReveal.value = t2 * 0.42;
     }
 
     if (distToDoor < 0.5) {
-      doorPhase = 'switched'; // main.js側の役目はここで終了
+      doorPhase = 'switched';
     }
   }
 
