@@ -203,24 +203,13 @@ let _dissolvedFlags  = new Array(PHOTO_FILES.length).fill(false);
 let portalPlane = null;
 
 // ======================================================
-// 亀裂（裂け目）の形状関数（追加）
+// 裂け目（記憶の星雲）の広がり半径（追加）
 // ------------------------------------------------------
-// ★ JS側のパーティクル座標とGLSL側の亀裂境界線を完全一致させるため、
-//   同一の閉曲線の数式をここで定義する（シェーダー側にも同じ係数で埋め込む）。
-//   angle(0〜2π)を与えると、ACCUM_POINT中心からの境界半径を返す。
-//   縦長の裂け目になるよう楕円的な伸縮＋複数周波数のゆらぎを重ねている。
+// ★JS側のパーティクル雲の広がりと、GLSL側のfbm星雲テクスチャの
+//   スケールを揃えるための共有定数。多角形の輪郭は使わず、
+//   ここを基準にした「濃淡のある曖昧な雲」として裂け目を表現する。
 // ======================================================
-const CRACK_BASE_R      = 2.3;  // 基本半径（ワールド単位）
-const CRACK_ELONGATION  = 0.28; // 縦方向への伸び具合（0〜1、大きいほど縦長）
-
-function crackRadius(angle) {
-  let r = CRACK_BASE_R * (1 - CRACK_ELONGATION * Math.cos(2 * angle));
-  r *= 1
-    + 0.22 * Math.sin(2 * angle + 0.6)
-    + 0.10 * Math.sin(5 * angle + 2.3)
-    + 0.05 * Math.sin(9 * angle + 4.1);
-  return r;
-}
+const NEBULA_MAX_R = 3.4; // 星雲パーティクル雲・シェーダー共通の広がり半径
 
 // ======================================================
 // テクスチャ
@@ -510,14 +499,14 @@ function createAccumulationGlow() {
 
 }
 // ======================================================
-// 時空の歪み・裂け目（ポータル面）
+// 記憶の星雲・裂け目（ポータル面）
 // ------------------------------------------------------
-// ★修正：円形のワームホールではなく、閉じた不規則な「亀裂穴」形状に変更。
-//   境界線は crackRadius(angle) という関数で定義し、JS側のパーティクル
-//   目標座標（getDoorTargetPositions）と完全に同じ数式・同じ係数を使うことで、
-//   粒子の輪郭とシェーダーの輪郭が常に一致するようにしている。
-//   次空間のPortalテクスチャは、この境界線の"内側"にしか表示されないよう
-//   数式的にクランプしているため、枠からのはみ出しが原理的に起こらない。
+// ★多角形の輪郭ではなく、fbm(フラクタルブラウン運動)ノイズによる
+//   曖昧な星雲状のガスとして裂け目を表現する。中心が白熱し、
+//   山吹色〜琥珀色のガスが放射状の筋（稲妻状の繊維）とともに
+//   揺らめきながら広がる。次空間はこの星雲の一番明るい中心部分に
+//   ノイズで縁を滲ませながら開き、常に周囲の霞に包まれるため
+//   輪郭のはみ出しやカクカクした境界が見えることはない。
 // ======================================================
 function createPortalPlane() {
   const PLANE_SIZE = 10; // JS側のワールド座標とUVを対応づけるための基準サイズ
@@ -531,7 +520,7 @@ function createPortalPlane() {
     uniforms: {
       uTime:    { value: 0 },
       uWarp:    { value: 0 },
-      uCrack:   { value: 0 }, // 亀裂の"開き具合"
+      uCrack:   { value: 0 }, // 星雲の"濃さ・出現度合い"として流用
       uOpacity: { value: 0 },
       uPortalTex:    { value: null },
       uPortalReveal: { value: 0 },
@@ -552,63 +541,99 @@ function createPortalPlane() {
       uniform float uPortalReveal;
       varying vec2 vUv;
 
-      // ── JS側 crackRadius() と完全に同じ数式・同じ係数 ──
-      const float PLANE_SIZE = ${PLANE_SIZE.toFixed(1)};
-      const float CRACK_BASE_R = 2.3;
-      const float CRACK_ELONGATION = 0.28;
+      const float PLANE_SIZE  = ${PLANE_SIZE.toFixed(1)};
+      const float NEBULA_MAX_R = ${NEBULA_MAX_R.toFixed(2)};
 
-      float crackRadius(float angle) {
-        float r = CRACK_BASE_R * (1.0 - CRACK_ELONGATION * cos(2.0 * angle));
-        r *= 1.0
-          + 0.22 * sin(2.0 * angle + 0.6)
-          + 0.10 * sin(5.0 * angle + 2.3)
-          + 0.05 * sin(9.0 * angle + 4.1);
-        return r;
+      // ── 疑似乱数・value noise・fbm（ドメインワーピングによる雲の質感） ──
+      float hash(vec2 p) {
+        return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+      }
+      float vnoise(vec2 p) {
+        vec2 i = floor(p);
+        vec2 f = fract(p);
+        float a = hash(i);
+        float b = hash(i + vec2(1.0, 0.0));
+        float c = hash(i + vec2(0.0, 1.0));
+        float d = hash(i + vec2(1.0, 1.0));
+        vec2 u = f * f * (3.0 - 2.0 * f);
+        return mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
+      }
+      float fbm(vec2 p) {
+        float v = 0.0;
+        float amp = 0.5;
+        for (int i = 0; i < 5; i++) {
+          v += amp * vnoise(p);
+          p *= 2.02;
+          amp *= 0.5;
+        }
+        return v;
+      }
+
+      // 中心から放射状に伸びる、稲妻・繊維状の筋
+      float streaks(vec2 p, float angle, float t) {
+        float s = 0.0;
+        for (int i = 0; i < 3; i++) {
+          float fi = float(i);
+          float freq  = 6.0 + fi * 5.0;
+          float phase = t * (0.25 + 0.08 * fi);
+          float v = abs(sin(angle * freq + phase + fbm(p * 2.0 + fi * 3.1) * 3.0));
+          s += pow(1.0 - v, 10.0) * (1.0 / (fi + 1.0));
+        }
+        return s;
       }
 
       void main() {
-        // uvをワールド座標スケール（ACCUM_POINT中心からのオフセット）に変換
-        // → JS側のパーティクル座標系と単位を一致させる
         vec2 wp = (vUv - 0.5) * PLANE_SIZE;
         float radius = length(wp);
         float angle  = atan(wp.y, wp.x);
-        float boundaryR = crackRadius(angle);
 
-        // 境界線までの符号付き距離（負=内側、正=外側）
-        float edgeDist = abs(radius - boundaryR);
+        // ── ドメインワーピングfbm：雲がゆっくり渦を巻きながら揺らめく ──
+        vec2 p = wp * 0.55 + vec2(0.0, uTime * 0.05);
+        vec2 q = vec2(fbm(p), fbm(p + vec2(5.2, 1.3)));
+        vec2 r = vec2(
+          fbm(p + 4.0 * q + vec2(1.7, 9.2) + 0.12 * uTime),
+          fbm(p + 4.0 * q + vec2(8.3, 2.8) + 0.10 * uTime)
+        );
+        float cloud = fbm(p + 4.0 * r);
 
-        // 亀裂の縁の光る帯
-        float bandWidth = mix(0.10, 0.40, uCrack);
-        float glowMask = smoothstep(bandWidth * 2.2, 0.0, edgeDist);
-        float coreMask = smoothstep(bandWidth * 0.5, 0.0, edgeDist);
+        // 半径方向のフォールオフ（中心が濃く、外側にいくほど淡くなる）
+        float radialFalloff = pow(clamp(1.0 - radius / NEBULA_MAX_R, 0.0, 1.0), 1.4);
 
-        float flow = sin(angle * 10.0 - uTime * 2.4 + radius * 3.0) * 0.5 + 0.5;
-        flow = pow(flow, 2.2);
+        float density = cloud * radialFalloff;
 
-        float crackGlow = glowMask * uCrack;
-        float crackCore = coreMask * uCrack;
+        float streakVal = streaks(wp * 0.4, angle, uTime) * radialFalloff;
 
-        // 白飛びしにくい寒色〜淡い色に抑制
-        vec3 tunnelColor = vec3(0.40, 0.50, 0.92) * crackGlow * flow * 0.40;
-        vec3 coreColor   = vec3(0.78, 0.76, 0.90) * crackCore * 0.40;
+        // ── 色：中心=白熱 → 中間=山吹色/琥珀色 → 外側=深い赤茶色にフェード ──
+        vec3 outerColor = vec3(0.42, 0.16, 0.06);
+        vec3 midColor   = vec3(1.00, 0.55, 0.16);
+        vec3 coreColor  = vec3(1.00, 0.92, 0.72);
 
-        vec3 color = tunnelColor + coreColor;
-        float alpha = clamp(crackGlow * 0.30 + crackCore * 0.50, 0.0, 1.0) * uOpacity;
+        vec3 color = mix(outerColor, midColor, smoothstep(0.15, 0.62, density));
+        color = mix(color, coreColor, smoothstep(0.55, 1.0, density) * smoothstep(NEBULA_MAX_R * 0.5, 0.0, radius));
+        color += vec3(1.0, 0.75, 0.35) * streakVal * 0.9;
 
-        // ── Portal合成：必ず亀裂の内側(radius < boundaryR)に収める ──
-        float revealR  = boundaryR * clamp(uPortalReveal, 0.0, 1.0);
-        float featherW = mix(0.35, 0.9, uWarp) + bandWidth * 0.6; // 縁をぼかして誤差を隠す
-        float apertureMask = smoothstep(revealR, revealR - featherW, radius);
-        // 亀裂の外側には絶対に出さない二重クランプ
-        apertureMask *= step(radius, boundaryR);
+        float alpha = clamp(density * 0.85 + streakVal * 0.55, 0.0, 1.0);
+        alpha *= uCrack * uOpacity;
+        vec3 finalGasColor = color * uCrack;
+
+        // ── 次空間の開口：中心の一番明るい場所がノイズで滲みながら開く ──
+        float noiseWarp = (cloud - 0.5) * 0.9; // 同じfbm場を使い、開口の縁も雲と同じ揺らぎにする
+        float openR  = NEBULA_MAX_R * 0.5 * clamp(uPortalReveal, 0.0, 1.0);
+        float feather = 0.9 + uWarp * 0.6;
+        float apertureMask = smoothstep(openR + noiseWarp, openR + noiseWarp - feather, radius);
+        // 開口はNEBULA_MAX_Rの58%を超えないようにクランプし、必ず外側の霞に包まれるようにする
+        apertureMask *= step(radius, NEBULA_MAX_R * 0.58);
 
         vec3 portalColor = texture2D(uPortalTex, vUv).rgb;
-        vec3 finalColor = mix(color, portalColor, apertureMask);
+        // 開口部の上にも薄く星雲のガスを重ね、縁を自然にぼかして隠す
+        vec3 finalColor = mix(finalGasColor, portalColor, apertureMask);
+        finalColor = mix(finalColor, finalGasColor, density * 0.25 * apertureMask);
+
         float finalAlpha = max(alpha, apertureMask);
 
-        // 亀裂の外側は帯の外からなだらかにフェードして完全カット
-        float outerCutoff = smoothstep(boundaryR + bandWidth * 2.2 + 0.3, boundaryR + bandWidth * 2.2, radius);
-        finalAlpha *= outerCutoff;
+        // 外周は緩やかにフェードアウトして完全に消える（ハードな縁を作らない）
+        float outerFade = smoothstep(NEBULA_MAX_R * 1.15, NEBULA_MAX_R * 0.75, radius);
+        finalAlpha *= outerFade;
 
         gl_FragColor = vec4(finalColor, finalAlpha);
       }
@@ -865,7 +890,7 @@ function onPhotoArrivedAtLight(index) {
 // カメラを裂け目正面・適正距離へ補正してからロックする
 // ======================================================
 const RIFT_VIEW_DISTANCE      = 6;    // Phase4のdistToDoor想定初期値(6.0)と一致させる
-const CAMERA_ALIGN_DURATION   = 1200; // カメラ補正にかける時間(ms)
+const CAMERA_ALIGN_DURATION   = 600; // ★高速化(800->600): カメラ補正にかける時間(ms)
 const RIFT_BASE_FOV           = 75;   // カメラ初期FOV（吸い込み演出の基準値）
 
 function computeLookAtQuaternion(fromPos, targetPos) {
@@ -930,13 +955,11 @@ function alignCameraToRiftAndLock() {
 }
 
 // ======================================================
-// 記憶の裂け目（Organic Crack）ターゲット座標
+// 記憶の星雲・裂け目 ターゲット座標
 // ------------------------------------------------------
-// ★修正：crackRadius(angle) による「閉じた1周のループ」として生成する。
-//   角度0〜2πを均等に一周するため、以前あった「上端・下端で途切れる」
-//   問題が構造的に発生しなくなる。またシェーダー側と全く同じ数式・
-//   同じ係数を使っているため、粒子の位置とシェーダーの輪郭線が
-//   常にぴったり重なる。
+// ★多角形の輪郭ではなく、中心ほど密度が高い「立体的な星雲の雲」として
+//   粒子を配置する。若干の奥行き(z jitter)も持たせ、平面的なリング
+//   ではなく、ふわっと膨らんだガスの塊のように見えるようにしている。
 // ======================================================
 function getDoorTargetPositions(count) {
   const targets = [];
@@ -945,16 +968,18 @@ function getDoorTargetPositions(count) {
   const cz = ACCUM_POINT.z;
 
   for (let i = 0; i < count; i++) {
-    const angle = (i / count) * Math.PI * 2;
+    const theta = Math.random() * Math.PI * 2;
+    // 中心ほど密度が高くなるように、べき乗分布で半径を決める
+    const r = NEBULA_MAX_R * Math.pow(Math.random(), 2.0);
 
-    // 輪郭の帯に厚みを持たせるための小さな揺らぎ（シェーダーのbandWidthと同程度）
-    const jitter = (Math.random() - 0.5) * 0.5;
-    const r = crackRadius(angle) + jitter;
+    const jitterZ = (Math.random() - 0.5) * 2.2; // 奥行きを持たせ立体的な雲に
+    const jitterXY = (Math.random() - 0.5) * 0.3;
 
-    const x = cx + r * Math.cos(angle);
-    const y = cy + r * Math.sin(angle);
+    const x = cx + r * Math.cos(theta) + jitterXY;
+    const y = cy + r * Math.sin(theta) + jitterXY;
+    const z = cz + jitterZ;
 
-    targets.push(new THREE.Vector3(x, y, cz));
+    targets.push(new THREE.Vector3(x, y, z));
   }
 
   return targets;
@@ -962,9 +987,18 @@ function getDoorTargetPositions(count) {
 // ======================================================
 // 裂け目パーティクルシステムの作成（軽量・高品質）
 // ======================================================
+// ★変更：黄色とオレンジの粒子をより「キラキラ」させるため、彩度を下げて白に近づけ、高明度に。
+// 裂け目パーティクルの色パレット（記憶・次空間を思わせる複数色）
+const DOOR_PARTICLE_PALETTE = [
+  new THREE.Color(0xffe0b3), // ★変更(ffb066->ffe0b3): 淡い琥珀色（黄色寄り）
+  new THREE.Color(0xfbf0db), // ★変更(f5d98c->fbf0db): 極めて淡いゴールド
+  new THREE.Color(0xfff8f0), // ★変更(fff2df->fff8f0): ほぼ白に近い暖白
+];
+
 function createDoorParticles() {
   const count = 1400; // 軽量だが密度感を保つバランス値
   const pos    = new Float32Array(count * 3);
+  const colors = new Float32Array(count * 3); // ★追加：粒子ごとの色
   const sizes  = new Float32Array(count);
 
   for (let i = 0; i < count; i++) {
@@ -974,16 +1008,24 @@ function createDoorParticles() {
     pos[i * 3]     = ACCUM_POINT.x + r * Math.sin(phi) * Math.cos(theta);
     pos[i * 3 + 1] = ACCUM_POINT.y + r * Math.sin(phi) * Math.sin(theta);
     pos[i * 3 + 2] = ACCUM_POINT.z + r * Math.cos(phi);
-    sizes[i] = 0.16 + Math.random() * 0.18; // 大小バラつきで密度感UP（控えめ）
+    // ★微調整: 粒子の大小バラつきを少し抑え、全体的にシャープに
+    sizes[i] = 0.14 + Math.random() * 0.16;
+
+    const c = DOOR_PARTICLE_PALETTE[Math.floor(Math.random() * DOOR_PARTICLE_PALETTE.length)];
+    colors[i * 3]     = c.r;
+    colors[i * 3 + 1] = c.g;
+    colors[i * 3 + 2] = c.b;
   }
 
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3)); // ★追加
 
   const mat = new THREE.PointsMaterial({
     map: particleTexture,
-    color: 0xcf9f70,   // 白飛び軽減：彩度を落とした控えめな暖色
-    size: 0.09,
+    vertexColors: true, // ★追加：粒子ごとの色を有効化
+    color: 0xffffff,    // ベースは白（vertexColorsと掛け合わされる）
+    size: 0.06,         // ★小さく(0.09->0.06): 粒子を小さくしてシャープな煌めきに
     transparent: true,
     opacity: 0,
     blending: THREE.AdditiveBlending,
@@ -995,7 +1037,7 @@ function createDoorParticles() {
   points.layers.enable(BLOOM_LAYER);
   scene.add(points);
 
-  // 対数螺旋（台風の目）用のパラメータ
+  // 对数螺旋（台風の目）用のパラメータ
   const noises = [];
   for (let i = 0; i < count; i++) {
     noises.push({
@@ -1052,7 +1094,8 @@ function updateAccumulationGlow() {
 function updateDoor() {
   if (doorPhase === 'none' || !doorSys) return;
 
-  doorTime += 0.004;
+  // ★高速化(0.004->0.006): アニメーション自体の進行速度を上げる
+  doorTime += 0.006;
   const pos = doorSys.geo.attributes.position.array;
   const uni = portalPlane ? portalPlane.material.uniforms : null;
   if (uni) uni.uTime.value = doorTime;
@@ -1061,11 +1104,12 @@ function updateDoor() {
   // Phase 1: 台風の目のような対数螺旋で渦が巻き始める
   // ────────────────────────────────────────
   if (doorPhase === 'spiraling') {
-    const SPIRAL_DUR = 2.4;
+    const SPIRAL_DUR = 1.0; // ★高速化(1.6->1.0): 渦巻き時間を短縮
     const sp    = Math.min(1.0, doorTime / SPIRAL_DUR);
     const accel = Math.pow(sp, 2.2);
 
-    doorSys.mesh.material.opacity = Math.min(0.38, doorTime * 0.32);
+    // ★白飛び抑制: 最大透明度を抑える(0.38->0.25)
+    doorSys.mesh.material.opacity = Math.min(0.25, doorTime * 0.4);
 
     if (uni) {
       uni.uOpacity.value = Math.min(0.55, sp * 0.75);
@@ -1104,7 +1148,8 @@ function updateDoor() {
       pos[iy] += (ty - pos[iy]) * followSpeed;
       pos[iz] += (ACCUM_POINT.z - pos[iz]) * 0.04;
 
-      doorSys.mesh.material.size = 0.13 + accel * 0.20 + noise.sizeScale * 0.12;
+      // ★粒子を小さく: 渦巻き中のサイズ増加を抑える
+      doorSys.mesh.material.size = 0.10 + accel * 0.15 + noise.sizeScale * 0.10;
     }
 
     if (doorTime > SPIRAL_DUR) {
@@ -1114,13 +1159,16 @@ function updateDoor() {
   }
 
   // ────────────────────────────────────────
-  // Phase 2: 渦が緩みながら裂け目の輪郭に収束
+  // Phase 2: 渦が緩みながら裂け目（星雲）の形に収束
   // ────────────────────────────────────────
   if (doorPhase === 'forming') {
-    const FORM_DUR      = 1.8;
+    const FORM_DUR      = 0.8; // ★高速化(1.2->0.8): 形状形成時間を短縮
     const fp            = Math.min(1.0, doorTime / FORM_DUR);
     const swirlStrength = 1.0 - fp;
     const B = 1.6;
+
+    // ★白飛び抑制: 不透明度を維持しつつ少し下げる(0.25)
+    doorSys.mesh.material.opacity = 0.25;
 
     if (uni) {
       uni.uWarp.value     = 1.0 - fp;
@@ -1155,7 +1203,8 @@ function updateDoor() {
       pos[iy] += (ty - pos[iy]) * 0.06;
       pos[iz] += (target.z - pos[iz]) * 0.05;
 
-      doorSys.mesh.material.size = 0.28 - fp * 0.14 + noise.sizeScale * 0.08;
+      // ★粒子を小さく: 収束時のサイズを小さく
+      doorSys.mesh.material.size = 0.20 - fp * 0.12 + noise.sizeScale * 0.06;
     }
 
     if (doorTime > FORM_DUR) {
@@ -1164,13 +1213,16 @@ function updateDoor() {
   }
 
   // ────────────────────────────────────────
-  // Phase 3: 裂け目が脈動 → カメラが吸い込まれる → ポータル拡大開始
+  // Phase 3: 星雲が脈動 → カメラが吸い込まれる → ポータル拡大開始
   // ────────────────────────────────────────
   if (doorPhase === 'complete') {
     const t = doorTime;
-    const pulse = 0.85 + Math.sin(t * 2.2) * 0.15;
+    // ★高速化(2.2->3.0): 脈動のリズムを速く
+    const pulse = 0.85 + Math.sin(t * 3.0) * 0.15;
 
-    doorSys.mesh.material.opacity = 0.16 * pulse;
+    // ★白飛び抑制・中心可視化: 脈動時の透明度を大幅に下げる(0.16->0.10)
+    // 加算合成による中心の白潰れを防ぎ、次空間が見えるようにする
+    doorSys.mesh.material.opacity = 0.10 * pulse;
 
     if (uni) {
       uni.uCrack.value   = pulse;
@@ -1184,22 +1236,26 @@ function updateDoor() {
       pos[iy] += (target.y - pos[iy]) * 0.08;
     }
 
-    // カメラを裂け目へ吸い込む（演出専用の移動なので cameraLocked とは独立して動かす）
+    // カメラを裂け目へ吸い込む
     const distToDoor = ACCUM_POINT.z - camera.position.z;
     if (distToDoor < -1.5) {
-      const pull = Math.min(0.06, 0.012 + t * 0.01);
+      // ★高速化(0.15->0.20, 0.03->0.05): 基本速度と加速度を上げる
+      const pull = Math.min(0.20, 0.05 + t * 0.025); 
       camera.position.z -= pull * Math.abs(distToDoor) * 0.3;
-      camera.fov = Math.min(95, camera.fov + 0.15);
+      
+      // ★高速化(+0.4->+0.5): FOVの変化量を増やし、スピード感を強調
+      camera.fov = Math.min(110, camera.fov + 0.5); 
       camera.updateProjectionMatrix();
     }
 
-    if (Math.abs(distToDoor) < 6.0) {
+    // ★高速化(6.0->8.0): 次空間への切り替え判定距離を少し手前に
+    if (Math.abs(distToDoor) < 8.0) {
       doorPhase = 'portal-open';
     }
   }
 
   // ────────────────────────────────────────
-  // Phase 4: 裂け目(Portal)が画面いっぱいに拡大していく
+  // Phase 4: ポータルが画面いっぱいに拡大していく
   // ────────────────────────────────────────
 if (doorPhase === 'portal-open') {
     const distToDoor = Math.abs(ACCUM_POINT.z - camera.position.z);
@@ -1210,8 +1266,8 @@ if (doorPhase === 'portal-open') {
 
     if (uni) {
       // 距離 6.0 → 0.5 の間で uPortalReveal を 0 → 1.0 まで拡大
-      // ★新シェーダーではrevealは常に亀裂境界(boundaryR)の内側にクランプされるため、
-      //   上限を設けず最後まで亀裂の枠いっぱいに拡大してよい
+      // シェーダー側で常に星雲の内側（NEBULA_MAX_Rの58%以内）にクランプされるため、
+      // 上限を設けず最後まで開いてよい
       const t2 = THREE.MathUtils.clamp(1 - (distToDoor - 0.5) / (6.0 - 0.5), 0, 1);
       uni.uPortalReveal.value = t2;
     }
@@ -1228,7 +1284,7 @@ if (doorPhase === 'portal-open') {
 // トリガー・吸引・フェード・固定
 // ======================================================
 const TRIGGER_DISTANCE = 25;
-const DISSOLVE_CAMERA_PUSH = 18; // 粒子化開始時にカメラから遠ざける距離（近距離での白トビ防止）
+const DISSOLVE_CAMERA_PUSH = 18;
 
 function checkTriggers() {
   const now = Date.now();
@@ -1237,7 +1293,6 @@ function checkTriggers() {
     const item = photoItems[i];
     if (!item.loaded) continue;
 
-    // まだトリガーされていない場合の出現判定
     if (!item.triggered) {
       const dist = camera.position.distanceTo(item.position);
       const byDistance = dist < TRIGGER_DISTANCE;
@@ -1247,23 +1302,24 @@ function checkTriggers() {
       if (byDistance || byClick || byTime) {
         item.triggered = true;
         item.attract   = true;
+        item._attractStart = Date.now(); // 【追加】時間経過で加速させるためのタイマー
       }
 
-      // 【数珠つなぎ】前の写真（i-1）が消え始めたら、この写真（i）を出現させる
       if (i >= 1) {
         const prevItem = photoItems[i - 1];
         if (prevItem && prevItem.dissolving) {
           item.triggered = true;
           item.attract   = true;
+          item._attractStart = Date.now(); // 【追加】
         }
       }
     }
 
-    // 「1つ前の写真が完全に固定（表示中）になったら、自分（i-1）を消滅させる」
     if (i >= 1 && item.fixed && !item.dissolving && !item.dissolved) {
       const oldestItem = photoItems[i - 1];
       if (oldestItem && !oldestItem.dissolving && !oldestItem.dissolved) {
         oldestItem.dissolving = true;
+        oldestItem._dissolveStart = Date.now(); // 【追加】消滅開始時刻を記録
         oldestItem.viewing = false;
       }
     }
@@ -1274,11 +1330,16 @@ function attractParticles(item) {
   if (!item.attract || !item.particles || item.formed) return;
   const pos = item.particleGeo.attributes.position.array;
   let allClose = true;
+
+  // 【修正】カメラ吸引スピードをもう少し速く（ベースを0.04→0.06にし、時間経過でさらに加速）
+  const elapsed = (Date.now() - (item._attractStart || Date.now())) * 0.001;
+  const speedFactor = 0.06 + elapsed * 0.05; 
+
   for (let i = 0; i < item.particleCount; i++) {
     const ix = i*3, iy = i*3+1, iz = i*3+2;
     const p = new THREE.Vector3(pos[ix], pos[iy], pos[iz]);
     const t = item.targetPositions[i];
-    const dir = t.clone().sub(p).multiplyScalar(0.04);
+    const dir = t.clone().sub(p).multiplyScalar(speedFactor);
     p.add(dir);
     pos[ix] = p.x; pos[iy] = p.y; pos[iz] = p.z;
     if (dir.length() > 0.01) allClose = false;
@@ -1294,10 +1355,9 @@ function fadeInPhoto(item) {
   if (item.particles && item.particles.material.opacity > 0) item.particles.material.opacity -= 0.02;
   if (item.particles && item.particles.material.opacity <= 0.02) item.particles.visible = false;
   if (item.aura) {
-    // 写真が出始めたらすぐ枠も表示・フェードイン
     if (!item.aura.visible) item.aura.visible = true;
-    if (item.aura.material.opacity < 1.2) { //枠の透明度
-      item.aura.material.opacity += 0.01; // 写真と同じ速度でフェードイン
+    if (item.aura.material.opacity < 1.2) {
+      item.aura.material.opacity += 0.01;
     }
   }
 }
@@ -1311,9 +1371,9 @@ function checkFixed(item) {
     item.mesh.position.copy(worldPos);
     item.mesh.quaternion.set(0, 0, 0, 1);
     item.viewing = true;
-item.viewStartTime = Date.now();
-item.viewStartZ = camera.position.z;
-item._fixedAt = Date.now(); // 固定された時刻を記録
+    item.viewStartTime = Date.now();
+    item.viewStartZ = camera.position.z;
+    item._fixedAt = Date.now();
   }
 }
 
@@ -1321,33 +1381,77 @@ item._fixedAt = Date.now(); // 固定された時刻を記録
 // 粒子エフェクト更新
 // ======================================================
 function updateParticleEffects() {
-  const t = Date.now() * 0.0035;
+  const now = Date.now();
+  const t = now * 0.0035;
 
-  // 背景粒子（変更なし）
-  const sparkle = Math.pow(Math.random(), 15) * 0.5;
-  backgroundParticles.material.opacity = 0.25 + Math.sin(t * 0.3) * 0.05 + sparkle;
-  backgroundParticles.material.size    = 0.12 + sparkle * 0.3;
+  // 周りの雲（背景粒子）の広がりをさらに中心寄りに制限
+  const noise = Math.sin(t * 0.8) * Math.cos(t * 1.5) * 0.01;
+  const sparkle = Math.pow(Math.random(), 30) * 0.15; 
+  backgroundParticles.material.opacity = 0.08 + noise + sparkle; // ベースをさらに下げた
+  backgroundParticles.material.size    = 0.06 + Math.random() * 0.03;
 
-  // アクセント粒子（変更なし）
-  const accentSparkle = Math.pow(Math.random(), 12) * 0.4;
-  accentParticles.material.opacity = 0.55 + Math.sin(t * 0.2) * 0.08 + accentSparkle;
+  const accentSparkle = Math.pow(Math.random(), 18) * 0.15;
+  accentParticles.material.opacity = 0.25 + Math.sin(t * 0.4) * 0.03 + accentSparkle;
 
-  // 写真粒子だけキラキラ強化
+  // 写真粒子
   photoItems.forEach(item => {
     if (!item.particles) return;
     const mat = item.particles.material;
     if (!mat._phase) mat._phase = Math.random() * 10;
-    const smooth       = 0.72  + Math.sin(t * 0.15 + mat._phase) * 0.06;
+
+    let timeScale = 0.0035; 
+    let dissolveFactor = 1.0;
+
+    if (item.dissolving && item._dissolveStart) {
+      const dElapsed = (now - item._dissolveStart) * 0.001;
+      
+      // 最初は遅く、後半一気に超加速（渦巻きスピード）
+      timeScale = 0.0005 + Math.pow(dElapsed, 2.5) * 0.015; 
+      
+      // 消滅の進行度（0に向かう）
+      dissolveFactor = Math.max(0.0, 1.0 - dElapsed * 2.0); 
+
+      // 【確実な白飛び対策】写真メッシュと枠の不透明度を強制上書き
+      if (item.mesh && item.material) {
+        item.material.transparent = true; // 透明化を強制有効
+        item.material.opacity = Math.max(0.0, item.material.opacity - 0.15); // ガッツリ削る
+        if (item.material.opacity <= 0.05) item.mesh.visible = false; // ほぼ見えなくなったら非表示にして裂け目を作る
+      }
+      
+      if (item.aura && item.aura.material) {
+        item.aura.material.transparent = true; // 強制有効
+        item.aura.material.opacity = Math.max(0.0, item.aura.material.opacity - 0.2); 
+        if (item.aura.material.opacity <= 0.05) item.aura.visible = false;
+      }
+    }
+
+    const customT = now * timeScale;
+
+    // 基本の不透明度とサイズ（元のロジック維持）
+    const smooth       = 0.72  + Math.sin(customT * 0.15 + mat._phase) * 0.06;
     const photoSparkle = Math.pow(Math.random(), 100) * 0.12;
-    mat.opacity = Math.min(1.0, smooth + photoSparkle);
-    mat.size    = 0.8 + Math.sin(t * 1.3 + mat._phase) * 0.1 + photoSparkle * 0.8;
-    const hueShift = (Math.sin(t * 0.5 + mat._phase) + 1) / 2;
+    
+    // 【修正】粒子自体の透明度も強制的に transparent にして、消滅時はほぼ 0 に叩き落とす
+    mat.transparent = true;
+    mat.opacity = Math.min(1.0, smooth + photoSparkle) * (item.dissolving ? dissolveFactor * 0.01 : 1.0);
+    mat.size    = (0.8 + Math.sin(customT * 1.3 + mat._phase) * 0.1 + photoSparkle * 0.8) * (item.dissolving ? dissolveFactor : 1.0);
+
+    // 粒子自体の表示期間が過ぎたら非表示に
+    if (item.dissolving && mat.opacity <= 0.01) {
+      item.particles.visible = false;
+    }
+
+    // 元の色味の計算（完全維持）
+    const hueShift = (Math.sin(customT * 0.5 + mat._phase) + 1) / 2;
     const color = new THREE.Color();
-    color.setHSL(0.08 + hueShift*0.08, 0.55 + hueShift*0.25, 0.60 + hueShift*0.30 + photoSparkle*0.4);
+    color.setHSL(
+      0.08 + hueShift * 0.08, 
+      0.55 + hueShift * 0.25, 
+      0.60 + hueShift * 0.30 + photoSparkle * 0.4
+    );
     mat.color = color;
   });
 }
-
 // ======================================================
 // 入力管理（PC・スマホ）
 // ======================================================
@@ -1383,7 +1487,7 @@ window.addEventListener('touchstart', (e) => {
   const now = Date.now();
 
   if (!cameraLocked && !cameraAligning && now - lastTapTime < 300) {
-    moveTargetZ = camera.position.z - 3;
+    moveTargetZ = camera.position.z - 5; //カメラ自動前進 3から5へ
     moveForward = true;
   }
 
