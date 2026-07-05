@@ -193,6 +193,8 @@ const photoItems = PHOTO_FILES.map((src, i) => createPhotoItem(src, i));
 // 光蓄積・ドア形成システム（追加）
 // ======================================================
 const ACCUM_POINT = new THREE.Vector3(0, 0, -((PHOTO_FILES.length - 1) * SPIRAL_CONFIG.zStep + 8));
+const PORTAL_REVEAL_START_DIST = 11.0;
+const PORTAL_REVEAL_FULL_DIST  = 0.5;
 let accumulatedCount = 0;
 let accumulationGlow = null;
 let doorSys          = null;
@@ -501,12 +503,16 @@ function createAccumulationGlow() {
 // ======================================================
 // 記憶の星雲・裂け目（ポータル面）
 // ------------------------------------------------------
-// ★多角形の輪郭ではなく、fbm(フラクタルブラウン運動)ノイズによる
-//   曖昧な星雲状のガスとして裂け目を表現する。中心が白熱し、
-//   山吹色〜琥珀色のガスが放射状の筋（稲妻状の繊維）とともに
-//   揺らめきながら広がる。次空間はこの星雲の一番明るい中心部分に
-//   ノイズで縁を滲ませながら開き、常に周囲の霞に包まれるため
-//   輪郭のはみ出しやカクカクした境界が見えることはない。
+// ★修正版：以前の実装には2つの致命的なバグがあった。
+//   ① centerBoostが中心付近(半径1.4程度)のdensityを常に0.7〜1.0に
+//     強制していたため、ノイズで揺らめく星雲ではなく「常時ベタ塗りの
+//     白い円盤」が固定表示されていた（＝白飛びの正体）。
+//   ② 次空間が完全に開いた(apertureMask=1)後も、finalColorを
+//     もう一度finalGasColor（ほぼ白）で25%上書きしていたため、
+//     開口自体は開いていても常に白いベールがかかって次空間が
+//     見えなくなっていた。
+//   → centerBoostはノイズに応じて緩やかに底上げする程度に弱め、
+//     開口後の再上書き処理は完全に削除した。
 // ======================================================
 function createPortalPlane() {
   const PLANE_SIZE = 10; // JS側のワールド座標とUVを対応づけるための基準サイズ
@@ -515,7 +521,7 @@ function createPortalPlane() {
   const mat = new THREE.ShaderMaterial({
     transparent: true,
     depthWrite: false,
-    blending: THREE.AdditiveBlending,
+    blending: THREE.NormalBlending, // 加算合成だと次空間の映像が背景と足し算されて白飛びするため通常合成
     side: THREE.DoubleSide,
     uniforms: {
       uTime:    { value: 0 },
@@ -574,10 +580,10 @@ function createPortalPlane() {
         float s = 0.0;
         for (int i = 0; i < 3; i++) {
           float fi = float(i);
-          float freq  = 6.0 + fi * 5.0;
+          float freq  = 8.0 + fi * 6.0;
           float phase = t * (0.25 + 0.08 * fi);
           float v = abs(sin(angle * freq + phase + fbm(p * 2.0 + fi * 3.1) * 3.0));
-          s += pow(1.0 - v, 10.0) * (1.0 / (fi + 1.0));
+          s += pow(1.0 - v, 16.0) * (1.0 / (fi + 1.0));
         }
         return s;
       }
@@ -599,35 +605,43 @@ function createPortalPlane() {
         // 半径方向のフォールオフ（中心が濃く、外側にいくほど淡くなる）
         float radialFalloff = pow(clamp(1.0 - radius / NEBULA_MAX_R, 0.0, 1.0), 1.4);
 
-        float density = cloud * radialFalloff;
+        // ★修正：中心を「常に0.7〜1.0に固定」するのではなく、
+        //   ノイズ(cloud)に応じて緩やかに底上げするだけにする。
+        //   これにより中心も星雲のノイズで揺らめき続け、固定の白い円盤にならない。
+        float centerBoost = smoothstep(NEBULA_MAX_R * 0.28, 0.0, radius);
+        float density = cloud * radialFalloff + centerBoost * cloud * 0.55;
+        density = clamp(density, 0.0, 1.0);
+        density *= radialFalloff;
 
-        float streakVal = streaks(wp * 0.4, angle, uTime) * radialFalloff;
+        float streakFalloff = radialFalloff * radialFalloff;
+        float streakVal = streaks(wp * 0.4, angle, uTime) * streakFalloff;
 
         // ── 色：中心=白熱 → 中間=山吹色/琥珀色 → 外側=深い赤茶色にフェード ──
         vec3 outerColor = vec3(0.42, 0.16, 0.06);
         vec3 midColor   = vec3(1.00, 0.55, 0.16);
-        vec3 coreColor  = vec3(1.00, 0.92, 0.72);
+        vec3 coreColor  = vec3(1.02, 0.95, 0.85);
 
         vec3 color = mix(outerColor, midColor, smoothstep(0.15, 0.62, density));
-        color = mix(color, coreColor, smoothstep(0.55, 1.0, density) * smoothstep(NEBULA_MAX_R * 0.5, 0.0, radius));
+        // ★修正：coreColorへの遷移条件を元の水準に戻し、広範囲が常時白くならないようにする
+        color = mix(color, coreColor, smoothstep(0.58, 1.0, density) * smoothstep(NEBULA_MAX_R * 0.45, 0.0, radius));
         color += vec3(1.0, 0.75, 0.35) * streakVal * 0.9;
 
-        float alpha = clamp(density * 0.85 + streakVal * 0.55, 0.0, 1.0);
+        // ★微調整：全体の濃さの上限を少し下げ、白飛びの余地を減らす
+        float alpha = clamp(density * 0.75 + streakVal * 0.5, 0.0, 1.0);
         alpha *= uCrack * uOpacity;
         vec3 finalGasColor = color * uCrack;
 
         // ── 次空間の開口：中心の一番明るい場所がノイズで滲みながら開く ──
-        float noiseWarp = (cloud - 0.5) * 0.9; // 同じfbm場を使い、開口の縁も雲と同じ揺らぎにする
+        float noiseWarp = (cloud - 0.5) * 0.9;
         float openR  = NEBULA_MAX_R * 0.5 * clamp(uPortalReveal, 0.0, 1.0);
         float feather = 0.9 + uWarp * 0.6;
         float apertureMask = smoothstep(openR + noiseWarp, openR + noiseWarp - feather, radius);
-        // 開口はNEBULA_MAX_Rの58%を超えないようにクランプし、必ず外側の霞に包まれるようにする
         apertureMask *= step(radius, NEBULA_MAX_R * 0.58);
 
         vec3 portalColor = texture2D(uPortalTex, vUv).rgb;
-        // 開口部の上にも薄く星雲のガスを重ね、縁を自然にぼかして隠す
         vec3 finalColor = mix(finalGasColor, portalColor, apertureMask);
-        finalColor = mix(finalColor, finalGasColor, density * 0.25 * apertureMask);
+        // ★削除：ここで finalGasColor を再度上乗せしていたのが、
+        //   開口後も白いベールがかかり続けていた直接の原因。完全に削除。
 
         float finalAlpha = max(alpha, apertureMask);
 
@@ -1034,7 +1048,6 @@ function createDoorParticles() {
   });
 
   const points = new THREE.Points(geo, mat);
-  points.layers.enable(BLOOM_LAYER);
   scene.add(points);
 
   // 对数螺旋（台風の目）用のパラメータ
@@ -1056,6 +1069,10 @@ function createDoorParticles() {
     noises:  noises,
   };
 
+  if (accumulationGlow) {
+    accumulationGlow.visible = false;
+  }
+
   if (!portalPlane) createPortalPlane();
 
   // ▼追加：Portal(RenderTarget)方式の初期化。ここから次空間のプリロードが始まる
@@ -1066,7 +1083,7 @@ function createDoorParticles() {
 // ======================================================
 function updateAccumulationGlow() {
   if (!accumulationGlow || accumulatedCount === 0) return;
-
+  if (doorPhase !== 'none') return; // ★追加：裂け目演出が始まったら蓄積光は不要。同じ場所での多重加算による白飛びを防ぐ
   const t     = Date.now() * 0.001;
   const ratio = accumulatedCount / PHOTO_FILES.length;
 
@@ -1247,6 +1264,14 @@ function updateDoor() {
       camera.fov = Math.min(110, camera.fov + 0.5); 
       camera.updateProjectionMatrix();
     }
+    if (uni) {
+      const distAbs = Math.abs(distToDoor);
+      const t2 = THREE.MathUtils.clamp(
+        1 - (distAbs - PORTAL_REVEAL_FULL_DIST) / (PORTAL_REVEAL_START_DIST - PORTAL_REVEAL_FULL_DIST),
+        0, 1
+      );
+      uni.uPortalReveal.value = t2;
+    }
 
     // ★高速化(6.0->8.0): 次空間への切り替え判定距離を少し手前に
     if (Math.abs(distToDoor) < 8.0) {
@@ -1265,10 +1290,10 @@ if (doorPhase === 'portal-open') {
     camera.updateProjectionMatrix();
 
     if (uni) {
-      // 距離 6.0 → 0.5 の間で uPortalReveal を 0 → 1.0 まで拡大
-      // シェーダー側で常に星雲の内側（NEBULA_MAX_Rの58%以内）にクランプされるため、
-      // 上限を設けず最後まで開いてよい
-      const t2 = THREE.MathUtils.clamp(1 - (distToDoor - 0.5) / (6.0 - 0.5), 0, 1);
+      const t2 = THREE.MathUtils.clamp(
+        1 - (distToDoor - PORTAL_REVEAL_FULL_DIST) / (PORTAL_REVEAL_START_DIST - PORTAL_REVEAL_FULL_DIST),
+        0, 1
+      );
       uni.uPortalReveal.value = t2;
     }
 
@@ -1384,14 +1409,14 @@ function updateParticleEffects() {
   const now = Date.now();
   const t = now * 0.0035;
 
-  // 周りの雲（背景粒子）の広がりをさらに中心寄りに制限
-  const noise = Math.sin(t * 0.8) * Math.cos(t * 1.5) * 0.01;
-  const sparkle = Math.pow(Math.random(), 30) * 0.15; 
-  backgroundParticles.material.opacity = 0.08 + noise + sparkle; // ベースをさらに下げた
-  backgroundParticles.material.size    = 0.06 + Math.random() * 0.03;
+  // 【修正】周りの雲が外に伸びすぎないよう、不規則なランダムパターンにして広がりを抑える
+  const noise = Math.sin(t * 0.5) * Math.cos(t * 0.7) * 0.03;
+  const sparkle = Math.pow(Math.random(), 15) * 0.4;
+  backgroundParticles.material.opacity = 0.22 + noise + sparkle;
+  backgroundParticles.material.size    = 0.10 + Math.random() * 0.05;
 
-  const accentSparkle = Math.pow(Math.random(), 18) * 0.15;
-  accentParticles.material.opacity = 0.25 + Math.sin(t * 0.4) * 0.03 + accentSparkle;
+  const accentSparkle = Math.pow(Math.random(), 12) * 0.3;
+  accentParticles.material.opacity = 0.50 + Math.sin(t * 0.4) * 0.05 + accentSparkle;
 
   // 写真粒子
   photoItems.forEach(item => {
@@ -1399,47 +1424,29 @@ function updateParticleEffects() {
     const mat = item.particles.material;
     if (!mat._phase) mat._phase = Math.random() * 10;
 
+    // 【修正】グルグル渦巻くスピード：消滅開始からの時間経過で、最初は遅く、段々早くする
     let timeScale = 0.0035; 
     let dissolveFactor = 1.0;
 
     if (item.dissolving && item._dissolveStart) {
-      const dElapsed = (now - item._dissolveStart) * 0.001;
+      const dElapsed = (now - item._dissolveStart) * 0.001; // 消滅してからの秒数
       
-      // 最初は遅く、後半一気に超加速（渦巻きスピード）
-      timeScale = 0.0005 + Math.pow(dElapsed, 2.5) * 0.015; 
+      // 最初は遅く(0.001)、段々早く(最高0.012以上)
+      timeScale = 0.001 + dElapsed * 0.004; 
       
-      // 消滅の進行度（0に向かう）
-      dissolveFactor = Math.max(0.0, 1.0 - dElapsed * 2.0); 
-
-      // 【確実な白飛び対策】写真メッシュと枠の不透明度を強制上書き
-      if (item.mesh && item.material) {
-        item.material.transparent = true; // 透明化を強制有効
-        item.material.opacity = Math.max(0.0, item.material.opacity - 0.15); // ガッツリ削る
-        if (item.material.opacity <= 0.05) item.mesh.visible = false; // ほぼ見えなくなったら非表示にして裂け目を作る
-      }
-      
-      if (item.aura && item.aura.material) {
-        item.aura.material.transparent = true; // 強制有効
-        item.aura.material.opacity = Math.max(0.0, item.aura.material.opacity - 0.2); 
-        if (item.aura.material.opacity <= 0.05) item.aura.visible = false;
-      }
+      // 【修正】中心の白飛びをさらにガッツリ低減（不透明度を大幅にカット）
+      dissolveFactor = Math.max(0.0, 1.0 - dElapsed * 0.7); 
     }
 
     const customT = now * timeScale;
 
-    // 基本の不透明度とサイズ（元のロジック維持）
+    // 基本の不透明度とサイズ（完全維持ベース）
     const smooth       = 0.72  + Math.sin(customT * 0.15 + mat._phase) * 0.06;
     const photoSparkle = Math.pow(Math.random(), 100) * 0.12;
     
-    // 【修正】粒子自体の透明度も強制的に transparent にして、消滅時はほぼ 0 に叩き落とす
-    mat.transparent = true;
-    mat.opacity = Math.min(1.0, smooth + photoSparkle) * (item.dissolving ? dissolveFactor * 0.01 : 1.0);
+    // 消滅時は dissolveFactor を掛けて白飛びを完全に潰す
+    mat.opacity = Math.min(1.0, smooth + photoSparkle) * (item.dissolving ? dissolveFactor * 0.1 : 1.0);
     mat.size    = (0.8 + Math.sin(customT * 1.3 + mat._phase) * 0.1 + photoSparkle * 0.8) * (item.dissolving ? dissolveFactor : 1.0);
-
-    // 粒子自体の表示期間が過ぎたら非表示に
-    if (item.dissolving && mat.opacity <= 0.01) {
-      item.particles.visible = false;
-    }
 
     // 元の色味の計算（完全維持）
     const hueShift = (Math.sin(customT * 0.5 + mat._phase) + 1) / 2;
