@@ -28,7 +28,6 @@ const fillLight = new THREE.DirectionalLight(0xd0e8ff, 0.25); // フィルライ
 fillLight.position.set(-5, -3, 5);
 scene.add(fillLight);
 
-
 const camera = new THREE.PerspectiveCamera(
   75,
   window.innerWidth / window.innerHeight,
@@ -38,7 +37,6 @@ const camera = new THREE.PerspectiveCamera(
 camera.position.set(0, 0, 30);
 
 const BLOOM_LAYER = 1;
-
 const renderer = new THREE.WebGLRenderer({
   canvas: document.querySelector('#canvas'),
   antialias: true
@@ -56,7 +54,7 @@ const bloomPass = new UnrealBloomPass(
   1.3, 2.0, 0.93
 );
 composer.addPass(bloomPass);
-// ── 手続き型環境テクスチャ生成 ───────────────────────────────
+// 手続き型環境テクスチャ生成 
 function buildProceduralEnv() {
   const pmrem = new THREE.PMREMGenerator(renderer);
 
@@ -205,6 +203,26 @@ let _dissolvedFlags  = new Array(PHOTO_FILES.length).fill(false);
 let portalPlane = null;
 
 // ======================================================
+// 亀裂（裂け目）の形状関数（追加）
+// ------------------------------------------------------
+// ★ JS側のパーティクル座標とGLSL側の亀裂境界線を完全一致させるため、
+//   同一の閉曲線の数式をここで定義する（シェーダー側にも同じ係数で埋め込む）。
+//   angle(0〜2π)を与えると、ACCUM_POINT中心からの境界半径を返す。
+//   縦長の裂け目になるよう楕円的な伸縮＋複数周波数のゆらぎを重ねている。
+// ======================================================
+const CRACK_BASE_R      = 2.3;  // 基本半径（ワールド単位）
+const CRACK_ELONGATION  = 0.28; // 縦方向への伸び具合（0〜1、大きいほど縦長）
+
+function crackRadius(angle) {
+  let r = CRACK_BASE_R * (1 - CRACK_ELONGATION * Math.cos(2 * angle));
+  r *= 1
+    + 0.22 * Math.sin(2 * angle + 0.6)
+    + 0.10 * Math.sin(5 * angle + 2.3)
+    + 0.05 * Math.sin(9 * angle + 4.1);
+  return r;
+}
+
+// ======================================================
 // テクスチャ
 // ======================================================
 function createGlowTexture() {
@@ -273,7 +291,7 @@ function createSparkTexture(size = 128) {
 // 背景粒子 & アクセント粒子
 // ======================================================
 function createBackgroundParticles() {
-  const count = 3000; // 描画負荷軽減のため4500から削減
+  const count = 3000; // 数
 
   const positions = new Float32Array(count * 3);
   const speeds = new Float32Array(count);
@@ -389,7 +407,6 @@ gl_FragColor =
 
   const bg = new THREE.Points(geo, mat);
 
-  // ←速度を保存
   bg.userData.speeds = speeds;
 
   scene.add(bg);
@@ -494,9 +511,17 @@ function createAccumulationGlow() {
 }
 // ======================================================
 // 時空の歪み・裂け目（ポータル面）
+// ------------------------------------------------------
+// ★修正：円形のワームホールではなく、閉じた不規則な「亀裂穴」形状に変更。
+//   境界線は crackRadius(angle) という関数で定義し、JS側のパーティクル
+//   目標座標（getDoorTargetPositions）と完全に同じ数式・同じ係数を使うことで、
+//   粒子の輪郭とシェーダーの輪郭が常に一致するようにしている。
+//   次空間のPortalテクスチャは、この境界線の"内側"にしか表示されないよう
+//   数式的にクランプしているため、枠からのはみ出しが原理的に起こらない。
 // ======================================================
 function createPortalPlane() {
-  const geo = new THREE.PlaneGeometry(9, 9, 1, 1);
+  const PLANE_SIZE = 10; // JS側のワールド座標とUVを対応づけるための基準サイズ
+  const geo = new THREE.PlaneGeometry(PLANE_SIZE, PLANE_SIZE, 1, 1);
 
   const mat = new THREE.ShaderMaterial({
     transparent: true,
@@ -506,7 +531,7 @@ function createPortalPlane() {
     uniforms: {
       uTime:    { value: 0 },
       uWarp:    { value: 0 },
-      uCrack:   { value: 0 }, // ワームホールの"開き具合"として流用
+      uCrack:   { value: 0 }, // 亀裂の"開き具合"
       uOpacity: { value: 0 },
       uPortalTex:    { value: null },
       uPortalReveal: { value: 0 },
@@ -527,38 +552,63 @@ function createPortalPlane() {
       uniform float uPortalReveal;
       varying vec2 vUv;
 
+      // ── JS側 crackRadius() と完全に同じ数式・同じ係数 ──
+      const float PLANE_SIZE = ${PLANE_SIZE.toFixed(1)};
+      const float CRACK_BASE_R = 2.3;
+      const float CRACK_ELONGATION = 0.28;
+
+      float crackRadius(float angle) {
+        float r = CRACK_BASE_R * (1.0 - CRACK_ELONGATION * cos(2.0 * angle));
+        r *= 1.0
+          + 0.22 * sin(2.0 * angle + 0.6)
+          + 0.10 * sin(5.0 * angle + 2.3)
+          + 0.05 * sin(9.0 * angle + 4.1);
+        return r;
+      }
+
       void main() {
-        vec2 uv = vUv - 0.5;
-        float dist = length(uv);
-        float ang  = atan(uv.y, uv.x);
+        // uvをワールド座標スケール（ACCUM_POINT中心からのオフセット）に変換
+        // → JS側のパーティクル座標系と単位を一致させる
+        vec2 wp = (vUv - 0.5) * PLANE_SIZE;
+        float radius = length(wp);
+        float angle  = atan(wp.y, wp.x);
+        float boundaryR = crackRadius(angle);
 
-        // ★外周は問答無用でカット（白いオーラ完全排除）
-        float hardCutoff = smoothstep(0.46, 0.40, dist);
+        // 境界線までの符号付き距離（負=内側、正=外側）
+        float edgeDist = abs(radius - boundaryR);
 
-        // ── ワームホール：中心に向かって回転しながら収縮するリング ──
-        // dist を対数的に歪ませてトンネルの奥行き感を出す
-        float tunnel = 1.0 / (dist * 6.0 + 0.15);
-        float spiral = ang * 2.0 + tunnel * 1.5 - uTime * 2.8;
-        float rings = sin(spiral) * 0.5 + 0.5;
-        // リングをシャープに（本数を絞る）
-        rings = pow(rings, 3.0);
+        // 亀裂の縁の光る帯
+        float bandWidth = mix(0.10, 0.40, uCrack);
+        float glowMask = smoothstep(bandWidth * 2.2, 0.0, edgeDist);
+        float coreMask = smoothstep(bandWidth * 0.5, 0.0, edgeDist);
 
-        // ワームホールの「開き具合」：uCrackが0→1で出現
-        float wormhole = rings * uCrack * smoothstep(0.42, 0.05, dist);
-float core = smoothstep(0.14, 0.0, dist) * uCrack * 0.5;   // 0.8→0.5
+        float flow = sin(angle * 10.0 - uTime * 2.4 + radius * 3.0) * 0.5 + 0.5;
+        flow = pow(flow, 2.2);
 
-vec3 tunnelColor = vec3(0.55, 0.7, 1.0) * wormhole * 0.65;  // 1.1→0.65
-vec3 coreColor   = vec3(1.0, 0.95, 0.85) * core;
+        float crackGlow = glowMask * uCrack;
+        float crackCore = coreMask * uCrack;
 
-vec3 color = (tunnelColor + coreColor) * hardCutoff;
-float alpha = clamp(wormhole * 0.5 + core, 0.0, 1.0) * uOpacity * hardCutoff; // 0.8→0.5
+        // 白飛びしにくい寒色〜淡い色に抑制
+        vec3 tunnelColor = vec3(0.40, 0.50, 0.92) * crackGlow * flow * 0.40;
+        vec3 coreColor   = vec3(0.78, 0.76, 0.90) * crackCore * 0.40;
 
-        // ── Portal合成 ──
-        float reveal = min(uPortalReveal, 0.42);
-        float apertureMask = smoothstep(reveal, reveal - 0.30, dist);
+        vec3 color = tunnelColor + coreColor;
+        float alpha = clamp(crackGlow * 0.30 + crackCore * 0.50, 0.0, 1.0) * uOpacity;
+
+        // ── Portal合成：必ず亀裂の内側(radius < boundaryR)に収める ──
+        float revealR  = boundaryR * clamp(uPortalReveal, 0.0, 1.0);
+        float featherW = mix(0.35, 0.9, uWarp) + bandWidth * 0.6; // 縁をぼかして誤差を隠す
+        float apertureMask = smoothstep(revealR, revealR - featherW, radius);
+        // 亀裂の外側には絶対に出さない二重クランプ
+        apertureMask *= step(radius, boundaryR);
+
         vec3 portalColor = texture2D(uPortalTex, vUv).rgb;
         vec3 finalColor = mix(color, portalColor, apertureMask);
-        float finalAlpha = max(alpha, apertureMask * hardCutoff);
+        float finalAlpha = max(alpha, apertureMask);
+
+        // 亀裂の外側は帯の外からなだらかにフェードして完全カット
+        float outerCutoff = smoothstep(boundaryR + bandWidth * 2.2 + 0.3, boundaryR + bandWidth * 2.2, radius);
+        finalAlpha *= outerCutoff;
 
         gl_FragColor = vec4(finalColor, finalAlpha);
       }
@@ -573,10 +623,7 @@ float alpha = clamp(wormhole * 0.5 + core, 0.0, 1.0) * uOpacity * hardCutoff; //
 // ======================================================
 // 写真ロードに失敗した場合のフォールバック処理
 // ----------------------------------------------------
-// 画像の読み込みエラー・破損・タイムアウトが起きても、
-// その写真は「即座に到達済み」として扱い、蓄積カウントに
-// 加算する。これにより1枚以上の写真が表示できない場合でも
-// 裂け目演出（ドア）が必ず発生するようにする。
+// 画像の読み込みエラー・破損・タイムアウト対策
 // ======================================================
 function markPhotoFailed(item) {
   if (item.failed || item.dissolved) return; // 二重処理防止
@@ -646,7 +693,6 @@ function loadPhotoItem(item) {
       baseWidth = 14;
       baseHeight = baseWidth / aspect;
     }
-
 
     // 縦写真を制限
     const maxHeight = isMobile ? 13 : 14;
@@ -795,56 +841,120 @@ function checkDissolvedAndAccumulate() {
 }
 
 // ======================================================
-// 写真粒子が蓄積ポイントに到達したときの処理（追加）
+// 写真粒子が蓄積ポイントに到達したときの処理
+// ------------------------------------------------------
+// カメラを裂け目正面・適正距離へ補正してからロックする
 // ======================================================
 function onPhotoArrivedAtLight(index) {
   accumulatedCount++;
   console.log(`蓄積: ${accumulatedCount} / ${PHOTO_FILES.length}`);
-if (accumulatedCount >= PHOTO_FILES.length) {
-  loopDisabled = true;
 
-  moveTargetZ = ACCUM_POINT.z + 4.5;
-  moveForward = true;
+  if (accumulatedCount >= PHOTO_FILES.length) {
+    loopDisabled = true;
 
-  setTimeout(() => {
-    cameraLocked = true;      // ← 裂け目演出の間、カメラ操作を完全に停止
-    doorPhase = 'spiraling';
-    doorTime = 0;
-    createDoorParticles();
-  }, 1500);
+    moveTargetZ = ACCUM_POINT.z + 4.5;
+    moveForward = true;
+
+    setTimeout(() => {
+      alignCameraToRiftAndLock();
+    }, 1500);
+  }
 }
+
+// ======================================================
+// カメラを裂け目正面・適正距離へ補正してからロックする
+// ======================================================
+const RIFT_VIEW_DISTANCE      = 6;    // Phase4のdistToDoor想定初期値(6.0)と一致させる
+const CAMERA_ALIGN_DURATION   = 1200; // カメラ補正にかける時間(ms)
+const RIFT_BASE_FOV           = 75;   // カメラ初期FOV（吸い込み演出の基準値）
+
+function computeLookAtQuaternion(fromPos, targetPos) {
+  const m = new THREE.Matrix4();
+  m.lookAt(fromPos, targetPos, camera.up);
+  const q = new THREE.Quaternion();
+  q.setFromRotationMatrix(m);
+  return q;
 }
+
+function easeInOutCubic(t) {
+  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+
+function alignCameraToRiftAndLock() {
+  cameraAligning = true; // 補正中は既存のカメラ操作・自動処理を無効化
+
+  camera.up.set(0, 1, 0); // ロールのねじれを防ぐため基準を明示的にリセット
+
+  const startPos  = camera.position.clone();
+  const startQuat = camera.quaternion.clone();
+  const startFov  = camera.fov;
+
+  // 目標位置：ACCUM_POINTの真正面・Z軸上・適正距離
+  const targetPos = new THREE.Vector3(
+    ACCUM_POINT.x,
+    ACCUM_POINT.y,
+    ACCUM_POINT.z + RIFT_VIEW_DISTANCE
+  );
+  const targetQuat = computeLookAtQuaternion(targetPos, ACCUM_POINT);
+  const targetFov  = RIFT_BASE_FOV;
+
+  const startTime = performance.now();
+
+  function animateAlign(now) {
+    const t = Math.min((now - startTime) / CAMERA_ALIGN_DURATION, 1);
+    const easeT = easeInOutCubic(t);
+
+    camera.position.lerpVectors(startPos, targetPos, easeT);
+
+    if (camera.quaternion.slerpQuaternions) {
+      camera.quaternion.slerpQuaternions(startQuat, targetQuat, easeT);
+    } else {
+      THREE.Quaternion.slerp(startQuat, targetQuat, camera.quaternion, easeT);
+    }
+
+    camera.fov = THREE.MathUtils.lerp(startFov, targetFov, easeT);
+    camera.updateProjectionMatrix();
+
+    if (t < 1) {
+      requestAnimationFrame(animateAlign);
+    } else {
+      cameraAligning = false;
+      cameraLocked = true;
+      doorPhase = 'spiraling';
+      doorTime = 0;
+      createDoorParticles();
+    }
+  }
+
+  requestAnimationFrame(animateAlign);
+}
+
 // ======================================================
 // 記憶の裂け目（Organic Crack）ターゲット座標
+// ------------------------------------------------------
+// ★修正：crackRadius(angle) による「閉じた1周のループ」として生成する。
+//   角度0〜2πを均等に一周するため、以前あった「上端・下端で途切れる」
+//   問題が構造的に発生しなくなる。またシェーダー側と全く同じ数式・
+//   同じ係数を使っているため、粒子の位置とシェーダーの輪郭線が
+//   常にぴったり重なる。
 // ======================================================
 function getDoorTargetPositions(count) {
   const targets = [];
   const cx = ACCUM_POINT.x;
   const cy = ACCUM_POINT.y;
   const cz = ACCUM_POINT.z;
-  // ★裂け目サイズ縮小に合わせて高さも調整: 12 → 8
-  const height = 6;
 
   for (let i = 0; i < count; i++) {
-    const t = i / count;
-    const y = cy - height * 0.5 + t * height;
+    const angle = (i / count) * Math.PI * 2;
 
-    const center =
-          Math.sin(t * 3.8) * 0.8
-        + Math.sin(t * 8.5) * 0.45
-        + Math.sin(t * 18.0) * 0.18;
+    // 輪郭の帯に厚みを持たせるための小さな揺らぎ（シェーダーのbandWidthと同程度）
+    const jitter = (Math.random() - 0.5) * 0.5;
+    const r = crackRadius(angle) + jitter;
 
-    const width = 0.3 + Math.sin(t * Math.PI) * 2.0;
-    const side = Math.random() < 0.5 ? -1 : 1;
+    const x = cx + r * Math.cos(angle);
+    const y = cy + r * Math.sin(angle);
 
-    const x = center + side * width + (Math.random() - 0.5) * 0.18;
-
-    let yy = y;
-    if (Math.random() < 0.18) {
-      yy += (Math.random() - 0.5) * 0.8;
-    }
-
-    targets.push(new THREE.Vector3(cx + x, yy, cz));
+    targets.push(new THREE.Vector3(x, y, cz));
   }
 
   return targets;
@@ -864,7 +974,7 @@ function createDoorParticles() {
     pos[i * 3]     = ACCUM_POINT.x + r * Math.sin(phi) * Math.cos(theta);
     pos[i * 3 + 1] = ACCUM_POINT.y + r * Math.sin(phi) * Math.sin(theta);
     pos[i * 3 + 2] = ACCUM_POINT.z + r * Math.cos(phi);
-    sizes[i] = 0.18 + Math.random() * 0.22; // 大小バラつきで密度感UP
+    sizes[i] = 0.16 + Math.random() * 0.18; // 大小バラつきで密度感UP（控えめ）
   }
 
   const geo = new THREE.BufferGeometry();
@@ -872,8 +982,8 @@ function createDoorParticles() {
 
   const mat = new THREE.PointsMaterial({
     map: particleTexture,
-    color: 0xffe8a0,
-    size: 0.1,
+    color: 0xcf9f70,   // 白飛び軽減：彩度を落とした控えめな暖色
+    size: 0.09,
     transparent: true,
     opacity: 0,
     blending: THREE.AdditiveBlending,
@@ -937,7 +1047,7 @@ function updateAccumulationGlow() {
 }
 
 // ======================================================
-// ドアアニメーションの更新（対数螺旋＝台風の目）
+// ドアアニメーションの更新
 // ======================================================
 function updateDoor() {
   if (doorPhase === 'none' || !doorSys) return;
@@ -955,10 +1065,10 @@ function updateDoor() {
     const sp    = Math.min(1.0, doorTime / SPIRAL_DUR);
     const accel = Math.pow(sp, 2.2);
 
-    doorSys.mesh.material.opacity = Math.min(0.55, doorTime * 0.45);
+    doorSys.mesh.material.opacity = Math.min(0.38, doorTime * 0.32);
 
     if (uni) {
-      uni.uOpacity.value = Math.min(0.85, sp * 1.1);
+      uni.uOpacity.value = Math.min(0.55, sp * 0.75);
       uni.uWarp.value    = sp;
     }
 
@@ -994,8 +1104,7 @@ function updateDoor() {
       pos[iy] += (ty - pos[iy]) * followSpeed;
       pos[iz] += (ACCUM_POINT.z - pos[iz]) * 0.04;
 
-      // サイズも個体差を保つ（密度感を出す）
-      doorSys.mesh.material.size = 0.16 + accel * 0.30 + noise.sizeScale * 0.15;
+      doorSys.mesh.material.size = 0.13 + accel * 0.20 + noise.sizeScale * 0.12;
     }
 
     if (doorTime > SPIRAL_DUR) {
@@ -1016,7 +1125,7 @@ function updateDoor() {
     if (uni) {
       uni.uWarp.value     = 1.0 - fp;
       uni.uCrack.value    = fp;
-      uni.uOpacity.value  = 0.55;
+      uni.uOpacity.value  = 0.4;
     }
 
     for (let i = 0; i < doorSys.count; i++) {
@@ -1046,7 +1155,7 @@ function updateDoor() {
       pos[iy] += (ty - pos[iy]) * 0.06;
       pos[iz] += (target.z - pos[iz]) * 0.05;
 
-      doorSys.mesh.material.size = 0.40 - fp * 0.20 + noise.sizeScale * 0.1;
+      doorSys.mesh.material.size = 0.28 - fp * 0.14 + noise.sizeScale * 0.08;
     }
 
     if (doorTime > FORM_DUR) {
@@ -1061,11 +1170,11 @@ function updateDoor() {
     const t = doorTime;
     const pulse = 0.85 + Math.sin(t * 2.2) * 0.15;
 
-    doorSys.mesh.material.opacity = 0.22 * pulse;
+    doorSys.mesh.material.opacity = 0.16 * pulse;
 
     if (uni) {
       uni.uCrack.value   = pulse;
-      uni.uOpacity.value = 0.6;
+      uni.uOpacity.value = 0.42;
     }
 
     for (let i = 0; i < doorSys.count; i++) {
@@ -1084,7 +1193,6 @@ function updateDoor() {
       camera.updateProjectionMatrix();
     }
 
-    // ★ページ遷移(window.location.href)は廃止。ここからPortal拡大フェーズへ
     if (Math.abs(distToDoor) < 6.0) {
       doorPhase = 'portal-open';
     }
@@ -1101,10 +1209,11 @@ if (doorPhase === 'portal-open') {
     camera.updateProjectionMatrix();
 
     if (uni) {
-      // 距離 6.0 → 0.5 の間で uPortalReveal を 0 → 0.42 まで拡大
-      // ★シェーダー側のクランプ上限(0.42)と一致させる
+      // 距離 6.0 → 0.5 の間で uPortalReveal を 0 → 1.0 まで拡大
+      // ★新シェーダーではrevealは常に亀裂境界(boundaryR)の内側にクランプされるため、
+      //   上限を設けず最後まで亀裂の枠いっぱいに拡大してよい
       const t2 = THREE.MathUtils.clamp(1 - (distToDoor - 0.5) / (6.0 - 0.5), 0, 1);
-      uni.uPortalReveal.value = t2 * 0.42;
+      uni.uPortalReveal.value = t2;
     }
 
     if (distToDoor < 0.5) {
@@ -1141,7 +1250,6 @@ function checkTriggers() {
       }
 
       // 【数珠つなぎ】前の写真（i-1）が消え始めたら、この写真（i）を出現させる
-      // ※ 読み込み失敗で即座に dissolving/dissolved になった写真も対象に含まれる
       if (i >= 1) {
         const prevItem = photoItems[i - 1];
         if (prevItem && prevItem.dissolving) {
@@ -1245,10 +1353,11 @@ function updateParticleEffects() {
 // ======================================================
 let targetRotX = 0;
 let targetRotY = 0;
-let cameraLocked = false; // 裂け目演出開始と同時に true になり、以後の手動カメラ操作を無効化する
+let cameraLocked   = false; // 裂け目演出開始と同時に true になり、以後の手動カメラ操作を無効化する
+let cameraAligning = false; // 裂け目正面へカメラを補正している間 true になる
 
 window.addEventListener('mousemove', (e) => {
-  if (cameraLocked) return; // 裂け目演出中はマウスでの視点操作を無効化
+  if (cameraLocked || cameraAligning) return;
   let ty = (e.clientX / window.innerWidth  - 0.5) * 0.5;
   const _ml = getYawLimits();
   if (_ml) ty = Math.max(_ml.min, Math.min(_ml.max, ty));
@@ -1257,7 +1366,7 @@ window.addEventListener('mousemove', (e) => {
 });
 
 window.addEventListener('keydown', (e) => {
-  if (cameraLocked) return; // 裂け目演出中はキーボードでの移動を無効化
+  if (cameraLocked || cameraAligning) return;
   if (e.key === 'ArrowUp')   camera.position.z -= 1.5;
   if (e.key === 'ArrowDown') camera.position.z += 1.5;
 });
@@ -1273,7 +1382,7 @@ window.addEventListener('touchstart', (e) => {
 
   const now = Date.now();
 
-  if (!cameraLocked && now - lastTapTime < 300) {
+  if (!cameraLocked && !cameraAligning && now - lastTapTime < 300) {
     moveTargetZ = camera.position.z - 3;
     moveForward = true;
   }
@@ -1293,7 +1402,7 @@ window.addEventListener('touchstart', (e) => {
 }, { passive: true });
 
 window.addEventListener('touchmove', (e) => {
-  if (cameraLocked) return; // 裂け目演出中はタッチでの視点・移動操作を無効化
+  if (cameraLocked || cameraAligning) return;
   e.preventDefault();
 
   if (e.touches.length === 1) {
@@ -1424,7 +1533,7 @@ function animate() {
 
   const now = performance.now();
 
-if (!cameraLocked) {
+if (!cameraLocked && !cameraAligning) {
   camera.position.z -= 0.0005;
 }
 
@@ -1437,8 +1546,7 @@ if (moveForward) {
   }
 }
 
-  // 裂け目演出中（cameraLocked === true）は視点回転も完全に凍結する
-  if (!cameraLocked) {
+  if (!cameraLocked && !cameraAligning) {
     camera.rotation.y += (targetRotY - camera.rotation.y) * 0.08;
     camera.rotation.x += (targetRotX - camera.rotation.x) * 0.08;
   }
@@ -1456,23 +1564,20 @@ if (moveForward) {
     positions[i * 3 + 1] += Math.cos(now * 0.00012 + i) * 0.0015;
     positions[i * 3 + 2] += speeds[i];
     if (positions[i * 3 + 2] > camera.position.z + 20) {
-      // 一斉リサイクルで「壁」のように塊に見えないよう、Z方向を大きく・
-      // ランダムにばらつかせつつ、X/Yも球状に近い分布で再配置する
       positions[i * 3 + 2] = camera.position.z - 40 - Math.random() * 260;
       const spreadAngle = Math.random() * Math.PI * 2;
-      const spreadR = 15 + Math.pow(Math.random(), 0.5) * 70; // 広範囲に分散させ密度を下げる
+      const spreadR = 15 + Math.pow(Math.random(), 0.5) * 70;
       positions[i * 3]     = Math.cos(spreadAngle) * spreadR;
-      positions[i * 3 + 1] = Math.sin(spreadAngle) * spreadR * 0.5; // Y方向はやや狭める
+      positions[i * 3 + 1] = Math.sin(spreadAngle) * spreadR * 0.5;
     }
   }
   backgroundParticles.geometry.attributes.position.needsUpdate = true;
 
-  // ★パーティクルをカメラに追従
-backgroundParticles.position.copy(camera.position);
-accentParticles.position.copy(camera.position);
+  backgroundParticles.position.copy(camera.position);
+  accentParticles.position.copy(camera.position);
 
   // ★テレポートループ
-  if (!loopDisabled && camera.position.z < -LOOP_LENGTH) {   //とりあえず無効
+  if (!loopDisabled && camera.position.z < -LOOP_LENGTH) {
     camera.position.z += LOOP_LENGTH;
     photoItems.forEach(item => {
       item.triggered       = false;
@@ -1510,8 +1615,7 @@ accentParticles.position.copy(camera.position);
   }
   checkTriggers();
 
-  // 写真への自動回避ロジック（裂け目演出中はカメラを動かさないため無効化）
-  if (!cameraLocked) {
+  if (!cameraLocked && !cameraAligning) {
     const AVOID_RADIUS_Z = 12;
     const AVOID_RADIUS_X = 6;
     for (let i = 0; i < photoItems.length; i++) {
@@ -1544,13 +1648,12 @@ accentParticles.position.copy(camera.position);
       _basePos.copy(item.position);
       _basePos.z += 3;
 
- // カメラが近づいたら、斜め後ろへ「超ふんわり」と後退
   const pdx = item.mesh.position.x - camera.position.x;
   const pdz = item.mesh.position.z - camera.position.z;
   const distXZ = Math.sqrt(pdx * pdx + pdz * pdz);
   
-  const hitDist = 10.0; //衝突距離   
-  const pushPower = 0.10; // 【調整】さらに数値を小さくして極限まで遅く
+  const hitDist = 10.0;
+  const pushPower = 0.10;
 
   if (item._vx === undefined) { item._vx = 0; item._vz = 0; }
 
@@ -1563,7 +1666,6 @@ accentParticles.position.copy(camera.position);
     item._vz += (dirZ >= 0 ? 1 : -1) * pushPower; 
   }
 
-  // 慣性移動（抵抗を少し強めて、さらにゆっくりな挙動に）
   item._vx *= 0.98;
   item._vz *= 0.98;
 
@@ -1574,26 +1676,21 @@ accentParticles.position.copy(camera.position);
   item._repelX *= 0.995;
   item._repelZ *= 0.995;
 
-  // 最終座標の計算
   const mx = _basePos.x + floatX + item._repelX;
   const my = _basePos.y + floatY;
   const mz = _basePos.z + item._repelZ;
   item.mesh.position.set(mx, my, mz);
 
-  // 【修正】カメラの方を「ゆっくり」振り向かせるロジック
-  // 一時的にターゲットの方向（カメラ位置）を向かせたクォータニオンを計算
   _basePos.copy(camera.position);
-  _basePos.y = item.mesh.position.y; // Y軸の傾きは固定
+  _basePos.y = item.mesh.position.y;
   
-  const currentRotation = item.mesh.quaternion.clone(); // 現在の回転保持
-  item.mesh.lookAt(_basePos);                           // 一瞬カメラを向かせる
-  const targetRotation = item.mesh.quaternion.clone();  // 目標の回転を保持
+  const currentRotation = item.mesh.quaternion.clone();
+  item.mesh.lookAt(_basePos);
+  const targetRotation = item.mesh.quaternion.clone();
   
-  // 元の回転に戻してから、目標へ向かってゆっくり補間（0.05 でじわっと動く）
   item.mesh.quaternion.copy(currentRotation);
   item.mesh.quaternion.slerp(targetRotation, 0.005);
 
-  // auraを完全にmeshに同期
   if (item.aura) {
     item.aura.position.copy(item.mesh.position);
     item.aura.quaternion.copy(item.mesh.quaternion);
@@ -1612,12 +1709,10 @@ accentParticles.position.copy(camera.position);
   updateDoor();
   updatePortal();
 
-  // ★ポータルが画面いっぱいに拡大しきったら、Portal(RenderTarget)を破棄し
-  //   mainScene本体も完全に破棄してGPUメモリを解放する
   if (doorPhase === 'switched') {
-    completePortalSwitch(); // portal.js側のRenderTargetを解放
-    disposeMainScene();     // main.js側のGeometry/Material/Texture/RenderTargetを解放
-    return; // このフレームはcomposer.renderせず、次フレームから上のswitched分岐へ入る
+    completePortalSwitch();
+    disposeMainScene();
+    return;
   }
 
   composer.render();
@@ -1629,26 +1724,20 @@ accentParticles.position.copy(camera.position);
 function dissolvePhoto(item) {
   if (!item.loaded || item.dissolved) return;
 
-  // --------------------------------------------------
-  // 【修正】消滅トリガー（5秒経過 OR カメラが一定距離まで前進・接近）
-  // --------------------------------------------------
   if (item.viewing && item._fixedAt && !item.dissolving) {
-    // パターン1: 時間経過（5秒）
     const timeElapsed = (Date.now() - item._fixedAt) > 5000;
 
-    // パターン2: 前進による接近（カメラとのXZ平面上の距離が 6.0 未満）
     let cameraApproached = false;
     if (item.mesh) {
       const pdx = item.mesh.position.x - camera.position.x;
       const pdz = item.mesh.position.z - camera.position.z;
       const distXZ = Math.sqrt(pdx * pdx + pdz * pdz);
       
-      if (distXZ < 6.0) { // ★この数字を大きくすると、より手前で消えて次が出ます
+      if (distXZ < 6.0) {
         cameraApproached = true;
       }
     }
 
-    // どちらかの条件を満たしたら粒子化（消滅）を開始
     if (timeElapsed || cameraApproached) {
       item.dissolving = true;
       item.viewing = false;
@@ -1657,9 +1746,6 @@ function dissolvePhoto(item) {
 
   if (!item.dissolving) return;
 
-  // --------------------------------------------------
-  // ステップ1: 写真が消えて、粒子が浮かび上がる（これ以降は元のコードのまま）
-  // --------------------------------------------------
   if (!item._photoFadedOut) {
     if (item.particles) {
       item.particles.visible = true;
@@ -1679,27 +1765,22 @@ function dissolvePhoto(item) {
 
       item._vortexTime = 0;
 
-  // 粒子ごとのランダムなノイズ（バラバラ感を大きく強化）
       item._particleNoises = [];
       for (let i = 0; i < item.particleCount; i++) {
         item._particleNoises.push({
           angleOffset: Math.random() * Math.PI * 2,
-          radiusOffset: Math.random() * 200 - 50,    // ★ 拡大: ばらつき範囲を広く (30->100)
-          speedMod: 0.3 + Math.random() * 1.2        // 回転速度のバラつきにメリハリをつける
+          radiusOffset: Math.random() * 200 - 50,
+          speedMod: 0.3 + Math.random() * 1.2
         });
       }
     }
     return;
   }
 
-  // --------------------------------------------------
-  // ステップ2: 粒子がバラバラに渦を巻き、中心（光）に戻りながら消える
-  // --------------------------------------------------
   if (item.particles && item.particleGeo && item._particleNoises) {
     const pos = item.particleGeo.attributes.position.array;
     
-    // 全体の進捗
-    item._vortexTime += 0.004; // ★ 渦巻くスピード（さらに少し遅く変更）
+    item._vortexTime += 0.004;
     const progress = Math.min(1.0, item._vortexTime);
 
     for (let i = 0; i < item.particleCount; i++) {
@@ -1708,41 +1789,30 @@ function dissolvePhoto(item) {
       const baseTarget = item.targetPositions[i];
       const noise = item._particleNoises[i];
       
-      // 元の位置から計算した基本の角度と半径
       const initialAngle = Math.atan2(baseTarget.y, baseTarget.x);
       const initialRadius = Math.sqrt(baseTarget.x * baseTarget.x + baseTarget.y * baseTarget.y);
       
-      // ★ 修正: ノイズを混ぜて粒子をバラバラに渦巻かせる
-      // 各粒子が異なる速度・角度オフセットで回転する
       const angle = initialAngle + noise.angleOffset + (item._vortexTime * 3.0 * noise.speedMod);
       
-      // 半径もバラつかせつつ、最終的に 0（中心）に収束させる
       const currentRadius = Math.max(0, (initialRadius + noise.radiusOffset) * (1.0 - progress));
       
-      // Z軸（奥へ消えていく動きはそのまま維持）
       const targetZ = baseTarget.z - (progress * 60);
 
-      // ターゲット座標
       const vortexX = Math.cos(angle) * currentRadius;
       const vortexY = Math.sin(angle) * currentRadius;
       const vortexZ = targetZ;
 
-      // 線形補間（追従をさらに滑らかに）
       pos[ix] += (vortexX - pos[ix]) * 0.04;
       pos[iy] += (vortexY - pos[iy]) * 0.04;
       pos[iz] += (vortexZ - pos[iz]) * 0.04;
     }
     item.particleGeo.attributes.position.needsUpdate = true;
 
-    // 光（中心）に集まる後半からフェードアウト
     if (progress > 0.4) {
       item.particles.material.opacity = Math.max(0, 1.0 - (progress - 0.4) * 1.6);
     }
   }
 
-  // --------------------------------------------------
-  // 最終ステージ: 完全に消滅
-  // --------------------------------------------------
   if (item._vortexTime >= 1.0 || (item.particles && item.particles.material.opacity <= 0)) {
     item.dissolved = true;
     if (item.particles) { scene.remove(item.particles); item.particles = null; }
@@ -1770,5 +1840,5 @@ window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
   composer.setSize(window.innerWidth, window.innerHeight);
   bloomPass.resolution.set(window.innerWidth, window.innerHeight);
-  resizePortal(); // ▼追加：Portal(RenderTarget)とexhibitionCameraのアスペクト比も追従
+  resizePortal();
 });
