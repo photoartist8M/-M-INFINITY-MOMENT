@@ -1,0 +1,711 @@
+/* ==========================================================
+   emotional - 時の瞬き
+   Opening UI
+   Version 1.0
+   ========================================================== */
+
+:root{
+
+    --bg:#000000;
+
+    --white:#ffffff;
+    --silver:#d8d8d8;
+    --gold:#d8b46a;
+
+    --glass:rgba(255,255,255,.045);
+    --glassHover:rgba(255,255,255,.08);
+
+    --border:rgba(255,255,255,.16);
+
+    --shadow:
+        0 0 0 1px rgba(255,255,255,.04),
+        0 8px 32px rgba(0,0,0,.55);
+
+    --radius:22px;
+
+    --transition:.45s cubic-bezier(.22,.61,.36,1);
+
+}
+
+
+/* ==========================================================
+   Reset
+   ========================================================== */
+
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+}
+
+html{
+
+    width:100%;
+    height:100%;
+
+    overflow:hidden;
+
+    background:#000;
+
+    -webkit-text-size-adjust:100%;
+
+}
+
+body{
+
+    width:100%;
+    height:100%;
+
+    overflow:hidden;
+
+    background:var(--bg);
+
+    color:white;
+
+    font-family:
+        "Noto Serif JP",
+        serif;
+
+    display:flex;
+
+    justify-content:center;
+
+    align-items:center;
+
+    -webkit-font-smoothing:antialiased;
+
+    text-rendering:optimizeLegibility;
+
+}
+
+
+/* ==========================================================
+   Main Layout
+   ========================================================== */
+
+#opening{
+
+    width:min(92vw,520px);
+
+    height:min(92vh,900px);
+
+    display:flex;
+
+    flex-direction:column;
+
+    justify-content:space-between;
+
+    align-items:center;
+
+    padding:
+
+        max(36px,env(safe-area-inset-top))
+
+        24px
+
+        max(26px,env(safe-area-inset-bottom));
+
+}
+
+
+/* ==========================================================
+   Title
+   ========================================================== */
+
+.titleArea{
+
+    width:100%;
+
+    display:flex;
+
+    flex-direction:column;
+
+    align-items:center;
+
+    margin-top:2vh;
+
+}
+
+.titleEnglish{
+
+    font-family:
+        "Cormorant Garamond",
+        serif;
+
+    font-weight:300;
+
+    font-size:clamp(3.0rem,9vw,5.4rem);
+
+    letter-spacing:.14em;
+
+    line-height:.9;
+
+    color:#f7f7f7;
+
+    position:relative;
+
+    user-select:none;
+
+    text-align:center;
+
+}
+
+.titleEnglish::before{
+
+    content:"";
+
+    position:absolute;
+
+    inset:0;
+
+    background:
+
+        linear-gradient(
+            105deg,
+
+            rgba(255,255,255,0)
+
+            0%,
+
+            rgba(255,255,255,.9)
+
+            48%,
+
+            rgba(216,180,106,.9)
+
+            52%,
+
+            rgba(255,255,255,0)
+
+            100%
+        );
+
+    background-size:240% 100%;
+
+    mix-blend-mode:screen;
+
+    opacity:.28;
+
+    animation:
+        logoShine
+        8s
+        linear
+        infinite;
+
+    pointer-events:none;
+
+}
+
+.titleJapanese{
+
+    margin-top:14px;
+
+    font-size:clamp(1rem,3.7vw,1.35rem);
+
+    font-weight:300;
+
+    letter-spacing:.45em;
+
+    color:#d7d7d7;
+
+    text-align:center;
+
+}
+
+
+/* ==========================================================
+   Concept
+   ========================================================== */
+
+.concept{
+
+    width:100%;
+
+    display:flex;
+
+    flex-direction:column;
+
+    align-items:center;
+
+    gap:20px;
+
+    margin-top:5vh;
+
+    padding-inline:10px;
+
+}
+
+.concept p{
+
+    text-align:center;
+
+    line-height:2.15;
+
+    font-size:clamp(.9rem,3.3vw,1.05rem);
+
+    color:rgba(255,255,255,.88);
+
+    letter-spacing:.08em;
+
+}
+
+
+/* ==========================================================
+   Start Button
+   ========================================================== */
+
+#startButton{
+
+    width:min(320px,88vw);
+
+    height:60px;
+
+    border-radius:999px;
+
+    border:1px solid var(--border);
+
+    background:var(--glass);
+
+    color:white;
+
+    font-size:1rem;
+
+    letter-spacing:.22em;
+
+    cursor:pointer;
+
+    backdrop-filter:blur(18px);
+
+    -webkit-backdrop-filter:blur(18px);
+
+    transition:all var(--transition);
+
+    box-shadow:var(--shadow);
+
+    position:relative;
+
+    overflow:hidden;
+
+}
+
+#startButton::before{
+
+    content:"";
+
+    position:absolute;
+
+    inset:0;
+
+    background:
+
+        linear-gradient(
+
+            115deg,
+
+            transparent 0%,
+
+            rgba(255,255,255,.28) 48%,
+
+            rgba(255,255,255,.05) 55%,
+
+            transparent 100%
+
+        );
+
+    transform:translateX(-140%);
+
+    animation:
+
+        buttonShine
+
+        7s
+
+        linear
+
+        infinite;
+
+}
+
+#startButton:hover{
+
+    background:var(--glassHover);
+
+    transform:translateY(-2px);
+
+}
+
+#startButton:active{
+
+    transform:scale(.985);
+
+}
+/* ==========================================================
+   Bottom Bar
+   ========================================================== */
+
+.bottomBar{
+
+    width:100%;
+
+    display:flex;
+
+    justify-content:space-between;
+
+    align-items:center;
+
+    gap:14px;
+
+    margin-top:30px;
+
+}
+
+.bottomBar button{
+
+    flex:1;
+
+    height:50px;
+
+    border:none;
+
+    border-radius:16px;
+
+    border:1px solid var(--border);
+
+    background:var(--glass);
+
+    color:rgba(255,255,255,.88);
+
+    font-size:.86rem;
+
+    letter-spacing:.08em;
+
+    cursor:pointer;
+
+    transition:all var(--transition);
+
+    backdrop-filter:blur(18px);
+
+    -webkit-backdrop-filter:blur(18px);
+
+    box-shadow:var(--shadow);
+
+    position:relative;
+
+    overflow:hidden;
+
+}
+
+.bottomBar button:hover{
+
+    background:var(--glassHover);
+
+    transform:translateY(-2px);
+
+}
+
+.bottomBar button:active{
+
+    transform:scale(.98);
+
+}
+
+
+/* ==========================================================
+   Information Panel
+   ========================================================== */
+
+#infoPanel{
+
+    position:fixed;
+
+    inset:0;
+
+    background:rgba(0,0,0,.72);
+
+    backdrop-filter:blur(18px);
+
+    -webkit-backdrop-filter:blur(18px);
+
+    display:flex;
+
+    justify-content:center;
+
+    align-items:center;
+
+    opacity:0;
+
+    visibility:hidden;
+
+    transition:
+
+        opacity .45s ease,
+
+        visibility .45s ease;
+
+    z-index:100;
+
+}
+
+#infoPanel.show{
+
+    opacity:1;
+
+    visibility:visible;
+
+}
+
+.infoContent{
+
+    width:min(90vw,520px);
+
+    background:rgba(20,20,20,.78);
+
+    border:1px solid rgba(255,255,255,.14);
+
+    border-radius:28px;
+
+    padding:34px 28px;
+
+    box-shadow:
+
+        0 24px 80px rgba(0,0,0,.65);
+
+    display:flex;
+
+    flex-direction:column;
+
+    gap:22px;
+
+}
+
+.infoContent h3{
+
+    font-family:
+
+        "Cormorant Garamond",
+
+        serif;
+
+    font-size:2rem;
+
+    font-weight:400;
+
+    letter-spacing:.08em;
+
+    text-align:center;
+
+    color:white;
+
+}
+
+.infoContent p{
+
+    font-size:.92rem;
+
+    line-height:1.95;
+
+    color:rgba(255,255,255,.82);
+
+}
+
+#closeInfo{
+
+    align-self:center;
+
+    width:180px;
+
+    height:48px;
+
+    border:none;
+
+    border-radius:999px;
+
+    background:var(--glass);
+
+    border:1px solid var(--border);
+
+    color:white;
+
+    cursor:pointer;
+
+    transition:all var(--transition);
+
+}
+
+#closeInfo:hover{
+
+    background:var(--glassHover);
+
+}
+
+
+/* ==========================================================
+   Fade In
+   ========================================================== */
+
+.titleArea,
+.concept,
+#startButton,
+.bottomBar{
+
+    opacity:1;
+    transform:translateY(0);
+
+}
+
+body.loaded .titleArea{
+
+    animation:fadeUp .9s .2s forwards;
+
+}
+
+body.loaded .concept{
+
+    animation:fadeUp .9s .6s forwards;
+
+}
+
+body.loaded #startButton{
+
+    animation:fadeUp .9s 1.0s forwards;
+
+}
+
+body.loaded .bottomBar{
+
+    animation:fadeUp .9s 1.25s forwards;
+
+}
+
+
+/* ==========================================================
+   Responsive
+   ========================================================== */
+
+@media (max-width:420px){
+
+    #opening{
+
+        padding:
+
+        max(24px,env(safe-area-inset-top))
+
+        20px
+
+        max(20px,env(safe-area-inset-bottom));
+
+    }
+
+    .concept{
+
+        gap:16px;
+
+    }
+
+    .concept p{
+
+        line-height:1.95;
+
+        font-size:.88rem;
+
+    }
+
+    #startButton{
+
+        height:56px;
+
+    }
+
+    .bottomBar{
+
+        gap:10px;
+
+    }
+
+    .bottomBar button{
+
+        height:46px;
+
+        font-size:.8rem;
+
+    }
+
+}
+
+
+/* ==========================================================
+   Landscape
+   ========================================================== */
+
+@media (orientation:landscape){
+
+    #opening{
+
+        transform:scale(.88);
+
+    }
+
+}
+
+
+/* ==========================================================
+   Animations
+   ========================================================== */
+
+@keyframes fadeUp{
+
+    from{
+
+        opacity:0;
+
+        transform:translateY(16px);
+
+    }
+
+    to{
+
+        opacity:1;
+
+        transform:translateY(0);
+
+    }
+
+}
+
+@keyframes logoShine{
+
+    from{
+
+        background-position:-240% 0;
+
+    }
+
+    to{
+
+        background-position:240% 0;
+
+    }
+
+}
+
+@keyframes buttonShine{
+
+    0%{
+
+        transform:translateX(-150%);
+
+    }
+
+    12%{
+
+        transform:translateX(150%);
+
+    }
+
+    100%{
+
+        transform:translateX(150%);
+
+    }
+
+}
