@@ -24,6 +24,17 @@ const PHOTO_SOURCES = [
 
 const GALLERY_RADIUS = 21;
 
+// ======================================================
+// モバイル判定・テクスチャサイズ上限（追加）
+// ------------------------------------------------------
+// ★追加：スマホは画面幅だけでなくUAでも判定し、Androidタブレット等の
+//   幅判定漏れも拾う。GPUメモリ不足によるWebGLコンテキストロスト
+//   （全画像が一度に表示されなくなる現象）を防ぐため、モバイルでは
+//   テクスチャの最大辺を大きく制限する。
+// ======================================================
+const IS_MOBILE = window.innerWidth <= 768 || /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+const MAX_TEX_DIM = IS_MOBILE ? 900 : 2000;
+
 function buildPhotoConfig(sources) {
   const count = sources.length;
   return sources.map((src, i) => {
@@ -36,10 +47,7 @@ function buildPhotoConfig(sources) {
     const baseHeight = isEven ? 6.0 : -2.5; 
     const height = baseHeight + (Math.random() - 0.5) * 2.5; 
 
-    // 3. 【ここを修正】サイズ（scale）の大小にさらにメリハリをつける
-    // - 最低サイズを大きく： 0.65倍 → **0.85倍**
-    // - 最大サイズを大きく： 0.65 + 0.7 = 1.35倍 → 0.85 + 0.75 = **1.6倍**
-    // これにより、すべての写真がより大きく、かつ、大小の差が強調される。
+    // 3. サイズ（scale）の大小にメリハリをつける
     const scale = 0.85 + Math.random() * 0.75; // 0.85〜1.6倍の範囲でばらつかせる
 
     // 4. 前後の奥行き（半径）にも緩やかな変化をつける
@@ -125,6 +133,73 @@ function extractPastelColors(img) {
     colors.push(toPastel(ph, ps, pl, hueShift));
   }
   return colors;
+}
+
+// ======================================================
+// 画像を安全に読み込むユーティリティ（追加）
+// ------------------------------------------------------
+// ★追加：onerror・タイムアウトが一切なかったため、画像が1枚でも
+//   読み込みに失敗すると静かに「読み込み中」のまま止まっていた。
+//   失敗・タイムアウト時は必ずコールバックし、他の写真の処理を
+//   ブロックしないようにする。
+// ======================================================
+function loadImageSafely(src, { onSuccess, onFail, timeoutMs = 10000 }) {
+  const img = new Image();
+  let settled = false;
+
+  const failTimeoutId = setTimeout(() => {
+    if (settled) return;
+    settled = true;
+    console.warn(`[exhibition] 画像の読み込みがタイムアウトしました: ${src}`);
+    onFail && onFail();
+  }, timeoutMs);
+
+  img.onerror = () => {
+    if (settled) return;
+    settled = true;
+    clearTimeout(failTimeoutId);
+    console.error(`[exhibition] 画像の読み込みに失敗しました: ${src}`);
+    onFail && onFail();
+  };
+
+  img.onload = () => {
+    if (settled) return;
+
+    if (!img.naturalWidth || !img.naturalHeight) {
+      settled = true;
+      clearTimeout(failTimeoutId);
+      console.error(`[exhibition] 画像が壊れています: ${src}`);
+      onFail && onFail();
+      return;
+    }
+
+    settled = true;
+    clearTimeout(failTimeoutId);
+    onSuccess && onSuccess(img);
+  };
+
+  img.src = src;
+  return img;
+}
+
+// ======================================================
+// テクスチャ用に必要であれば縮小したソースを返す（追加）
+// ------------------------------------------------------
+// ★追加：モバイルでのGPUメモリ不足によるWebGLコンテキストロスト
+//   （全画像が突然表示されなくなる現象）を防ぐため、上限を超える
+//   画像はCanvasで縮小してからテクスチャ化する。
+// ======================================================
+function getTextureSource(img, maxDim) {
+  const longSide = Math.max(img.width, img.height);
+  if (longSide <= maxDim) return img;
+
+  const scale = maxDim / longSide;
+  const c = document.createElement('canvas');
+  c.width = Math.round(img.width * scale);
+  c.height = Math.round(img.height * scale);
+  const cctx = c.getContext('2d');
+  cctx.drawImage(img, 0, 0, c.width, c.height);
+  return c;
 }
 
 // ======================================================
@@ -454,54 +529,61 @@ scene.add(flareRing);
         new THREE.Color(0xd68fc8),
       ],
       loaded: false,
+      failed: false, // ★追加
     };
 
-    const img = new Image();
-    img.src = config.src;
-    img.onload = () => {
-      if (!img.naturalWidth || !img.naturalHeight) {
-        console.error(`画像が壊れています: ${config.src}`);
-        return;
-      }
+    // ★変更：img.onload/onerrorを直書きせず、安全な共通関数を使う
+    loadImageSafely(config.src, {
+      timeoutMs: 10000,
+      onFail: () => {
+        // ★追加：読み込みに失敗しても他の写真の処理はブロックしない。
+        //   このアイテムは表示されないだけで、シーン全体は正常に進む。
+        item.failed = true;
+      },
+      onSuccess: (img) => {
+        const aspect = img.width / img.height;
+        const frameHeight = 4.5 * config.scale;
+        const baseWidth = frameHeight * aspect;
+        const baseHeight = frameHeight;
 
-      const aspect = img.width / img.height;
-      const frameHeight = 4.5 * config.scale;
-      const baseWidth = frameHeight * aspect;
-      const baseHeight = frameHeight;
+        // ★追加：モバイルではGPUメモリ節約のため、大きすぎる画像を縮小してからテクスチャ化する
+        const texSource = getTextureSource(img, MAX_TEX_DIM);
+        const tex = new THREE.Texture(texSource);
+        tex.needsUpdate = true;
+        tex.anisotropy = 1; // モバイルでの負荷軽減（必要ならrenderer.capabilities.getMaxAnisotropy()に応じて上げてもよい)
 
-      const tex = new THREE.Texture(img);
-      tex.needsUpdate = true;
+        const geo = new THREE.PlaneGeometry(baseWidth, baseHeight);
+        const mat = new THREE.MeshBasicMaterial({
+          map: tex,
+          transparent: true,
+          side: THREE.DoubleSide,
+          opacity: 1,
+        });
 
-      const geo = new THREE.PlaneGeometry(baseWidth, baseHeight);
-      const mat = new THREE.MeshBasicMaterial({
-        map: tex,
-        transparent: true,
-        side: THREE.DoubleSide,
-        opacity: 1,
-      });
+        item.mesh = new THREE.Mesh(geo, mat);
+        item.mesh.position.copy(position);
+        item.mesh.lookAt(0, position.y, 0);
+        item.mesh.userData.photoItem = item;
+        scene.add(item.mesh);
 
-      item.mesh = new THREE.Mesh(geo, mat);
-      item.mesh.position.copy(position);
-      item.mesh.lookAt(0, position.y, 0);
-      item.mesh.userData.photoItem = item;
-      scene.add(item.mesh);
+        const auraGeo = new THREE.PlaneGeometry(baseWidth + 0.15, baseHeight + 0.15);
+        const auraMat = new THREE.MeshBasicMaterial({
+          color: 0xffffff,
+          transparent: true,
+          opacity: 0.5,
+          side: THREE.DoubleSide,
+        });
+        item.aura = new THREE.Mesh(auraGeo, auraMat);
+        item.aura.position.copy(position).multiplyScalar(1.002);
+        item.aura.lookAt(0, position.y, 0);
+        scene.add(item.aura);
 
-      const auraGeo = new THREE.PlaneGeometry(baseWidth + 0.15, baseHeight + 0.15);
-      const auraMat = new THREE.MeshBasicMaterial({
-        color: 0xffffff,
-        transparent: true,
-        opacity: 0.5,
-        side: THREE.DoubleSide,
-      });
-      item.aura = new THREE.Mesh(auraGeo, auraMat);
-      item.aura.position.copy(position).multiplyScalar(1.002);
-      item.aura.lookAt(0, position.y, 0);
-      scene.add(item.aura);
-
-      item.pastelColors = extractPastelColors(img);
-      item.loaded = true;
-      registerPhotoColorsToSparkles(item.pastelColors);
-    };
+        // 色抽出は元のimg（縮小前）から行う（色の精度に影響しないよう維持）
+        item.pastelColors = extractPastelColors(img);
+        item.loaded = true;
+        registerPhotoColorsToSparkles(item.pastelColors);
+      },
+    });
 
     return item;
   }

@@ -904,7 +904,7 @@ function onPhotoArrivedAtLight(index) {
 // カメラを裂け目正面・適正距離へ補正してからロックする
 // ======================================================
 const RIFT_VIEW_DISTANCE      = 6;    // Phase4のdistToDoor想定初期値(6.0)と一致させる
-const CAMERA_ALIGN_DURATION   = 600; // ★高速化(800->600): カメラ補正にかける時間(ms)
+const CAMERA_ALIGN_DURATION   = 1000; // カメラ補正にかける時間(ms)　1秒
 const RIFT_BASE_FOV           = 75;   // カメラ初期FOV（吸い込み演出の基準値）
 
 function computeLookAtQuaternion(fromPos, targetPos) {
@@ -1121,7 +1121,7 @@ function updateDoor() {
   // Phase 1: 台風の目のような対数螺旋で渦が巻き始める
   // ────────────────────────────────────────
   if (doorPhase === 'spiraling') {
-    const SPIRAL_DUR = 1.0; // ★高速化(1.6->1.0): 渦巻き時間を短縮
+    const SPIRAL_DUR = 1.3; // 渦巻き時間
     const sp    = Math.min(1.0, doorTime / SPIRAL_DUR);
     const accel = Math.pow(sp, 2.2);
 
@@ -1261,7 +1261,7 @@ function updateDoor() {
       camera.position.z -= pull * Math.abs(distToDoor) * 0.3;
       
       // ★高速化(+0.4->+0.5): FOVの変化量を増やし、スピード感を強調
-      camera.fov = Math.min(110, camera.fov + 0.5); 
+      camera.fov = Math.min(110, camera.fov + 0.7); 
       camera.updateProjectionMatrix();
     }
     if (uni) {
