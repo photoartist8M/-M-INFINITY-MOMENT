@@ -16,7 +16,7 @@ import {
 // ======================================================
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x0a0805);
-scene.fog = new THREE.Fog(0x0a0805, 5, 35);
+scene.fog = new THREE.Fog(0x0a0805, 10, 55);
 const ambientLight = new THREE.AmbientLight(0xfff5e0, 0.25); // 暖色の環境光
 scene.add(ambientLight);
 
@@ -41,6 +41,7 @@ const renderer = new THREE.WebGLRenderer({
   canvas: document.querySelector('#canvas'),
   antialias: true
 });
+renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(
  Math.min(window.devicePixelRatio,1.5)
@@ -141,7 +142,7 @@ const PHOTO_FILES = [
 // ======================================================
 const SPIRAL_CONFIG = {
   radius: 6,         // 左右に振る幅（0から6に変更）
-  zStep: 10,         // 写真と写真Z軸の間隔（14から16に少し広げて見やすく）
+  zStep: 8,         // 写真と写真Z軸の間隔（14から16に少し広げて見やすく）
   yAmplitude: 1.2,   // 上下の緩やかな高低差
 };
 
@@ -809,6 +810,7 @@ function buildParticles(item) {
 
 function buildPhotoMesh(item, baseWidth, baseHeight) {
   const tex = new THREE.Texture(item._img);
+  tex.colorSpace = THREE.SRGBColorSpace;
   tex.needsUpdate = true;
 
   const geo = new THREE.PlaneGeometry(baseWidth, baseHeight);
@@ -1121,7 +1123,7 @@ function updateDoor() {
   // Phase 1: 台風の目のような対数螺旋で渦が巻き始める
   // ────────────────────────────────────────
   if (doorPhase === 'spiraling') {
-    const SPIRAL_DUR = 1.3; // 渦巻き時間
+    const SPIRAL_DUR = 1.4; // 渦巻き時間
     const sp    = Math.min(1.0, doorTime / SPIRAL_DUR);
     const accel = Math.pow(sp, 2.2);
 
@@ -1261,7 +1263,7 @@ function updateDoor() {
       camera.position.z -= pull * Math.abs(distToDoor) * 0.3;
       
       // ★高速化(+0.4->+0.5): FOVの変化量を増やし、スピード感を強調
-      camera.fov = Math.min(110, camera.fov + 0.7); 
+      camera.fov = Math.min(110, camera.fov + 0.9); 
       camera.updateProjectionMatrix();
     }
     if (uni) {
@@ -1645,7 +1647,7 @@ function animate() {
   const now = performance.now();
 
 if (!cameraLocked && !cameraAligning) {
-  camera.position.z -= 0.0005;
+  camera.position.z -= 0.006; //ドリフト速度
 }
 
 // 自動演出（裂け目へ向かう移動・吸い込み）はロック中でも動かす

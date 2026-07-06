@@ -1,51 +1,95 @@
 import * as THREE from 'three';
 
-// ======================================================
-// 写真リスト（自動配置版）
-// ======================================================
-const PHOTO_SOURCES = [
-  '../assets/photo.jpg',
-  '../assets/photo1.jpg',
-  '../assets/photo2.jpg',
-  '../assets/photo4.jpg',
-  '../assets/photo5.jpg',
-  '../assets/photo6.jpg',
-  '../assets/photo7.jpg',
-  '../assets/photo8.jpg',
-  '../assets/photo9.jpg',
-  '../assets/photo15.jpg',
-  '../assets/photo12.jpg',
-  '../assets/photo13.jpg',
-  '../assets/photo15.jpg',
-  '../assets/photo19.jpg',
-  '../assets/photo20.jpg',
-  '../assets/photo21.jpg',
+// ======================================================================
+// [SECTION: config] ここから設定・定数エリア
+// 将来的に分割する場合 → config/constants.js
+// ======================================================================
+
+// ------------------------------------------------------
+// 写真データ（旧 PHOTO_SOURCES から拡張）
+// ------------------------------------------------------
+// ★変更点①：単なるURL配列だったものを、id / type / depth / interaction を
+//   持てるオブジェクト配列へ変更。まだ type は "normal" 固定、
+//   depth / interaction は未使用（null）。
+//   将来のデプスマップ写真・メッセージ機能追加時に、この配列へ
+//   値を足していくだけで対応できるようにするための土台。
+// ------------------------------------------------------
+const PHOTO_DATA = [
+  { id: 0,  src: '../assets/photo.jpg',   type: 'normal', depth: null, interaction: null },
+  { id: 1,  src: '../assets/photo1.jpg',  type: 'normal', depth: null, interaction: null },
+  { id: 2,  src: '../assets/photo2.jpg',  type: 'normal', depth: null, interaction: null },
+  { id: 3,  src: '../assets/photo4.jpg',  type: 'normal', depth: null, interaction: null },
+  { id: 4,  src: '../assets/photo5.jpg',  type: 'normal', depth: null, interaction: null },
+  { id: 5,  src: '../assets/photo6.jpg',  type: 'normal', depth: null, interaction: null },
+  { id: 6,  src: '../assets/photo7.jpg',  type: 'normal', depth: null, interaction: null },
+  { id: 7,  src: '../assets/photo8.jpg',  type: 'normal', depth: null, interaction: null },
+  { id: 8,  src: '../assets/photo9.jpg',  type: 'normal', depth: null, interaction: null },
+  { id: 9,  src: '../assets/photo15.jpg', type: 'normal', depth: null, interaction: null },
+  { id: 10, src: '../assets/photo12.jpg', type: 'normal', depth: null, interaction: null },
+  { id: 11, src: '../assets/photo13.jpg', type: 'normal', depth: null, interaction: null },
+  { id: 12, src: '../assets/photo15.jpg', type: 'normal', depth: null, interaction: null },
+  { id: 13, src: '../assets/photo19.jpg', type: 'normal', depth: null, interaction: null },
+  { id: 14, src: '../assets/photo20.jpg', type: 'normal', depth: null, interaction: null },
+  { id: 15, src: '../assets/photo21.jpg', type: 'normal', depth: null, interaction: null },
 ];
 
 const GALLERY_RADIUS = 21;
 
-// ======================================================
-// モバイル判定・テクスチャサイズ上限（追加）
 // ------------------------------------------------------
-// ★追加：スマホは画面幅だけでなくUAでも判定し、Androidタブレット等の
-//   幅判定漏れも拾う。GPUメモリ不足によるWebGLコンテキストロスト
-//   （全画像が一度に表示されなくなる現象）を防ぐため、モバイルでは
-//   テクスチャの最大辺を大きく制限する。
-// ======================================================
+// モバイル判定・テクスチャサイズ上限
+// ------------------------------------------------------
+// スマホは画面幅だけでなくUAでも判定し、Androidタブレット等の
+// 幅判定漏れも拾う。GPUメモリ不足によるWebGLコンテキストロスト
+// （全画像が一度に表示されなくなる現象）を防ぐため、モバイルでは
+// テクスチャの最大辺を大きく制限する。
+// ------------------------------------------------------
 const IS_MOBILE = window.innerWidth <= 768 || /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
 const MAX_TEX_DIM = IS_MOBILE ? 900 : 2000;
 
-function buildPhotoConfig(sources) {
-  const count = sources.length;
-  return sources.map((src, i) => {
+const SPARKLE_COUNT = 260;
+
+// ------------------------------------------------------
+// ⑥ 品質設定オブジェクト（追加・未使用）
+// ------------------------------------------------------
+// 今後のスマホ最適化・品質切替のための置き場所。
+// 現時点ではどこからも参照しない（挙動は変えない）。
+// 実際にモバイル最適化を行う際、MAX_TEX_DIM や SPARKLE_COUNT の
+// 計算をこちらの値に置き換えていく想定。
+// ------------------------------------------------------
+const QUALITY = {
+  photoMaxTexture: 2000,
+  particleCount: 260,
+  bloom: true,
+};
+
+// ======================================================================
+// [SECTION: config end]
+// ======================================================================
+
+
+// ======================================================================
+// [SECTION: photoConfigBuilder] 写真の配置計算
+// 将来的に分割する場合 → core/photoConfig.js
+// ======================================================================
+
+// ------------------------------------------------------
+// ② buildPhotoConfig()
+// ------------------------------------------------------
+// PHOTO_DATA（写真のメタ情報）を受け取り、配置計算した
+// angle / radius / height / scale を追加したオブジェクト配列を返す。
+// 計算ロジック自体は元のコードと完全に同一（挙動を変えないため）。
+// ------------------------------------------------------
+function buildPhotoConfig(photoData) {
+  const count = photoData.length;
+  return photoData.map((photo, i) => {
     // 1. 角度のズレ（jitter）を完全にゼロにして、円周上の重なりを100%防ぐ
     const baseAngle = (360 / count) * i;
-    const angle = baseAngle; 
+    const angle = baseAngle;
 
     // 2. 上下の配置を大きく散らす（偶数は上め、奇数は下めに配置。上段・下段の二段構成）
     const isEven = i % 2 === 0;
-    const baseHeight = isEven ? 6.0 : -2.5; 
-    const height = baseHeight + (Math.random() - 0.5) * 2.5; 
+    const baseHeight = isEven ? 6.0 : -2.5;
+    const height = baseHeight + (Math.random() - 0.5) * 2.5;
 
     // 3. サイズ（scale）の大小にメリハリをつける
     const scale = 0.85 + Math.random() * 0.75; // 0.85〜1.6倍の範囲でばらつかせる
@@ -53,15 +97,22 @@ function buildPhotoConfig(sources) {
     // 4. 前後の奥行き（半径）にも緩やかな変化をつける
     const radius = GALLERY_RADIUS + (Math.random() - 0.5) * 3;
 
-    return { src, angle, radius, height, scale };
+    return { ...photo, angle, radius, height, scale };
   });
 }
 
-const PHOTO_CONFIG = buildPhotoConfig(PHOTO_SOURCES);
+const PHOTO_CONFIG = buildPhotoConfig(PHOTO_DATA);
 
-// ======================================================
-// パステル色抽出ユーティリティ
-// ======================================================
+// ======================================================================
+// [SECTION: photoConfigBuilder end]
+// ======================================================================
+
+
+// ======================================================================
+// [SECTION: colorUtils] パステル色抽出ユーティリティ
+// 将来的に分割する場合 → utils/color.js
+// ======================================================================
+
 function rgbToHsl(r, g, b) {
   r /= 255; g /= 255; b /= 255;
   const max = Math.max(r, g, b), min = Math.min(r, g, b);
@@ -135,14 +186,24 @@ function extractPastelColors(img) {
   return colors;
 }
 
-// ======================================================
-// 画像を安全に読み込むユーティリティ（追加）
+// ======================================================================
+// [SECTION: colorUtils end]
+// ======================================================================
+
+
+// ======================================================================
+// [SECTION: imageUtils] 画像読み込み・テクスチャ変換ユーティリティ
+// 将来的に分割する場合 → utils/image.js
+// ======================================================================
+
 // ------------------------------------------------------
-// ★追加：onerror・タイムアウトが一切なかったため、画像が1枚でも
-//   読み込みに失敗すると静かに「読み込み中」のまま止まっていた。
-//   失敗・タイムアウト時は必ずコールバックし、他の写真の処理を
-//   ブロックしないようにする。
-// ======================================================
+// 画像を安全に読み込むユーティリティ
+// ------------------------------------------------------
+// onerror・タイムアウトが一切なかったため、画像が1枚でも
+// 読み込みに失敗すると静かに「読み込み中」のまま止まっていた。
+// 失敗・タイムアウト時は必ずコールバックし、他の写真の処理を
+// ブロックしないようにする。
+// ------------------------------------------------------
 function loadImageSafely(src, { onSuccess, onFail, timeoutMs = 10000 }) {
   const img = new Image();
   let settled = false;
@@ -182,13 +243,13 @@ function loadImageSafely(src, { onSuccess, onFail, timeoutMs = 10000 }) {
   return img;
 }
 
-// ======================================================
-// テクスチャ用に必要であれば縮小したソースを返す（追加）
 // ------------------------------------------------------
-// ★追加：モバイルでのGPUメモリ不足によるWebGLコンテキストロスト
-//   （全画像が突然表示されなくなる現象）を防ぐため、上限を超える
-//   画像はCanvasで縮小してからテクスチャ化する。
-// ======================================================
+// テクスチャ用に必要であれば縮小したソースを返す
+// ------------------------------------------------------
+// モバイルでのGPUメモリ不足によるWebGLコンテキストロスト
+// （全画像が突然表示されなくなる現象）を防ぐため、上限を超える
+// 画像はCanvasで縮小してからテクスチャ化する。
+// ------------------------------------------------------
 function getTextureSource(img, maxDim) {
   const longSide = Math.max(img.width, img.height);
   if (longSide <= maxDim) return img;
@@ -202,22 +263,38 @@ function getTextureSource(img, maxDim) {
   return c;
 }
 
-// ======================================================
+// ======================================================================
+// [SECTION: imageUtils end]
+// ======================================================================
+
+
+// ======================================================================
 // エントリーポイント：外部(test.html)から呼び出される
-// ======================================================
+// ======================================================================
 export function startExhibitionSpace(renderer, camera) {
   const scene = new THREE.Scene();
 
   camera.position.set(0, 0, 0);
 
+  // ====================================================================
+  // [SECTION: lights] 照明
+  // 将来的に分割する場合 → core/scene.js
+  // ====================================================================
   const ambientLight = new THREE.AmbientLight(0xffffff, 0.15); // ── 照明の調整（修正版） ──
-// 0.28 → 0.15 に落として影の深みを出す
+  // 0.28 → 0.15 に落として影の深みを出す
   scene.add(ambientLight);
   const keyLight = new THREE.DirectionalLight(0xffefe0, 0.3);
   keyLight.position.set(3, 8, 5);
   scene.add(keyLight);
+  // ====================================================================
+  // [SECTION: lights end]
+  // ====================================================================
 
-  // ── 背景グラデーション（5色: 隣接写真も混ぜる） ──
+
+  // ====================================================================
+  // [SECTION: background] 背景グラデーション
+  // 将来的に分割する場合 → effects/background.js
+  // ====================================================================
   const bgCanvas = document.createElement('canvas');
   bgCanvas.width = 64;
   bgCanvas.height = 256;
@@ -258,11 +335,15 @@ export function startExhibitionSpace(renderer, camera) {
   drawBackgroundGradient();
   scene.background = bgTexture;
   scene.fog = new THREE.Fog(0xffffff, 60, 140);
+  // ====================================================================
+  // [SECTION: background end]
+  // ====================================================================
 
-  // ======================================================
-  // 水面（パステルカラーの光がにじむ波紋。海のような質感ではなく、
-  // 中心から柔らかく広がるリング状の波紋にする）
-  // ======================================================
+
+  // ====================================================================
+  // [SECTION: water] 水面（波紋）
+  // 将来的に分割する場合 → effects/water.js
+  // ====================================================================
   const waterGeo = new THREE.CircleGeometry(18, 96);
   const rippleUniforms = {
     time: { value: 0 },
@@ -274,7 +355,6 @@ export function startExhibitionSpace(renderer, camera) {
     color5: { value: currentColors[5].clone() },
     color6: { value: new THREE.Color(0xff66cc) }, // ピンク
     color7: { value: new THREE.Color(0xcc66ff) }, // 紫
-
   };
   const rippleMaterial = new THREE.ShaderMaterial({
     uniforms: rippleUniforms,
@@ -308,23 +388,20 @@ export function startExhibitionSpace(renderer, camera) {
 
         float amp = 0.5 + rippleBoost;
 
-        // 【修正1】angle を直接足さず、sin/cos を使って360度で繋がる波にする
         float ripple = sin(dist * 16.0 - time * 1.3) * 0.5 + 0.5;
         float waveFade = exp(-dist * 0.8);
         ripple *= mix(0.4, 1.0, waveFade);
         ripple += sin(dist * 26.0 - time * 2.1 + 1.7) * 0.3;
         ripple += sin(angle * 6.0 + time * 0.9) * 0.2;
-        ripple += sin(dist * 40.0 + sin(angle * 3.0) * 2.0 - time * 1.6) * 0.15; // angleをsinで包む
+        ripple += sin(dist * 40.0 + sin(angle * 3.0) * 2.0 - time * 1.6) * 0.15;
         ripple *= amp;
 
         float edgeFade = smoothstep(0.95, 0.05, dist);
-        
-        // 【修正2】colorPhase から不連続な angle を排除、または連続的な変化に変える
-        // ここでは繋ぎ目を完全に消すため、angle の代わりに sin(angle) を利用する形に修正
+
         float colorPhase = fract(dist * 0.6 - time * 0.06 + sin(angle) * 0.1 + ripple * 0.08);
-        
+
         vec3 baseColor;
-        
+
         if (colorPhase < 0.166) {
           baseColor = mix(color1, color2, colorPhase / 0.166);
         } else if (colorPhase < 0.333) {
@@ -349,11 +426,16 @@ export function startExhibitionSpace(renderer, camera) {
   rippleWater.rotation.x = -Math.PI / 2;
   rippleWater.position.y = -8;
   scene.add(rippleWater);
+  // ====================================================================
+  // [SECTION: water end]
+  // ====================================================================
 
-  // ======================================================
-// 太陽フレア（修正版：写真に被らないように小さく、低く配置）
-// ======================================================
-function createFlareTexture() {
+
+  // ====================================================================
+  // [SECTION: flare] 太陽フレア
+  // 将来的に分割する場合 → effects/flare.js
+  // ====================================================================
+  function createFlareTexture() {
     const w = 1024, h = 128;
     const cnv = document.createElement('canvas');
     cnv.width = w; cnv.height = h;
@@ -363,7 +445,6 @@ function createFlareTexture() {
     const vGrad = ctx.createLinearGradient(0, 0, 0, h);
     vGrad.addColorStop(0, 'rgba(255,235,200,0)');
     vGrad.addColorStop(0.5, 'rgba(255,235,200,0.27)'); // 0.25にしたらもう少し暗くなる。太陽光
-
     vGrad.addColorStop(1, 'rgba(255,235,200,0)');
     ctx.fillStyle = vGrad;
     ctx.fillRect(0, 0, w, h);
@@ -375,12 +456,11 @@ function createFlareTexture() {
       const x = (w / spotCount) * (i + 0.5) + (Math.random() - 0.5) * 40;
       const radiusX = 60 + Math.random() * 80;
       const radiusY = radiusX * 0.3;
-      
+
       const g = ctx.createRadialGradient(x, h / 2, 0, x, h / 2, radiusX);
-      // 完全な白(255,255,255)の一歩手前で発色をキープ
-      g.addColorStop(0, 'rgba(255,230,170,0.3)'); 
+      g.addColorStop(0, 'rgba(255,230,170,0.3)');
       g.addColorStop(1, 'rgba(255,230,170,0)');
-      
+
       ctx.fillStyle = g;
       ctx.beginPath();
       ctx.ellipse(x, h / 2, radiusX, radiusY, 0, 0, Math.PI * 2);
@@ -393,31 +473,32 @@ function createFlareTexture() {
     return tex;
   }
 
-const flareTexture = createFlareTexture();
-// 半径を大幅に小さくし、写真の内側（足元）に配置する。
-// 水面の半径（18）よりも内側、あるいは同じくらいの位置。
-const FLARE_RADIUS = 15; // 150 から 15 に変更
-// 円柱の高さを少し低く（10 から 8）
-const flareGeo = new THREE.CylinderGeometry(FLARE_RADIUS, FLARE_RADIUS, 8, 96, 1, true);
-const flareMaterial = new THREE.MeshBasicMaterial({
-  map: flareTexture,
-  transparent: true,
-  opacity: 0.6, // 少し透明度を下げる
-  blending: THREE.AdditiveBlending,
-  side: THREE.BackSide,
-  depthWrite: false,
-  color: 0xe8c8a0,
-  fog: false,
-});
-const flareRing = new THREE.Mesh(flareGeo, flareMaterial);
-// 垂直方向の位置をさらに下げる（-7.4 から -7.8）
-// 写真の浮かぶ高さ（config.height + 1.5）に対して十分低い位置にする。
-flareRing.position.y = -7.8;
-scene.add(flareRing);
-  // ======================================================
-  // キラキラ光の粒子（写真から抽出した色をまとって漂う）
-  // 1枚の写真だけに引っ張られず、複数の色がランダムに混在して見えるようにする
-  // ======================================================
+  const flareTexture = createFlareTexture();
+  // 半径を大幅に小さくし、写真の内側（足元）に配置する。
+  const FLARE_RADIUS = 15;
+  const flareGeo = new THREE.CylinderGeometry(FLARE_RADIUS, FLARE_RADIUS, 8, 96, 1, true);
+  const flareMaterial = new THREE.MeshBasicMaterial({
+    map: flareTexture,
+    transparent: true,
+    opacity: 0.6,
+    blending: THREE.AdditiveBlending,
+    side: THREE.BackSide,
+    depthWrite: false,
+    color: 0xe8c8a0,
+    fog: false,
+  });
+  const flareRing = new THREE.Mesh(flareGeo, flareMaterial);
+  flareRing.position.y = -7.8;
+  scene.add(flareRing);
+  // ====================================================================
+  // [SECTION: flare end]
+  // ====================================================================
+
+
+  // ====================================================================
+  // [SECTION: sparkles] キラキラ光の粒子
+  // 将来的に分割する場合 → effects/sparkles.js
+  // ====================================================================
   function createSparkleTexture() {
     const size = 64;
     const cnv = document.createElement('canvas');
@@ -432,7 +513,6 @@ scene.add(flareRing);
     return new THREE.CanvasTexture(cnv);
   }
 
-  const SPARKLE_COUNT = 260;
   const sparkleTexture = createSparkleTexture();
   const sparklePositions = new Float32Array(SPARKLE_COUNT * 3);
   const sparkleColorsArr = new Float32Array(SPARKLE_COUNT * 3);
@@ -502,10 +582,24 @@ scene.add(flareRing);
     }
     colorAttr.needsUpdate = true;
   }
+  // ====================================================================
+  // [SECTION: sparkles end]
+  // ====================================================================
 
-  // ── 写真アイテム ──
+
+  // ====================================================================
+  // [SECTION: photos] 写真アイテムの生成
+  // 将来的に分割する場合 → core/photos.js
+  // ====================================================================
   const photoItems = [];
 
+  // ------------------------------------------------------
+  // ③ createPhotoItem()
+  // ------------------------------------------------------
+  // PhotoItem に id / type / src / depth / interaction を保持させる。
+  // さらに将来のLOD対応に備え、lowTexture / highTexture の
+  // プレースホルダーも用意しておく（読み込み処理はまだ実装しない）。
+  // ------------------------------------------------------
   function createPhotoItem(config) {
     const rad = THREE.MathUtils.degToRad(config.angle);
     const position = new THREE.Vector3(
@@ -515,11 +609,26 @@ scene.add(flareRing);
     );
 
     const item = {
+      // ── メタ情報（PHOTO_DATA由来） ──
+      id: config.id,
+      type: config.type,
       src: config.src,
+      depth: config.depth,
+      interaction: config.interaction,
+
+      // ── 配置情報 ──
       config,
       position,
+
+      // ── 3Dオブジェクト ──
       mesh: null,
       aura: null,
+
+      // ── 将来のLOD対応用プレースホルダー（未使用） ──
+      lowTexture: null,
+      highTexture: null,
+
+      // ── アニメーション・状態 ──
       floatPhase: Math.random() * Math.PI * 2,
       pastelColors: [
         new THREE.Color(0xd9a888),
@@ -529,15 +638,15 @@ scene.add(flareRing);
         new THREE.Color(0xd68fc8),
       ],
       loaded: false,
-      failed: false, // ★追加
+      failed: false,
     };
 
-    // ★変更：img.onload/onerrorを直書きせず、安全な共通関数を使う
+    // img.onload/onerrorを直書きせず、安全な共通関数を使う
     loadImageSafely(config.src, {
       timeoutMs: 10000,
       onFail: () => {
-        // ★追加：読み込みに失敗しても他の写真の処理はブロックしない。
-        //   このアイテムは表示されないだけで、シーン全体は正常に進む。
+        // 読み込みに失敗しても他の写真の処理はブロックしない。
+        // このアイテムは表示されないだけで、シーン全体は正常に進む。
         item.failed = true;
       },
       onSuccess: (img) => {
@@ -546,11 +655,11 @@ scene.add(flareRing);
         const baseWidth = frameHeight * aspect;
         const baseHeight = frameHeight;
 
-        // ★追加：モバイルではGPUメモリ節約のため、大きすぎる画像を縮小してからテクスチャ化する
+        // モバイルではGPUメモリ節約のため、大きすぎる画像を縮小してからテクスチャ化する
         const texSource = getTextureSource(img, MAX_TEX_DIM);
         const tex = new THREE.Texture(texSource);
         tex.needsUpdate = true;
-        tex.anisotropy = 1; // モバイルでの負荷軽減（必要ならrenderer.capabilities.getMaxAnisotropy()に応じて上げてもよい)
+        tex.anisotropy = 1; // モバイルでの負荷軽減
 
         const geo = new THREE.PlaneGeometry(baseWidth, baseHeight);
         const mat = new THREE.MeshBasicMaterial({
@@ -589,8 +698,15 @@ scene.add(flareRing);
   }
 
   PHOTO_CONFIG.forEach(cfg => photoItems.push(createPhotoItem(cfg)));
+  // ====================================================================
+  // [SECTION: photos end]
+  // ====================================================================
 
-  // ── 視点操作 ──
+
+  // ====================================================================
+  // [SECTION: controls] 視点操作・クリック処理
+  // 将来的に分割する場合 → core/controls.js
+  // ====================================================================
   let yaw = 0, pitch = 0, targetYaw = 0, targetPitch = 0;
   let isDragging = false;
   let lastX = 0, lastY = 0;
@@ -641,6 +757,35 @@ scene.add(flareRing);
   const cameraHomePos = new THREE.Vector3(0, 0, 0);
   let cameraApproachPos = new THREE.Vector3();
 
+  // ------------------------------------------------------
+  // ⑤ 写真クリック時の処理（switch(type)対応）
+  // ------------------------------------------------------
+  // 将来的にデプスマップ写真・メッセージ機能（letter）・
+  // シャボン玉演出（bubble）などタイプごとの挙動を追加する際、
+  // ここに case を増やしていくだけで対応できるようにしておく。
+  // 現時点ではどのタイプも「通常表示（近づく/離れる）」処理を行う。
+  // ------------------------------------------------------
+  function handlePhotoSelect(item) {
+    switch (item.type) {
+      case 'normal':
+      case 'depth':
+      case 'letter':
+      case 'bubble':
+      default: {
+        if (viewingItem === item) {
+          viewingItem = null;
+          approachTarget = 0;
+        } else {
+          viewingItem = item;
+          approachTarget = 1;
+          const dir = item.position.clone().normalize();
+          cameraApproachPos = item.position.clone().sub(dir.multiplyScalar(5));
+        }
+        break;
+      }
+    }
+  }
+
   function onPointerClick(clientX, clientY) {
     pointer.x = (clientX / window.innerWidth) * 2 - 1;
     pointer.y = -(clientY / window.innerHeight) * 2 + 1;
@@ -651,15 +796,7 @@ scene.add(flareRing);
 
     if (hits.length > 0) {
       const item = hits[0].object.userData.photoItem;
-      if (viewingItem === item) {
-        viewingItem = null;
-        approachTarget = 0;
-      } else {
-        viewingItem = item;
-        approachTarget = 1;
-        const dir = item.position.clone().normalize();
-        cameraApproachPos = item.position.clone().sub(dir.multiplyScalar(5));
-      }
+      handlePhotoSelect(item);
     } else if (viewingItem) {
       viewingItem = null;
       approachTarget = 0;
@@ -684,19 +821,39 @@ scene.add(flareRing);
     });
     return best;
   }
+  // ====================================================================
+  // [SECTION: controls end]
+  // ====================================================================
 
+
+  // ====================================================================
+  // [SECTION: update] 毎フレーム更新処理
+  // 将来的に分割する場合 → core/update.js
+  // ------------------------------------------------------
+  // ④ update()を機能ごとの関数へ分割。
+  // 処理内容・実行順序は元のupdate()と完全に同一（挙動を変えないため）。
+  // ====================================================================
   let bgUpdateTimer = 0;
   const warmFlareTint = new THREE.Color(0xe0b888);
 
-  // ======================================================
-  // update(dt)
-  // ======================================================
-  function update(dt) {
+  // カメラの追従・視点操作（yaw/pitch/ズームイン）
+  function updateCamera(dt) {
     yaw += (targetYaw - yaw) * 0.08;
     pitch += (targetPitch - pitch) * 0.08;
 
     approachProgress += (approachTarget - approachProgress) * 0.06;
 
+    if (viewingItem && approachProgress > 0.01) {
+      camera.position.lerpVectors(cameraHomePos, cameraApproachPos, approachProgress);
+      camera.lookAt(viewingItem.position);
+    } else {
+      camera.position.lerp(cameraHomePos, 0.1);
+      camera.rotation.set(pitch, yaw, 0, 'YXZ');
+    }
+  }
+
+  // 写真・オーラの表示切替、浮遊アニメーション、水面/フレア/粒子の表示切替
+  function updatePhotos(dt) {
     // 拡大中(十分近づいたら)は水面・太陽フレア・パーティクルを隠す
     const zoomedIn = viewingItem && approachProgress > 0.3;
     rippleWater.visible = !zoomedIn;
@@ -704,9 +861,6 @@ scene.add(flareRing);
     sparkles.visible = !zoomedIn;
 
     if (viewingItem && approachProgress > 0.01) {
-      camera.position.lerpVectors(cameraHomePos, cameraApproachPos, approachProgress);
-      camera.lookAt(viewingItem.position);
-
       photoItems.forEach(item => {
         if (!item.mesh) return;
         const targetOpacity = item === viewingItem ? 1.0 : 0.25;
@@ -716,9 +870,6 @@ scene.add(flareRing);
         }
       });
     } else {
-      camera.position.lerp(cameraHomePos, 0.1);
-      camera.rotation.set(pitch, yaw, 0, 'YXZ');
-
       const t = performance.now() * 0.0006;
       photoItems.forEach(item => {
         if (!item.mesh) return;
@@ -733,7 +884,10 @@ scene.add(flareRing);
         if (item.aura) item.aura.position.y = item.position.y + floatY;
       });
     }
+  }
 
+  // 水面の波紋アニメーション・太陽フレアの回転
+  function updateRipple(dt) {
     // ── 水面のアニメーション：常時ゆっくり、視点を動かすと少し強まる ──
     rippleUniforms.time.value += dt * 0.5;
 
@@ -753,8 +907,10 @@ scene.add(flareRing);
 
     // 太陽フレアはゆっくり回転し、360°どの角度にも光が漂っているように見せる
     flareTexture.offset.x = (flareTexture.offset.x + dt * 0.004) % 1;
+  }
 
-    // ── キラキラ光の粒子：漂いながら明滅させる ──
+  // キラキラ光の粒子：漂いながら明滅させる
+  function updateSparkles(dt) {
     const sparkleT = performance.now() * 0.0006;
     const posAttr = sparkleGeo.attributes.position;
     for (let i = 0; i < SPARKLE_COUNT; i++) {
@@ -768,53 +924,65 @@ scene.add(flareRing);
     posAttr.needsUpdate = true;
     sparkleMaterial.opacity = THREE.MathUtils.clamp(0.55 + Math.sin(sparkleT * 2.2) * 0.25, 0.25, 0.95);
     sparkleMaterial.size = 0.2 + Math.sin(sparkleT * 3.1) * 0.06;
-
-    // 背景グラデーション：現在見ている写真 + 隣接写真の色を混ぜて5色に
-// ── update(dt) 内の背景色更新ロジックの修正 ──
-
-bgUpdateTimer++;
-if (bgUpdateTimer % 3 === 0) {
-  const facing = viewingItem || getFacingItem();
-
-  if (facing && facing.loaded) {
-    // 完全に写真の色だけで埋めず、最初の綺麗な雰囲気をベース（固定枠）として残す
-    const defaultPink = new THREE.Color(0xd68fa8);
-    const defaultPurple = new THREE.Color(0xa88fd6);
-    const defaultMidnight = new THREE.Color(0x8fa8d6); // 深みのある青
-
-    // 写真から抽出された色
-    const fCols = facing.pastelColors;
-
-    // 抽出色とデフォルトの幻想的な色をブレンドしてターゲットを作る
-    targetColors = [
-      defaultPink.clone().lerp(fCols[0], 0.4),      // ピンク寄りに写真の1色目をブレンド
-      fCols[0],
-      defaultPurple.clone().lerp(fCols[2], 0.3),    // 中央付近に元の紫のニュアンスを残す
-      fCols[2],
-      fCols[4],
-      defaultMidnight.clone().lerp(fCols[3], 0.4),  // 下層にミッドナイトブルーを混ぜて引き締める
-      defaultPink.clone().lerp(fCols[1], 0.3)
-    ];
   }
 
-  // 色の遷移速度を少し遅く（0.09 → 0.04）して、急激な変化を抑え滑らかにする
-  for (let i = 0; i < currentColors.length; i++) {
-    if (!targetColors[i]) continue;
-    currentColors[i].lerp(targetColors[i], 0.04);
-  }
-  drawBackgroundGradient();
+  // 背景グラデーション：現在見ている写真 + 隣接写真の色を混ぜて更新
+  function updateBackground(dt) {
+    bgUpdateTimer++;
+    if (bgUpdateTimer % 3 === 0) {
+      const facing = viewingItem || getFacingItem();
 
-  // 波紋と太陽フレアの色も同期
-  rippleUniforms.color1.value.copy(currentColors[1]);
-  rippleUniforms.color2.value.copy(currentColors[2]);
-  rippleUniforms.color3.value.copy(currentColors[3]);
-  rippleUniforms.color4.value.copy(currentColors[4]);
-  rippleUniforms.color5.value.copy(currentColors[5]);
+      if (facing && facing.loaded) {
+        // 完全に写真の色だけで埋めず、最初の綺麗な雰囲気をベース（固定枠）として残す
+        const defaultPink = new THREE.Color(0xd68fa8);
+        const defaultPurple = new THREE.Color(0xa88fd6);
+        const defaultMidnight = new THREE.Color(0x8fa8d6); // 深みのある青
 
-  const flareTint = currentColors[2].clone().lerp(warmFlareTint, 0.5);
-  flareMaterial.color.lerp(flareTint, 0.08);
-}
+        // 写真から抽出された色
+        const fCols = facing.pastelColors;
+
+        // 抽出色とデフォルトの幻想的な色をブレンドしてターゲットを作る
+        targetColors = [
+          defaultPink.clone().lerp(fCols[0], 0.4),      // ピンク寄りに写真の1色目をブレンド
+          fCols[0],
+          defaultPurple.clone().lerp(fCols[2], 0.3),    // 中央付近に元の紫のニュアンスを残す
+          fCols[2],
+          fCols[4],
+          defaultMidnight.clone().lerp(fCols[3], 0.4),  // 下層にミッドナイトブルーを混ぜて引き締める
+          defaultPink.clone().lerp(fCols[1], 0.3)
+        ];
+      }
+
+      // 色の遷移速度を少し遅く（0.09 → 0.04）して、急激な変化を抑え滑らかにする
+      for (let i = 0; i < currentColors.length; i++) {
+        if (!targetColors[i]) continue;
+        currentColors[i].lerp(targetColors[i], 0.04);
+      }
+      drawBackgroundGradient();
+
+      // 波紋と太陽フレアの色も同期
+      rippleUniforms.color1.value.copy(currentColors[1]);
+      rippleUniforms.color2.value.copy(currentColors[2]);
+      rippleUniforms.color3.value.copy(currentColors[3]);
+      rippleUniforms.color4.value.copy(currentColors[4]);
+      rippleUniforms.color5.value.copy(currentColors[5]);
+
+      const flareTint = currentColors[2].clone().lerp(warmFlareTint, 0.5);
+      flareMaterial.color.lerp(flareTint, 0.08);
+    }
   }
+
+  // ── update(dt) 本体：各処理を順番に呼び出すだけ ──
+  function update(dt) {
+    updateCamera(dt);
+    updatePhotos(dt);
+    updateRipple(dt);
+    updateSparkles(dt);
+    updateBackground(dt);
+  }
+  // ====================================================================
+  // [SECTION: update end]
+  // ====================================================================
 
   return { scene, update };
 }
