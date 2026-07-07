@@ -126,73 +126,15 @@ body{
 
 }
 
-.titleEnglish{
+#logoCanvas{
 
-    font-family:
-        "Cormorant Garamond",
-        serif;
+    width:min(92vw,700px);
 
-    font-weight:300;
+    height:170px;
 
-    font-size:clamp(3.0rem,9vw,5.4rem);
+    display:block;
 
-    letter-spacing:.14em;
-
-    line-height:.9;
-
-    color:#f7f7f7;
-
-    position:relative;
-
-    user-select:none;
-
-    text-align:center;
-
-}
-
-.titleEnglish::before{
-
-    content:"";
-
-    position:absolute;
-
-    inset:0;
-
-    background:
-
-        linear-gradient(
-            105deg,
-
-            rgba(255,255,255,0)
-
-            0%,
-
-            rgba(255,255,255,.9)
-
-            48%,
-
-            rgba(216,180,106,.9)
-
-            52%,
-
-            rgba(255,255,255,0)
-
-            100%
-        );
-
-    background-size:240% 100%;
-
-    mix-blend-mode:screen;
-
-    opacity:.28;
-
-    animation:
-        logoShine
-        8s
-        linear
-        infinite;
-
-    pointer-events:none;
+    margin:0 auto;
 
 }
 
@@ -672,18 +614,22 @@ body.loaded .bottomBar{
 
 }
 
-@keyframes logoShine{
+@keyframes titleShine{
 
-    from{
-
-        background-position:-240% 0;
-
+    0%{
+        background-position:220% 50%;
     }
 
-    to{
+    40%{
+        background-position:220% 50%;
+    }
 
-        background-position:240% 0;
+    70%{
+        background-position:-120% 50%;
+    }
 
+    100%{
+        background-position:-120% 50%;
     }
 
 }
