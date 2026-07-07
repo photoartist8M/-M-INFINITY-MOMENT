@@ -1,8 +1,5 @@
-import { canvas, ctx, drawLogo } from "./logoCanvas.js";
+import { canvas, ctx, drawLogo, stopLogoAnimation } from "./logoCanvas.js";
 
-// ======================================================
-// 画面全体を覆う爆発用オーバーレイcanvasを作成
-// ======================================================
 const overlay = document.createElement("canvas");
 overlay.style.position = "fixed";
 overlay.style.top = "0";
@@ -10,7 +7,7 @@ overlay.style.left = "0";
 overlay.style.width = "100vw";
 overlay.style.height = "100vh";
 overlay.style.pointerEvents = "none";
-overlay.style.zIndex = "50"; // ボタンより手前、infoPanelより奥
+overlay.style.zIndex = "50";
 document.body.appendChild(overlay);
 
 const octx = overlay.getContext("2d");
@@ -26,13 +23,9 @@ function resizeOverlay(){
 resizeOverlay();
 window.addEventListener("resize", resizeOverlay);
 
-// ======================================================
-// ロゴ崩壊用パーティクル
-// ======================================================
 let particles = [];
 let logoRAF;
 
-// canvas(logoCanvas)内のローカル座標→ビューポート座標に変換して取得
 function getLogoParticlesInViewportSpace(sampleGap){
     const rect = canvas.getBoundingClientRect();
     const DPR = window.devicePixelRatio || 1;
@@ -42,7 +35,7 @@ function getLogoParticlesInViewportSpace(sampleGap){
     for(let y = 0; y < canvas.height; y += sampleGap * DPR){
         for(let x = 0; x < canvas.width; x += sampleGap * DPR){
             const idx = (Math.floor(y) * canvas.width + Math.floor(x)) * 4;
-            if(imgData.data[idx + 3] > 128){
+            if(imgData.data[idx + 3] > 40){
                 pts.push({
                     x: rect.left + x / DPR,
                     y: rect.top + y / DPR
@@ -54,24 +47,24 @@ function getLogoParticlesInViewportSpace(sampleGap){
 }
 
 function explodeLogo(){
-    const points = getLogoParticlesInViewportSpace(4);
+    stopLogoAnimation();
 
-    // 元のロゴを即座に消す(オーバーレイ側で描くため)
-    const rect = canvas.getBoundingClientRect();
+    const points = getLogoParticlesInViewportSpace(3);
+
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     particles = points.map(p => {
         const angle = Math.random() * Math.PI * 2;
-        const speed = 1.0 + Math.random() * 4.5; // 画面いっぱいに飛ぶよう速度UP
+        const speed = 1.5 + Math.random() * 6.5;
 
         return {
             x: p.x,
             y: p.y,
             vx: Math.cos(angle) * speed,
-            vy: Math.sin(angle) * speed - 0.6,
+            vy: Math.sin(angle) * speed - 0.8,
             life: 1.0,
-            decay: 0.004 + Math.random() * 0.008,
-            size: 1.2 + Math.random() * 1.8
+            decay: 0.003 + Math.random() * 0.006,
+            size: 1.3 + Math.random() * 2.0
         };
     });
 
@@ -120,45 +113,24 @@ function onLogoDissolveComplete(){
     setTimeout(() => {
         openingEl.style.display = "none";
         overlay.style.display = "none";
-        // ここでmain.js側への画面遷移を行う（後日連携）
-        // 例: location.href = "index.html";
     }, 500);
 }
 
-// ======================================================
-// Start ボタン
-// ======================================================
 document.getElementById("startButton").addEventListener("click", () => {
     explodeLogo();
 });
 
-// ======================================================
-// BGM ボタン(トグル)
-// ======================================================
 const bgmButton = document.getElementById("bgmButton");
 let bgmOn = true;
-
 bgmButton.addEventListener("click", () => {
     bgmOn = !bgmOn;
     bgmButton.textContent = bgmOn ? "♪ BGM ON" : "♪ BGM OFF";
 });
 
-// ======================================================
-// Information パネル 開閉
-// ======================================================
 const infoButton = document.getElementById("infoButton");
 const infoPanel = document.getElementById("infoPanel");
 const closeInfo = document.getElementById("closeInfo");
+infoButton.addEventListener("click", () => infoPanel.classList.add("show"));
+closeInfo.addEventListener("click", () => infoPanel.classList.remove("show"));
 
-infoButton.addEventListener("click", () => {
-    infoPanel.classList.add("show");
-});
-
-closeInfo.addEventListener("click", () => {
-    infoPanel.classList.remove("show");
-});
-
-// ======================================================
-// 初期フェードイン開始
-// ======================================================
 document.body.classList.add("loaded");

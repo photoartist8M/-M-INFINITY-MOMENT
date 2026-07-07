@@ -2,11 +2,22 @@ const canvas = document.getElementById("logoCanvas");
 const ctx = canvas.getContext("2d");
 const DPR = window.devicePixelRatio || 1;
 
-function drawLogo(w, h){
+let animStartTime = null;
+let animFrameId = null;
+let animStopped = false;
+
+function drawLogo(w, h, timestamp){
+    if(animStopped) return;
+
     ctx.clearRect(0, 0, w, h);
 
+    if(animStartTime === null) animStartTime = timestamp || 0;
+    const elapsed = ((timestamp || 0) - animStartTime) / 1000;
+    const CYCLE = 11;
+    const t = (elapsed % CYCLE) / CYCLE;
+
     const fontSize = h * 0.55;
-    ctx.font = `500 ${fontSize}px 'Cinzel'`;
+    ctx.font = `500 ${fontSize}px 'Cormorant Garamond'`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
 
@@ -15,52 +26,101 @@ function drawLogo(w, h){
 
     const charWidths = [...text].map(ch => ctx.measureText(ch).width);
     const totalWidth = charWidths.reduce((a, b) => a + b, 0) + letterSpacing * (text.length - 1);
-    let x = w / 2 - totalWidth / 2;
+    const startX = w / 2 - totalWidth / 2;
     const y = h / 2 + h * 0.02;
 
+    const FLOW_START = 0.10;
+    const FLOW_END   = 0.55;
+    const FLICKER_START = 0.62;
+
+    let x = startX;
     [...text].forEach((ch, i) => {
         const cx = x + charWidths[i] / 2;
-
-        // ── 影(奥行き) ──
-        ctx.save();
-        ctx.shadowColor = "rgba(0,0,0,0.7)";
-        ctx.shadowBlur = 8;
-        ctx.shadowOffsetY = 3;
-        ctx.fillStyle = "#000000";
-        ctx.globalAlpha = 0.35; // 影だけ薄く見せるため、本体の黒を薄く重ねる
-        ctx.fillText(ch, cx, y);
-        ctx.restore();
-
-        // ── 本体:メタリックグラデーション ──
-        const gradient = ctx.createLinearGradient(0, y - fontSize/2, 0, y + fontSize/2);
-        gradient.addColorStop(0.0, "#f6f6f6");
-        gradient.addColorStop(0.35, "#ffffff");
-        gradient.addColorStop(0.55, "#bdbdbd");
-        gradient.addColorStop(0.75, "#e8e8e8");
-        gradient.addColorStop(1.0, "#a8a8a8");
-
-        ctx.save();
-        ctx.shadowColor = "rgba(255,255,255,0.4)";
-        ctx.shadowBlur = 2;
-        ctx.shadowOffsetY = -1;
-        ctx.fillStyle = gradient;
-        ctx.fillText(ch, cx, y);
-        ctx.restore();
-
+        ctx.strokeStyle = "rgba(230,240,255,0.5)";
+        ctx.lineWidth = 0.9;
+        ctx.strokeText(ch, cx, y);
         x += charWidths[i] + letterSpacing;
     });
 
-    // ── 輪郭を締める ──
-    ctx.save();
-    ctx.strokeStyle = "rgba(255,255,255,0.18)";
-    ctx.lineWidth = 0.7;
-    let x2 = w / 2 - totalWidth / 2;
-    [...text].forEach((ch, i) => {
-        const cx = x2 + charWidths[i] / 2;
-        ctx.strokeText(ch, cx, y);
-        x2 += charWidths[i] + letterSpacing;
-    });
-    ctx.restore();
+    if(t >= FLOW_START && t < FLOW_END){
+        const p = (t - FLOW_START) / (FLOW_END - FLOW_START);
+        const bandWidth = totalWidth * 0.32;
+        const bandCenter = startX + totalWidth * p * 1.15 - bandWidth * 0.1;
+
+        const diag = fontSize * 0.5;
+        const gradient = ctx.createLinearGradient(
+            bandCenter - bandWidth - diag, y - fontSize * 0.5,
+            bandCenter + bandWidth + diag, y + fontSize * 0.5
+        );
+        gradient.addColorStop(0.0, "rgba(255,248,238,0)");
+        gradient.addColorStop(0.40, "rgba(255,248,238,0)");
+        gradient.addColorStop(0.5, "rgba(255,252,248,1)");
+        gradient.addColorStop(0.60, "rgba(255,248,238,0)");
+        gradient.addColorStop(1.0, "rgba(255,248,238,0)");
+
+        ctx.save();
+        ctx.shadowColor = "rgba(255,200,140,0.75)";
+        ctx.shadowBlur = 20;
+        ctx.fillStyle = gradient;
+
+        let gx = startX;
+        [...text].forEach((ch, i) => {
+            const cx = gx + charWidths[i] / 2;
+            ctx.fillText(ch, cx, y);
+            gx += charWidths[i] + letterSpacing;
+        });
+        ctx.restore();
+
+    } else if(t >= FLICKER_START){
+        const fp = (t - FLICKER_START) / (1 - FLICKER_START);
+        const fadeEnvelope = Math.sin(fp * Math.PI);
+
+        const emotionFlicker =
+            0.5 +
+            Math.sin(fp * Math.PI * 5.2) * 0.3 +
+            Math.sin(fp * Math.PI * 11.0 + 1.3) * 0.18;
+        const emotionAlpha = Math.max(0, Math.min(1, emotionFlicker)) * fadeEnvelope;
+
+        const alFlicker =
+            0.5 +
+            Math.sin(fp * Math.PI * 8.0 + 2.1) * 0.35 +
+            Math.sin(fp * Math.PI * 3.4) * 0.15;
+        const alAlpha = Math.max(0, Math.min(1, alFlicker)) * fadeEnvelope;
+
+        let fx = startX;
+        [...text].forEach((ch, i) => {
+            const cx = fx + charWidths[i] / 2;
+            const isAl = i >= 7;
+
+            if(isAl){
+                if(alAlpha > 0.02){
+                    ctx.save();
+                    ctx.shadowColor = `rgba(210,225,255,${0.7 * alAlpha})`;
+                    ctx.shadowBlur = 16;
+                    ctx.fillStyle = `rgba(235,242,255,${alAlpha})`;
+                    ctx.fillText(ch, cx, y);
+                    ctx.restore();
+                }
+            } else {
+                if(emotionAlpha > 0.02){
+                    ctx.save();
+                    ctx.shadowColor = `rgba(255,200,140,${0.75 * emotionAlpha})`;
+                    ctx.shadowBlur = 18;
+                    ctx.fillStyle = `rgba(255,250,240,${emotionAlpha})`;
+                    ctx.fillText(ch, cx, y);
+                    ctx.restore();
+                }
+            }
+            fx += charWidths[i] + letterSpacing;
+        });
+    }
+
+    animFrameId = requestAnimationFrame((ts) => drawLogo(w, h, ts));
+}
+
+function stopLogoAnimation(){
+    animStopped = true;
+    if(animFrameId) cancelAnimationFrame(animFrameId);
 }
 
 function resizeCanvas(){
@@ -68,10 +128,14 @@ function resizeCanvas(){
     canvas.width = rect.width * DPR;
     canvas.height = rect.height * DPR;
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-    drawLogo(rect.width, rect.height);
+    animStartTime = null;
 }
 
-document.fonts.load("500 108px 'Cinzel'").then(resizeCanvas);
+document.fonts.load("500 108px 'Cormorant Garamond'").then(() => {
+    const rect = canvas.getBoundingClientRect();
+    animFrameId = requestAnimationFrame((ts) => drawLogo(rect.width, rect.height, ts));
+});
 window.addEventListener("resize", resizeCanvas);
 resizeCanvas();
-export { canvas, ctx, drawLogo };
+
+export { canvas, ctx, drawLogo, stopLogoAnimation };
