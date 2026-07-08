@@ -1,12 +1,23 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html lang="ja" translate="no">
 <head>
   <meta charset="UTF-8" />
 
-  <!-- ここに追加 -->
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="google" content="notranslate">
 
-  <title>Three.js Test</title>
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+
+  <title>emotional - 時の瞬き</title>
+
+  <!-- オープニングUI用CSS -->
+  <link rel="stylesheet" href="./spaces/ui/openingUI.css">
+
+  <!-- 高級感のある英字フォント -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500&display=swap" rel="stylesheet">
 
   <script type="importmap">
 {
@@ -17,23 +28,58 @@
 }
 </script>
 
+<style>
+  body {
+    margin: 0;
+  }
+  canvas#canvas {
+    display: none;
+  }
+</style>
 </head>
 <body>
 
-  <canvas id="canvas"></canvas>
+<!-- ====================================================
+     オープニングUI
+     ==================================================== -->
+<div id="opening">
 
-  <script type="module" src="main.js"></script>
+  <div class="titleArea">
+    <canvas id="logoCanvas"></canvas>
+    <h2 class="titleJapanese">― 時の瞬き ―</h2>
+  </div>
+
+  <button id="startButton">Touch to Begin</button>
+    <div class="concept">
+    <p>あの頃みた雲は、<br>触れそうな気がした。</p>
+    <p>時は流れても、<br>記憶は色褪せず胸の奥に生きている。</p>
+    <p>この一瞬が、<br>あなたの記憶と未来を<br>優しく繋ぎますように。</p>
+  </div>
+
+  <div class="bottomBar">
+    <button id="bgmButton">♪ BGM ON</button>
+    <button id="infoButton">Information</button>
+  </div>
+
+</div>
+
+<div id="infoPanel">
+  <div class="infoContent">
+    <h3>Information</h3>
+    <p>本作品は光の演出を含みます。<br>光刺激に敏感な方や、光過敏性てんかんの既往歴がある方は、体調に配慮しながらご鑑賞ください。</p>
+    <p>BGMはON/OFFを切り替えられます。</p>
+    <p>本作品はスマートフォンでの鑑賞に最適化しています。<br>PC環境ではブラウザやGPU性能により、一部演出の見え方が異なる場合があります。</p>
+    <button id="closeInfo">Close</button>
+  </div>
+</div>
+
+<!-- ====================================================
+     次の空間(main.js)用canvas
+     ==================================================== -->
+<canvas id="canvas"></canvas>
+
+<script type="module" src="./spaces/ui/logoCanvas.js"></script>
+<script type="module" src="./spaces/ui/openingUI.js"></script>
 
 </body>
 </html>
-
-<style>
-body {
-  margin: 0;
-  overflow: hidden;
-}
-
-canvas {
-  display: block;
-}
-</style>

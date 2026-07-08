@@ -1,5 +1,8 @@
 import { canvas, ctx, drawLogo, stopLogoAnimation } from "./logoCanvas.js";
 
+// ======================================================
+// 画面全体を覆う爆発用オーバーレイcanvas
+// ======================================================
 const overlay = document.createElement("canvas");
 overlay.style.position = "fixed";
 overlay.style.top = "0";
@@ -23,6 +26,9 @@ function resizeOverlay(){
 resizeOverlay();
 window.addEventListener("resize", resizeOverlay);
 
+// ======================================================
+// ロゴ崩壊用パーティクル
+// ======================================================
 let particles = [];
 let logoRAF;
 
@@ -50,9 +56,22 @@ function explodeLogo(){
     stopLogoAnimation();
 
     const points = getLogoParticlesInViewportSpace(3);
+    console.log(points.length);
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+    // ── ロゴ以外の要素(日本語タイトル・コンセプト文・ボタン群)を同時にフェードアウト ──
+   const titleJapanese = document.querySelector(".titleJapanese");
+    const concept = document.querySelector(".concept");
+    const bottomBar = document.querySelector(".bottomBar");
+    const startBtn = document.getElementById("startButton");
+
+    [titleJapanese, concept, bottomBar, startBtn].forEach(el => {
+        if(el){
+            el.style.transition = "opacity 0.4s ease"; // 1.2s → 0.4s
+            el.style.opacity = "0";
+        }
+    });
     particles = points.map(p => {
         const angle = Math.random() * Math.PI * 2;
         const speed = 1.5 + Math.random() * 6.5;
@@ -63,7 +82,7 @@ function explodeLogo(){
             vx: Math.cos(angle) * speed,
             vy: Math.sin(angle) * speed - 0.8,
             life: 1.0,
-            decay: 0.003 + Math.random() * 0.006,
+            decay: 0.008 + Math.random() * 0.0012, // 0.003+0.006 から少し速く
             size: 1.3 + Math.random() * 2.0
         };
     });
@@ -71,11 +90,17 @@ function explodeLogo(){
     cancelAnimationFrame(logoRAF);
     animateParticles();
 }
+// ======================================================
+// 崩壊完了 → オープニングを破棄して次の空間(main.js)を起動
+// ======================================================
+let mainSceneStarted = false;
 
+// 粒子アニメーションの進行度に応じて、途中から次空間をフェードインさせる
 function animateParticles(){
     octx.clearRect(0, 0, window.innerWidth, window.innerHeight);
 
     let alive = false;
+    let maxLife = 0;
 
     for(const p of particles){
         p.x += p.vx;
@@ -86,6 +111,7 @@ function animateParticles(){
 
         if(p.life > 0){
             alive = true;
+            if(p.life > maxLife) maxLife = p.life;
             octx.globalAlpha = p.life;
             octx.fillStyle = "#ffd27a";
             octx.beginPath();
@@ -95,6 +121,12 @@ function animateParticles(){
     }
     octx.globalAlpha = 1;
 
+    // ── 粒子がまだ40%以上残っている段階で、裏で次空間の読み込みを開始 ──
+    if(maxLife < 0.6 && !mainSceneStarted){
+        mainSceneStarted = true;
+        preloadMainScene();
+    }
+
     if(alive){
         logoRAF = requestAnimationFrame(animateParticles);
     } else {
@@ -103,23 +135,73 @@ function animateParticles(){
 }
 
 function onLogoDissolveComplete(){
-    const openingEl = document.getElementById("opening");
+    if(!mainSceneStarted){
+        mainSceneStarted = true;
+        preloadMainScene();
+    }
 
-    openingEl.style.transition = "opacity 0.5s ease";
+    const openingEl = document.getElementById("opening");
+    openingEl.style.transition = "opacity 0.3s ease";
     openingEl.style.opacity = 0;
 
-    octx.clearRect(0, 0, window.innerWidth, window.innerHeight);
-
     setTimeout(() => {
-        openingEl.style.display = "none";
-        overlay.style.display = "none";
-    }, 500);
+        disposeOpeningScene();
+    }, 300);
 }
 
+async function preloadMainScene(){
+    const mainCanvas = document.getElementById("canvas");
+    mainCanvas.style.opacity = "0";
+    mainCanvas.style.transition = "opacity 1.6s ease"; // ゆっくり重なるように長め
+    mainCanvas.style.display = "block";
+
+    await import("../../main.js");
+
+    // 読み込み完了後、次のフレームでフェードインを開始
+    requestAnimationFrame(() => {
+        mainCanvas.style.opacity = "1";
+    });
+}
+// ======================================================
+// オープニング演出の完全破棄(メモリ解放)
+// ======================================================
+function disposeOpeningScene(){
+    cancelAnimationFrame(logoRAF);
+    stopLogoAnimation();
+    particles = [];
+    window.removeEventListener("resize", resizeOverlay);
+
+    const openingEl = document.getElementById("opening");
+    if(openingEl) openingEl.remove();
+
+    if(overlay) overlay.remove();
+
+    const infoPanel = document.getElementById("infoPanel");
+    if(infoPanel) infoPanel.remove();
+
+    console.log("オープニング演出を破棄しました(メモリ解放完了)");
+}
+
+// ======================================================
+// main.js を動的に読み込んで起動(オープニング中は一切ロードしない)
+// ======================================================
+async function startMainScene(){
+    const mainCanvas = document.getElementById("canvas");
+    mainCanvas.style.display = "block";
+
+    await import("../../main.js");
+}
+
+// ======================================================
+// Start ボタン
+// ======================================================
 document.getElementById("startButton").addEventListener("click", () => {
     explodeLogo();
 });
 
+// ======================================================
+// BGM ボタン(トグル)
+// ======================================================
 const bgmButton = document.getElementById("bgmButton");
 let bgmOn = true;
 bgmButton.addEventListener("click", () => {
@@ -127,10 +209,16 @@ bgmButton.addEventListener("click", () => {
     bgmButton.textContent = bgmOn ? "♪ BGM ON" : "♪ BGM OFF";
 });
 
+// ======================================================
+// Information パネル 開閉
+// ======================================================
 const infoButton = document.getElementById("infoButton");
 const infoPanel = document.getElementById("infoPanel");
 const closeInfo = document.getElementById("closeInfo");
 infoButton.addEventListener("click", () => infoPanel.classList.add("show"));
 closeInfo.addEventListener("click", () => infoPanel.classList.remove("show"));
 
+// ======================================================
+// 初期フェードイン開始
+// ======================================================
 document.body.classList.add("loaded");
