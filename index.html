@@ -32,9 +32,15 @@
   body {
     margin: 0;
   }
-  canvas#canvas {
+canvas#canvas {
     display: none;
-  }
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 10; /* オープニングのoverlay(z-index:50)より下、オープニング本体より上に来るよう調整 */
+}
 </style>
 </head>
 <body>

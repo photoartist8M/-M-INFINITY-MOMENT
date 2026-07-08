@@ -91,8 +91,8 @@ body{
 
     align-items:center;
 
-    /* space-betweenを廃止 */
-    justify-content:flex-start;
+    /* flex-start → center：全体を縦方向の中央寄りに */
+    justify-content:center;
 
     /* 全体の余白管理をgapへ統一 */
     gap:28px;
@@ -113,6 +113,8 @@ body{
 
 .titleArea{
 
+    position:relative; /* 背景演出（太陽フレア・時計モチーフ等）を後ろに絶対配置するための基準 */
+
     width:100%;
 
     display:flex;
@@ -125,13 +127,38 @@ body{
 
     flex-shrink:0;
 
+    padding-block:12px; /* 背景演出がはみ出しても窮屈にならない余白 */
+
+}
+
+/* 太陽フレアや時計のような背景演出を後から差し込む場所（現状は空） */
+.titleArea::before{
+
+    content:"";
+
+    position:absolute;
+
+    top:50%;
+    left:50%;
+
+    width:min(140vw,900px);
+    aspect-ratio:1/1;
+
+    transform:translate(-50%,-50%);
+
+    z-index:-1; /* ロゴの後ろに配置 */
+
+    pointer-events:none;
+
+    /* 例：background: url("../assets/sunflare.png") center/contain no-repeat; */
+
 }
 
 #logoCanvas{
 
-    width:min(92vw,700px);
+    width:min(96vw,760px);
 
-    max-width:700px;
+    max-width:760px;
 
     aspect-ratio:700 / 170;
 
@@ -140,6 +167,10 @@ body{
     display:block;
 
     pointer-events:none;
+
+    position:relative; /* ::beforeより手前に来るよう明示 */
+
+    z-index:1;
 
 }
 
@@ -206,9 +237,9 @@ body{
 
 #startButton{
 
-    width:min(320px,88vw);
+    width:min(240px,72vw);
 
-    height:60px;
+    height:46px;
 
     border-radius:999px;
 
@@ -218,9 +249,9 @@ body{
 
     color:white;
 
-    font-size:1rem;
+    font-size:.82rem;
 
-    letter-spacing:.22em;
+    letter-spacing:.18em;
 
     cursor:pointer;
 
@@ -562,7 +593,7 @@ body.loaded .bottomBar{
 
     #startButton{
 
-        height:56px;
+        height:42px;
 
     }
 

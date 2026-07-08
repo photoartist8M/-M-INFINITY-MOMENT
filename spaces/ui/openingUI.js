@@ -72,20 +72,28 @@ function explodeLogo(){
             el.style.opacity = "0";
         }
     });
-    particles = points.map(p => {
-        const angle = Math.random() * Math.PI * 2;
-        const speed = 1.5 + Math.random() * 6.5;
+     const TITLE_PARTICLE_PALETTE = [
+    "255,224,179", // 淡い琥珀色 (#ffe0b3)
+    "251,240,219", // 極めて淡いゴールド (#fbf0db)
+    "255,248,240", // ほぼ白に近い暖白 (#fff8f0)
+];
 
-        return {
-            x: p.x,
-            y: p.y,
-            vx: Math.cos(angle) * speed,
-            vy: Math.sin(angle) * speed - 0.8,
-            life: 1.0,
-            decay: 0.008 + Math.random() * 0.0012, // 0.003+0.006 から少し速く
-            size: 1.3 + Math.random() * 2.0
-        };
-    });
+particles = points.map(p => {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 1.5 + Math.random() * 6.5;
+    const color = TITLE_PARTICLE_PALETTE[Math.floor(Math.random() * TITLE_PARTICLE_PALETTE.length)];
+
+    return {
+        x: p.x,
+        y: p.y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed - 0.8,
+        life: 1.0,
+        decay: 0.008 + Math.random() * 0.0012,
+        size: 1.3 + Math.random() * 2.0,
+        color: color // ← 追加
+    };
+});
 
     cancelAnimationFrame(logoRAF);
     animateParticles();
@@ -95,12 +103,21 @@ function explodeLogo(){
 // ======================================================
 let mainSceneStarted = false;
 
+// 空間側(DOOR_PARTICLE_PALETTE)と揃えた淡いパレット
+const TITLE_PARTICLE_PALETTE = [
+    "255,224,179", // 淡い琥珀色 (#ffe0b3)
+    "251,240,219", // 極めて淡いゴールド (#fbf0db)
+    "255,248,240", // ほぼ白に近い暖白 (#fff8f0)
+];
+
 // 粒子アニメーションの進行度に応じて、途中から次空間をフェードインさせる
 function animateParticles(){
     octx.clearRect(0, 0, window.innerWidth, window.innerHeight);
 
     let alive = false;
     let maxLife = 0;
+
+    octx.globalCompositeOperation = "lighter"; // 加算合成でキラキラ感を出す
 
     for(const p of particles){
         p.x += p.vx;
@@ -112,14 +129,27 @@ function animateParticles(){
         if(p.life > 0){
             alive = true;
             if(p.life > maxLife) maxLife = p.life;
+
             octx.globalAlpha = p.life;
-            octx.fillStyle = "#ffd27a";
+
+            // グロー効果：中心が明るく、外側にいくほど透明になるグラデーション
+            const glowSize = p.size * 3;
+            const gradient = octx.createRadialGradient(
+                p.x, p.y, 0,
+                p.x, p.y, glowSize
+            );
+            gradient.addColorStop(0.0, `rgba(${p.color},1)`);
+            gradient.addColorStop(0.4, `rgba(${p.color},0.5)`);
+            gradient.addColorStop(1.0, `rgba(${p.color},0)`);
+
+            octx.fillStyle = gradient;
             octx.beginPath();
-            octx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+            octx.arc(p.x, p.y, glowSize, 0, Math.PI * 2);
             octx.fill();
         }
     }
     octx.globalAlpha = 1;
+    octx.globalCompositeOperation = "source-over"; // 元に戻す
 
     // ── 粒子がまだ40%以上残っている段階で、裏で次空間の読み込みを開始 ──
     if(maxLife < 0.6 && !mainSceneStarted){

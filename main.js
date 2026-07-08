@@ -87,7 +87,11 @@ function buildProceduralEnv() {
   scene.environment = envRT.texture;
 }
 
-buildProceduralEnv(); // ← renderer 初期化後・写真ロード前に呼ぶ
+requestAnimationFrame(() => {
+  requestAnimationFrame(() => {
+    buildProceduralEnv();
+  });
+});
 
 // ======================================================
 // 視点クランプ（写真の端に合わせて水平回転を制限）
@@ -283,7 +287,7 @@ function createSparkTexture(size = 128) {
 // 背景粒子 & アクセント粒子
 // ======================================================
 function createBackgroundParticles() {
-  const count = 3000; // 数
+  const count = 2500; // 数
 
   const positions = new Float32Array(count * 3);
   const speeds = new Float32Array(count);
