@@ -16,7 +16,7 @@ function drawLogo(w, h, timestamp){
     const CYCLE = 11;
     const t = (elapsed % CYCLE) / CYCLE;
 
-    const fontSize = h * 0.55;
+    const fontSize = h * 0.60;
     ctx.font = `500 ${fontSize}px 'Cormorant Garamond'`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";

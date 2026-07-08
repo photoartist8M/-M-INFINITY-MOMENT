@@ -76,6 +76,7 @@ function requestTiltPermission(){
 }
 requestTiltPermission();
 
+
 // ======================================================
 // 描画ループ
 // ------------------------------------------------------
@@ -96,9 +97,13 @@ function draw(timestamp){
 
     ctx.clearRect(0, 0, w, h);
 
-    const cx = w / 2;
+   // 変更後：微調整用のオフセットを追加
+const cx = w / 2;
     const cy = h / 2;
-    const light = { x: cx, y: h * 0.28 }; // 光源位置(タイトル上方やや中心寄り)
+
+    const OFFSET_X = w * 0.065; // 右へずらす量（t と i の間 → i の上へ寄せる）
+
+    const light = { x: cx + OFFSET_X, y: h * 0.28 };
     const baseSize = Math.min(w, h) * 0.9;
     const t = timestamp * 0.001;
 

@@ -79,31 +79,20 @@ body{
    Opening Layout
    ========================================================== */
 
+/* 変更後 */
 #opening{
-
     width:min(92vw,520px);
-
-    /* 高さ固定を廃止 */
     min-height:100vh;
-
     display:flex;
     flex-direction:column;
-
     align-items:center;
-
-    /* flex-start → center：全体を縦方向の中央寄りに */
     justify-content:center;
-
-    /* 全体の余白管理をgapへ統一 */
-    gap:28px;
-
+    gap:40px; /* 28px→40px：詩がなくなった分の余白を項目間に配分 */
     padding:
         max(34px,env(safe-area-inset-top))
         24px
         max(26px,env(safe-area-inset-bottom));
-
     margin:0 auto;
-
 }
 
 
@@ -112,31 +101,23 @@ body{
    ========================================================== */
 
 .titleArea{
-
-    position:relative; /* 背景演出（太陽フレア・時計モチーフ等）を後ろに絶対配置するための基準 */
-
+    position:relative;
     width:100%;
-
     display:flex;
-
     flex-direction:column;
-
     align-items:center;
-
     justify-content:center;
-
     flex-shrink:0;
-
-    padding-block:12px; /* 背景演出がはみ出しても窮屈にならない余白 */
-
+    padding-block:12px;
+    top:-45px;/* 数値を大きくするほど上へ。まずは-24pxで試す */
 }
 
 /* 太陽フレアや時計のような背景演出を後から差し込む場所（現状は空） */
 #flareCanvas{
     position:absolute;
-    top:50%;
+    top:45%;
     left:50%;
-    width:min(140vw,900px);
+    width:min(170vw,1100px);
     aspect-ratio:1/1;
     transform:translate(-50%,-50%);
     z-index:-1;
@@ -222,18 +203,17 @@ body{
 }
 
 /* ==========================================================
-   Start Button
+   Start Button（Antique Clock）
    ========================================================== */
 
 #startButton{
 
     width:min(240px,72vw);
-
     height:46px;
 
     border-radius:999px;
 
-    border:1px solid var(--border);
+    border:1px solid rgba(216,180,106,.18);
 
     background:var(--glass);
 
@@ -246,18 +226,20 @@ body{
     cursor:pointer;
 
     backdrop-filter:blur(18px);
-
     -webkit-backdrop-filter:blur(18px);
 
     transition:all var(--transition);
 
-    box-shadow:var(--shadow);
+    box-shadow:
+        var(--shadow),
+        0 0 18px rgba(216,180,106,.04);
 
     position:relative;
 
-    overflow:hidden;
-
+    overflow:visible;
 }
+
+/* ガラスの光 */
 
 #startButton::before{
 
@@ -267,41 +249,63 @@ body{
 
     inset:0;
 
+    border-radius:999px;
+
     background:
-
         linear-gradient(
-
             115deg,
-
             transparent 0%,
-
             rgba(255,255,255,.28) 48%,
-
             rgba(255,255,255,.05) 55%,
-
             transparent 100%
-
         );
 
     transform:translateX(-140%);
 
-    animation:
-
-        buttonShine
-
-        7s
-
-        linear
-
-        infinite;
+    animation:buttonShine 7s linear infinite;
 
 }
+
+/* 時計の細いリング */
+
+#startButton::after{
+
+    content:"";
+
+    position:absolute;
+
+    left:50%;
+    top:50%;
+
+    transform:translate(-50%,-50%);
+
+    width:290px;
+    height:290px;
+
+    border-radius:50%;
+
+    border:1px solid rgba(216,180,106,.08);
+
+    box-shadow:
+        inset 0 0 18px rgba(216,180,106,.03);
+
+    pointer-events:none;
+
+}
+
+/* Hover */
 
 #startButton:hover{
 
     background:var(--glassHover);
 
+    border-color:rgba(216,180,106,.28);
+
     transform:translateY(-2px);
+
+    box-shadow:
+        var(--shadow),
+        0 0 26px rgba(216,180,106,.08);
 
 }
 
@@ -315,55 +319,38 @@ body{
    ========================================================== */
 
 .bottomBar{
-
     width:100%;
-
     display:flex;
-
     justify-content:space-between;
-
     align-items:center;
-
-    gap:14px;
-
-    margin-top:30px;
-
+    gap:10px; /* 14px→10px */
+    margin-top:22px;
 }
 
 .bottomBar button{
-
     flex:1;
-
-    height:50px;
-
+    height:24px; 
     border:none;
-
-    border-radius:16px;
-
-    border:1px solid var(--border);
-
-    background:var(--glass);
-
-    color:rgba(255,255,255,.88);
-
-    font-size:.86rem;
-
-    letter-spacing:.08em;
-
+    border-radius:10px;
+    border:1px solid rgba(255,255,255,.05); /* 枠をさらに薄く */
+    background:rgba(255,255,255,.015); /* ほぼ見えないくらいに */
+    color:rgba(255,255,255,.32); /* 文字も一段暗く */
+    font-size:.58rem; 
+    letter-spacing:.05em;
     cursor:pointer;
-
     transition:all var(--transition);
-
-    backdrop-filter:blur(18px);
-
-    -webkit-backdrop-filter:blur(18px);
-
-    box-shadow:var(--shadow);
-
+    backdrop-filter:blur(10px); /* ぼかしも弱めて軽量化 */
+    -webkit-backdrop-filter:blur(10px);
+    box-shadow:
+        inset 0 1px 2px rgba(0,0,0,.3), /* 奥まった質感を出す内側の影 */
+        0 0 0 1px rgba(0,0,0,.15);
     position:relative;
-
     overflow:hidden;
+}
 
+.bottomBar button:hover{
+    background:rgba(255,255,255,.04);
+    color:rgba(255,255,255,.55);
 }
 
 .bottomBar button:hover{
@@ -595,9 +582,9 @@ body.loaded .bottomBar{
 
     .bottomBar button{
 
-        height:46px;
+        height:22px;
 
-        font-size:.8rem;
+        font-size:.55rem;
 
     }
 

@@ -33,6 +33,36 @@ window.addEventListener("resize", resizeOverlay);
 let particles = [];
 let logoRAF;
 
+const TITLE_PARTICLE_PALETTE = [
+    "255,224,179", // 淡い琥珀色 (#ffe0b3)
+    "251,240,219", // 極めて淡いゴールド (#fbf0db)
+    "255,248,240", // ほぼ白に近い暖白 (#fff8f0)
+];
+
+// ======================================================
+// 粒子用グロー画像を色ごとに事前生成（毎フレームのgradient生成コストを排除）
+// ======================================================
+const GLOW_SPRITE_SIZE = 32; // スプライトの解像度(px)。粒子はこれを拡大縮小して使う
+const glowSprites = {};
+
+TITLE_PARTICLE_PALETTE.forEach(color => {
+    const spriteCanvas = document.createElement("canvas");
+    spriteCanvas.width = GLOW_SPRITE_SIZE;
+    spriteCanvas.height = GLOW_SPRITE_SIZE;
+    const sctx = spriteCanvas.getContext("2d");
+
+    const half = GLOW_SPRITE_SIZE / 2;
+    const gradient = sctx.createRadialGradient(half, half, 0, half, half, half);
+    gradient.addColorStop(0.0, `rgba(${color},1)`);
+    gradient.addColorStop(0.4, `rgba(${color},0.5)`);
+    gradient.addColorStop(1.0, `rgba(${color},0)`);
+
+    sctx.fillStyle = gradient;
+    sctx.fillRect(0, 0, GLOW_SPRITE_SIZE, GLOW_SPRITE_SIZE);
+
+    glowSprites[color] = spriteCanvas;
+});
+
 function getLogoParticlesInViewportSpace(sampleGap){
     const rect = canvas.getBoundingClientRect();
     const DPR = window.devicePixelRatio || 1;
@@ -56,69 +86,55 @@ function getLogoParticlesInViewportSpace(sampleGap){
 function explodeLogo(){
     stopLogoAnimation();
 
-    const points = getLogoParticlesInViewportSpace(3);
+    const points = getLogoParticlesInViewportSpace(2);
     console.log(points.length);
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // ── ロゴ以外の要素(日本語タイトル・コンセプト文・ボタン群)を同時にフェードアウト ──
-   const titleJapanese = document.querySelector(".titleJapanese");
+    const titleJapanese = document.querySelector(".titleJapanese");
     const concept = document.querySelector(".concept");
     const bottomBar = document.querySelector(".bottomBar");
     const startBtn = document.getElementById("startButton");
 
     [titleJapanese, concept, bottomBar, startBtn].forEach(el => {
         if(el){
-            el.style.transition = "opacity 0.4s ease"; // 1.2s → 0.4s
+            el.style.transition = "opacity 0.4s ease";
             el.style.opacity = "0";
         }
     });
-     const TITLE_PARTICLE_PALETTE = [
-    "255,224,179", // 淡い琥珀色 (#ffe0b3)
-    "251,240,219", // 極めて淡いゴールド (#fbf0db)
-    "255,248,240", // ほぼ白に近い暖白 (#fff8f0)
-];
+    particles = points.map(p => {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = 1.5 + Math.random() * 6.5;
+        const color = TITLE_PARTICLE_PALETTE[Math.floor(Math.random() * TITLE_PARTICLE_PALETTE.length)];
 
-particles = points.map(p => {
-    const angle = Math.random() * Math.PI * 2;
-    const speed = 1.5 + Math.random() * 6.5;
-    const color = TITLE_PARTICLE_PALETTE[Math.floor(Math.random() * TITLE_PARTICLE_PALETTE.length)];
-
-    return {
-        x: p.x,
-        y: p.y,
-        vx: Math.cos(angle) * speed,
-        vy: Math.sin(angle) * speed - 0.8,
-        life: 1.0,
-        decay: 0.008 + Math.random() * 0.0012,
-        size: 1.3 + Math.random() * 2.0,
-        color: color // ← 追加
-    };
-});
+        return {
+            x: p.x,
+            y: p.y,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed - 0.8,
+            life: 1.0,
+            decay: 0.008 + Math.random() * 0.0012,
+            size: 1.3 + Math.random() * 2.0,
+            color: color
+        };
+    });
 
     cancelAnimationFrame(logoRAF);
     animateParticles();
 }
+
 // ======================================================
 // 崩壊完了 → オープニングを破棄して次の空間(main.js)を起動
 // ======================================================
 let mainSceneStarted = false;
 
-// 空間側(DOOR_PARTICLE_PALETTE)と揃えた淡いパレット
-const TITLE_PARTICLE_PALETTE = [
-    "255,224,179", // 淡い琥珀色 (#ffe0b3)
-    "251,240,219", // 極めて淡いゴールド (#fbf0db)
-    "255,248,240", // ほぼ白に近い暖白 (#fff8f0)
-];
-
-// 粒子アニメーションの進行度に応じて、途中から次空間をフェードインさせる
 function animateParticles(){
     octx.clearRect(0, 0, window.innerWidth, window.innerHeight);
 
     let alive = false;
     let maxLife = 0;
 
-    octx.globalCompositeOperation = "lighter"; // 加算合成でキラキラ感を出す
+    octx.globalCompositeOperation = "lighter";
 
     for(const p of particles){
         p.x += p.vx;
@@ -133,26 +149,21 @@ function animateParticles(){
 
             octx.globalAlpha = p.life;
 
-            // グロー効果：中心が明るく、外側にいくほど透明になるグラデーション
             const glowSize = p.size * 3;
-            const gradient = octx.createRadialGradient(
-                p.x, p.y, 0,
-                p.x, p.y, glowSize
-            );
-            gradient.addColorStop(0.0, `rgba(${p.color},1)`);
-            gradient.addColorStop(0.4, `rgba(${p.color},0.5)`);
-            gradient.addColorStop(1.0, `rgba(${p.color},0)`);
+            const sprite = glowSprites[p.color];
 
-            octx.fillStyle = gradient;
-            octx.beginPath();
-            octx.arc(p.x, p.y, glowSize, 0, Math.PI * 2);
-            octx.fill();
+            octx.drawImage(
+                sprite,
+                p.x - glowSize,
+                p.y - glowSize,
+                glowSize * 2,
+                glowSize * 2
+            );
         }
     }
     octx.globalAlpha = 1;
-    octx.globalCompositeOperation = "source-over"; // 元に戻す
+    octx.globalCompositeOperation = "source-over";
 
-    // ── 粒子がまだ40%以上残っている段階で、裏で次空間の読み込みを開始 ──
     if(maxLife < 0.6 && !mainSceneStarted){
         mainSceneStarted = true;
         preloadMainScene();
@@ -183,23 +194,23 @@ function onLogoDissolveComplete(){
 async function preloadMainScene(){
     const mainCanvas = document.getElementById("canvas");
     mainCanvas.style.opacity = "0";
-    mainCanvas.style.transition = "opacity 1.6s ease"; // ゆっくり重なるように長め
+    mainCanvas.style.transition = "opacity 1.6s ease";
     mainCanvas.style.display = "block";
 
     await import("../../main.js");
 
-    // 読み込み完了後、次のフレームでフェードインを開始
     requestAnimationFrame(() => {
         mainCanvas.style.opacity = "1";
     });
 }
+
 // ======================================================
 // オープニング演出の完全破棄(メモリ解放)
 // ======================================================
 function disposeOpeningScene(){
     cancelAnimationFrame(logoRAF);
     stopLogoAnimation();
-    disposeFlareBackground(); // ← 追加：resize/deviceorientationのリスナーも解放
+    disposeFlareBackground();
     particles = [];
     window.removeEventListener("resize", resizeOverlay);
 
@@ -228,6 +239,9 @@ async function startMainScene(){
 // Start ボタン
 // ======================================================
 document.getElementById("startButton").addEventListener("click", () => {
+    if (navigator.vibrate) {
+        navigator.vibrate(12);
+    }
     explodeLogo();
 });
 
@@ -254,3 +268,4 @@ closeInfo.addEventListener("click", () => infoPanel.classList.remove("show"));
 // 初期フェードイン開始
 // ======================================================
 document.body.classList.add("loaded");
+
