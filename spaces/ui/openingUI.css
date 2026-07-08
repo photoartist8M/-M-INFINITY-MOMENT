@@ -132,26 +132,16 @@ body{
 }
 
 /* 太陽フレアや時計のような背景演出を後から差し込む場所（現状は空） */
-.titleArea::before{
-
-    content:"";
-
+#flareCanvas{
     position:absolute;
-
     top:50%;
     left:50%;
-
     width:min(140vw,900px);
     aspect-ratio:1/1;
-
     transform:translate(-50%,-50%);
-
-    z-index:-1; /* ロゴの後ろに配置 */
-
+    z-index:-1;
     pointer-events:none;
-
-    /* 例：background: url("../assets/sunflare.png") center/contain no-repeat; */
-
+    display:block;
 }
 
 #logoCanvas{

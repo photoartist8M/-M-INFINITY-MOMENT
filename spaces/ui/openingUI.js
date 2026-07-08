@@ -1,4 +1,5 @@
 import { canvas, ctx, drawLogo, stopLogoAnimation } from "./logoCanvas.js";
+import { disposeFlareBackground } from "./flareBackground.js";
 
 // ======================================================
 // 画面全体を覆う爆発用オーバーレイcanvas
@@ -198,6 +199,7 @@ async function preloadMainScene(){
 function disposeOpeningScene(){
     cancelAnimationFrame(logoRAF);
     stopLogoAnimation();
+    disposeFlareBackground(); // ← 追加：resize/deviceorientationのリスナーも解放
     particles = [];
     window.removeEventListener("resize", resizeOverlay);
 
