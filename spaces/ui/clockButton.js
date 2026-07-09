@@ -82,7 +82,8 @@ vec3 pastelPalette(float density, float angle, float t){
 void main(){
   vec2 rawUV = (gl_FragCoord.xy - 0.5*uResolution) / min(uResolution.x, uResolution.y);
   float rawRadius = length(rawUV);
-  float hardEdgeFade = smoothstep(0.95, 0.5, rawRadius);
+float hardEdgeFade =
+    smoothstep(1.22, 0.35, rawRadius);
 
   vec2 uv = rawUV / 0.58;
 
@@ -123,8 +124,38 @@ void main(){
 
   color += vec3(1.0,0.98,0.95) * sparkle;
   alpha = clamp(alpha + sparkle, 0.0, 1.0);
+float aura =
+    pow(
+        clamp(
+            1.0 - rawRadius / 1.25,
+            0.0,
+            1.0
+        ),
+        3.2
+    );
 
+alpha =
+    max(alpha, aura * 0.08);
   alpha *= hardEdgeFade;
+  float fade =
+    smoothstep(
+        1.28,
+        0.25,
+        rawRadius
+    );
+
+alpha *= fade;
+
+/* 外側だけ残すオーラ */
+
+float outerAura =
+    smoothstep(
+        1.10,
+        0.82,
+        rawRadius
+    );
+
+alpha += outerAura*0.06;
 
   gl_FragColor = vec4(color * alpha, alpha);
 }
@@ -175,8 +206,8 @@ function buildRingCache(){
     octx.setTransform(DPR, 0, 0, DPR, 0, 0);
 
     const cx = size / 2, cy = size / 2;
-    const outerR = refSize * 0.48;
-    const innerR = outerR - refSize * 0.028;
+    const outerR = refSize * 0.455;
+    const innerR = outerR - refSize * 0.016;
     const buttonR = refSize * 0.34;
 
     const drawGlowRing = (radius, color, coreWidth) => {
@@ -214,8 +245,8 @@ function buildRingCache(){
         const r1 = outerR + refSize * 0.012;
         const r2 = r1 + tickLen;
 
-        octx.globalAlpha = isMajor ? 0.32 : 0.16;
-        octx.lineWidth = isMajor ? refSize * 0.0025 : refSize * 0.0015;
+        octx.globalAlpha = isMajor ? 0.75 : 0.35;
+        octx.lineWidth =isMajor? refSize*0.005: refSize*0.003;
 
         octx.beginPath();
         octx.moveTo(cx + Math.cos(tickAngle) * r1, cy + Math.sin(tickAngle) * r1);
@@ -233,7 +264,7 @@ function buildRingCache(){
         { label: "IX",  angle: Math.PI },
     ];
     octx.save();
-    octx.font = `400 ${refSize * 0.052}px "Cormorant Garamond", serif`;
+    octx.font = `400 ${refSize * 0.065}px "Cormorant Garamond", serif`;
     octx.textAlign = "center";
     octx.textBaseline = "middle";
     octx.fillStyle = "rgba(230,195,140,0.68)";
@@ -273,9 +304,9 @@ orbitSprite.height = ORBIT_SPRITE_SIZE;
 })();
 
 function drawOrbitLight(now){
-    const size = rw;
+    const size = Math.min(rw,rh);
     const cx = size / 2, cy = size / 2;
-    const outerR = size * 0.48;
+    const outerR = size * 0.455;
 
     const progress = (now % 60000) / 60000;
     const angle = progress * Math.PI * 2 - Math.PI / 2;
