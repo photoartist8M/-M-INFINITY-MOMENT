@@ -79,7 +79,6 @@ body{
    Opening Layout
    ========================================================== */
 
-/* 変更後 */
 #opening{
     width:min(92vw,520px);
     min-height:100vh;
@@ -87,7 +86,7 @@ body{
     flex-direction:column;
     align-items:center;
     justify-content:center;
-    gap:40px; /* 28px→40px：詩がなくなった分の余白を項目間に配分 */
+    gap:40px;
     padding:
         max(34px,env(safe-area-inset-top))
         24px
@@ -109,10 +108,9 @@ body{
     justify-content:center;
     flex-shrink:0;
     padding-block:12px;
-    top:-45px;/* 数値を大きくするほど上へ。まずは-24pxで試す */
+    top:-45px;
 }
 
-/* 太陽フレアや時計のような背景演出を後から差し込む場所（現状は空） */
 #flareCanvas{
     position:absolute;
     top:45%;
@@ -126,194 +124,103 @@ body{
 }
 
 #logoCanvas{
-
     width:min(96vw,760px);
-
     max-width:760px;
-
     aspect-ratio:700 / 170;
-
     height:auto;
-
     display:block;
-
     pointer-events:none;
-
-    position:relative; /* ::beforeより手前に来るよう明示 */
-
+    position:relative;
     z-index:1;
-
 }
 
 .titleJapanese{
-
     margin-top:10px;
-
     font-size:clamp(.95rem,3.5vw,1.28rem);
-
     font-weight:300;
-
     letter-spacing:.42em;
-
     color:rgba(220,220,220,.88);
-
     text-align:center;
-
     line-height:1.8;
-
 }
 
 
 /* ==========================================================
-   Concept
+   Clock Button（円形・ネビュラ・リング・周回光）
    ========================================================== */
 
-.concept{
-
-    width:100%;
-
-    display:flex;
-
-    flex-direction:column;
-
-    align-items:center;
-
-    gap:18px;
-
-    padding-inline:10px;
-
+#clockButtonWrap{
+    position:relative;
+    width:min(230px,62vw);
+    aspect-ratio:1/1;
     flex-shrink:0;
-
 }
 
-.concept p{
-
-    max-width:30em;
-
-    text-align:center;
-
-    line-height:2.05;
-
-    font-size:clamp(.88rem,3.2vw,1.02rem);
-
-    color:rgba(255,255,255,.82);
-
-    letter-spacing:.06em;
-
+/* ネビュラ：外周にオーラのように滲み出せるよう、枠より一回り大きく */
+#nebulaCanvas{
+    position:absolute;
+    top:50%;
+    left:50%;
+    width:150%;
+    height:150%;
+    transform:translate(-50%,-50%);
+    pointer-events:none;
+    clip-path: circle(38% at 50% 50%); /* リングの内側に収まるサイズ */
 }
 
-/* ==========================================================
-   Start Button（Antique Clock）
-   ========================================================== */
+/* リング・数字・周回光 */
+#ringCanvas{
+    position:absolute;
+    top:50%;
+    left:50%;
+    width:112%;
+    height:112%;
+    transform:translate(-50%,-50%);
+    pointer-events:none;
+}
 
 #startButton{
+    position:absolute;
+    inset:0;
+    margin:auto;
+    width:68%;
+    aspect-ratio:1/1;
+    border-radius:50%;
 
-    width:min(240px,72vw);
-    height:46px;
+    border:none;
+    background:transparent;
 
-    border-radius:999px;
+    color:#f2ecdf;
+    font-family:"Cormorant Garamond", serif;
 
-    border:1px solid rgba(216,180,106,.18);
-
-    background:var(--glass);
-
-    color:white;
-
-    font-size:.82rem;
-
-    letter-spacing:.18em;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
 
     cursor:pointer;
 
-    backdrop-filter:blur(18px);
-    -webkit-backdrop-filter:blur(18px);
-
-    transition:all var(--transition);
-
-    box-shadow:
-        var(--shadow),
-        0 0 18px rgba(216,180,106,.04);
-
-    position:relative;
-
-    overflow:visible;
+    transition:transform .15s ease;
 }
 
-/* ガラスの光 */
-
-#startButton::before{
-
-    content:"";
-
-    position:absolute;
-
-    inset:0;
-
-    border-radius:999px;
-
-    background:
-        linear-gradient(
-            115deg,
-            transparent 0%,
-            rgba(255,255,255,.28) 48%,
-            rgba(255,255,255,.05) 55%,
-            transparent 100%
-        );
-
-    transform:translateX(-140%);
-
-    animation:buttonShine 7s linear infinite;
-
+#startButton span{
+    font-size:1.15rem;
+    letter-spacing:.16em;
+    text-shadow:0 0 12px rgba(255,240,220,.35);
 }
 
-/* 時計の細いリング */
-
-#startButton::after{
-
-    content:"";
-
-    position:absolute;
-
-    left:50%;
-    top:50%;
-
-    transform:translate(-50%,-50%);
-
-    width:290px;
-    height:290px;
-
-    border-radius:50%;
-
-    border:1px solid rgba(216,180,106,.08);
-
-    box-shadow:
-        inset 0 0 18px rgba(216,180,106,.03);
-
-    pointer-events:none;
-
-}
-
-/* Hover */
-
-#startButton:hover{
-
-    background:var(--glassHover);
-
-    border-color:rgba(216,180,106,.28);
-
-    transform:translateY(-2px);
-
-    box-shadow:
-        var(--shadow),
-        0 0 26px rgba(216,180,106,.08);
-
+#startButton small{
+    font-size:.82rem;
+    letter-spacing:.14em;
+    margin-top:.35em;
+    opacity:.85;
 }
 
 #startButton:active{
-
-    transform:scale(.985);
-
+    transform:scale(.96);
 }
+
+
 /* ==========================================================
    Bottom Bar
    ========================================================== */
@@ -323,26 +230,26 @@ body{
     display:flex;
     justify-content:space-between;
     align-items:center;
-    gap:10px; /* 14px→10px */
+    gap:10px;
     margin-top:22px;
 }
 
 .bottomBar button{
     flex:1;
-    height:24px; 
+    height:24px;
     border:none;
     border-radius:10px;
-    border:1px solid rgba(255,255,255,.05); /* 枠をさらに薄く */
-    background:rgba(255,255,255,.015); /* ほぼ見えないくらいに */
-    color:rgba(255,255,255,.32); /* 文字も一段暗く */
-    font-size:.58rem; 
+    border:1px solid rgba(255,255,255,.05);
+    background:rgba(255,255,255,.015);
+    color:rgba(255,255,255,.32);
+    font-size:.58rem;
     letter-spacing:.05em;
     cursor:pointer;
     transition:all var(--transition);
-    backdrop-filter:blur(10px); /* ぼかしも弱めて軽量化 */
+    backdrop-filter:blur(10px);
     -webkit-backdrop-filter:blur(10px);
     box-shadow:
-        inset 0 1px 2px rgba(0,0,0,.3), /* 奥まった質感を出す内側の影 */
+        inset 0 1px 2px rgba(0,0,0,.3),
         0 0 0 1px rgba(0,0,0,.15);
     position:relative;
     overflow:hidden;
@@ -353,18 +260,8 @@ body{
     color:rgba(255,255,255,.55);
 }
 
-.bottomBar button:hover{
-
-    background:var(--glassHover);
-
-    transform:translateY(-2px);
-
-}
-
 .bottomBar button:active{
-
     transform:scale(.98);
-
 }
 
 
@@ -373,127 +270,70 @@ body{
    ========================================================== */
 
 #infoPanel{
-
     position:fixed;
-
     inset:0;
-
     background:rgba(0,0,0,.72);
-
     backdrop-filter:blur(18px);
-
     -webkit-backdrop-filter:blur(18px);
-
     display:flex;
-
     justify-content:center;
-
     align-items:center;
-
     opacity:0;
-
     visibility:hidden;
-
     transition:
-
         opacity .45s ease,
-
         visibility .45s ease;
-
     z-index:100;
-
 }
 
 #infoPanel.show{
-
     opacity:1;
-
     visibility:visible;
-
 }
 
 .infoContent{
-
     width:min(90vw,520px);
-
     background:rgba(20,20,20,.78);
-
     border:1px solid rgba(255,255,255,.14);
-
     border-radius:28px;
-
     padding:34px 28px;
-
     box-shadow:
-
         0 24px 80px rgba(0,0,0,.65);
-
     display:flex;
-
     flex-direction:column;
-
     gap:22px;
-
 }
 
 .infoContent h3{
-
-    font-family:
-
-        "Cormorant Garamond",
-
-        serif;
-
+    font-family:"Cormorant Garamond", serif;
     font-size:2rem;
-
     font-weight:400;
-
     letter-spacing:.08em;
-
     text-align:center;
-
     color:white;
-
 }
 
 .infoContent p{
-
     font-size:.92rem;
-
     line-height:1.95;
-
     color:rgba(255,255,255,.82);
-
 }
 
 #closeInfo{
-
     align-self:center;
-
     width:180px;
-
     height:48px;
-
     border:none;
-
     border-radius:999px;
-
     background:var(--glass);
-
     border:1px solid var(--border);
-
     color:white;
-
     cursor:pointer;
-
     transition:all var(--transition);
-
 }
 
 #closeInfo:hover{
-
     background:var(--glassHover);
-
 }
 
 
@@ -502,37 +342,22 @@ body{
    ========================================================== */
 
 .titleArea,
-.concept,
-#startButton,
+#clockButtonWrap,
 .bottomBar{
-
     opacity:1;
     transform:translateY(0);
-
 }
 
 body.loaded .titleArea{
-
     animation:fadeUp .9s .2s forwards;
-
 }
 
-body.loaded .concept{
-
-    animation:fadeUp .9s .6s forwards;
-
-}
-
-body.loaded #startButton{
-
+body.loaded #clockButtonWrap{
     animation:fadeUp .9s 1.0s forwards;
-
 }
 
 body.loaded .bottomBar{
-
     animation:fadeUp .9s 1.25s forwards;
-
 }
 
 
@@ -543,49 +368,23 @@ body.loaded .bottomBar{
 @media (max-width:420px){
 
     #opening{
-
         padding:
-
         max(24px,env(safe-area-inset-top))
-
         20px
-
         max(20px,env(safe-area-inset-bottom));
-
     }
 
-    .concept{
-
-        gap:16px;
-
-    }
-
-    .concept p{
-
-        line-height:1.95;
-
-        font-size:.88rem;
-
-    }
-
-    #startButton{
-
-        height:42px;
-
+    #clockButtonWrap{
+        width:min(200px,60vw);
     }
 
     .bottomBar{
-
         gap:10px;
-
     }
 
     .bottomBar button{
-
         height:22px;
-
         font-size:.55rem;
-
     }
 
 }
@@ -596,13 +395,9 @@ body.loaded .bottomBar{
    ========================================================== */
 
 @media (orientation:landscape){
-
     #opening{
-
         transform:scale(.88);
-
     }
-
 }
 
 
@@ -611,63 +406,12 @@ body.loaded .bottomBar{
    ========================================================== */
 
 @keyframes fadeUp{
-
     from{
-
         opacity:0;
-
         transform:translateY(16px);
-
     }
-
     to{
-
         opacity:1;
-
         transform:translateY(0);
-
     }
-
-}
-
-@keyframes titleShine{
-
-    0%{
-        background-position:220% 50%;
-    }
-
-    40%{
-        background-position:220% 50%;
-    }
-
-    70%{
-        background-position:-120% 50%;
-    }
-
-    100%{
-        background-position:-120% 50%;
-    }
-
-}
-
-@keyframes buttonShine{
-
-    0%{
-
-        transform:translateX(-150%);
-
-    }
-
-    12%{
-
-        transform:translateX(150%);
-
-    }
-
-    100%{
-
-        transform:translateX(150%);
-
-    }
-
 }

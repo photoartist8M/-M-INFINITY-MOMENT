@@ -11,10 +11,8 @@
 
   <title>emotional - 時の瞬き</title>
 
-  <!-- オープニングUI用CSS -->
   <link rel="stylesheet" href="./spaces/ui/openingUI.css">
 
-  <!-- 高級感のある英字フォント -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500&display=swap" rel="stylesheet">
@@ -32,15 +30,15 @@
   body {
     margin: 0;
   }
-canvas#canvas {
+  canvas#canvas {
     display: none;
     position: fixed;
     top: 0;
     left: 0;
     width: 100vw;
     height: 100vh;
-    z-index: 10; /* オープニングのoverlay(z-index:50)より下、オープニング本体より上に来るよう調整 */
-}
+    z-index: 10;
+  }
 </style>
 </head>
 <body>
@@ -50,18 +48,30 @@ canvas#canvas {
      ==================================================== -->
 <div id="opening">
 
-<div class="titleArea">
-    <canvas id="flareCanvas"></canvas>
-    <canvas id="logoCanvas"></canvas>
-    <h2 class="titleJapanese">― 時の瞬き ―</h2>
-</div>
+    <div class="titleArea">
+        <canvas id="flareCanvas"></canvas>
+        <canvas id="logoCanvas"></canvas>
 
-  <button id="startButton">Touch to Begin</button>
-  
-  <div class="bottomBar">
-    <button id="bgmButton">♪ BGM ON</button>
-    <button id="infoButton">Information</button>
-  </div>
+        <h2 class="titleJapanese">
+            ― 時の瞬き ―
+        </h2>
+    </div>
+
+    <!-- ===== Clock Button（円形・ネビュラ・リング・周回する光） ===== -->
+    <div id="clockButtonWrap">
+        <canvas id="nebulaCanvas"></canvas>
+        <canvas id="ringCanvas"></canvas>
+
+        <button id="startButton">
+            <span>Touch</span>
+            <small>to Begin</small>
+        </button>
+    </div>
+
+    <div class="bottomBar">
+        <button id="bgmButton">♪ BGM ON</button>
+        <button id="infoButton">Information</button>
+    </div>
 
 </div>
 
@@ -82,6 +92,7 @@ canvas#canvas {
 
 <script type="module" src="./spaces/ui/flareBackground.js"></script>
 <script type="module" src="./spaces/ui/logoCanvas.js"></script>
+<script type="module" src="./spaces/ui/clockButton.js"></script>
 <script type="module" src="./spaces/ui/openingUI.js"></script>
 </body>
 </html>

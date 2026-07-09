@@ -1,5 +1,6 @@
 import { canvas, ctx, drawLogo, stopLogoAnimation } from "./logoCanvas.js";
 import { disposeFlareBackground } from "./flareBackground.js";
+import { disposeClockButton } from "./clockButton.js";
 
 // ======================================================
 // 画面全体を覆う爆発用オーバーレイcanvas
@@ -34,15 +35,12 @@ let particles = [];
 let logoRAF;
 
 const TITLE_PARTICLE_PALETTE = [
-    "255,224,179", // 淡い琥珀色 (#ffe0b3)
-    "251,240,219", // 極めて淡いゴールド (#fbf0db)
-    "255,248,240", // ほぼ白に近い暖白 (#fff8f0)
+    "255,224,179",
+    "251,240,219",
+    "255,248,240",
 ];
 
-// ======================================================
-// 粒子用グロー画像を色ごとに事前生成（毎フレームのgradient生成コストを排除）
-// ======================================================
-const GLOW_SPRITE_SIZE = 32; // スプライトの解像度(px)。粒子はこれを拡大縮小して使う
+const GLOW_SPRITE_SIZE = 32;
 const glowSprites = {};
 
 TITLE_PARTICLE_PALETTE.forEach(color => {
@@ -92,11 +90,10 @@ function explodeLogo(){
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     const titleJapanese = document.querySelector(".titleJapanese");
-    const concept = document.querySelector(".concept");
+    const clockButtonWrap = document.getElementById("clockButtonWrap");
     const bottomBar = document.querySelector(".bottomBar");
-    const startBtn = document.getElementById("startButton");
 
-    [titleJapanese, concept, bottomBar, startBtn].forEach(el => {
+    [titleJapanese, clockButtonWrap, bottomBar].forEach(el => {
         if(el){
             el.style.transition = "opacity 0.4s ease";
             el.style.opacity = "0";
@@ -123,9 +120,6 @@ function explodeLogo(){
     animateParticles();
 }
 
-// ======================================================
-// 崩壊完了 → オープニングを破棄して次の空間(main.js)を起動
-// ======================================================
 let mainSceneStarted = false;
 
 function animateParticles(){
@@ -204,13 +198,11 @@ async function preloadMainScene(){
     });
 }
 
-// ======================================================
-// オープニング演出の完全破棄(メモリ解放)
-// ======================================================
 function disposeOpeningScene(){
     cancelAnimationFrame(logoRAF);
     stopLogoAnimation();
     disposeFlareBackground();
+    disposeClockButton();
     particles = [];
     window.removeEventListener("resize", resizeOverlay);
 
@@ -223,16 +215,6 @@ function disposeOpeningScene(){
     if(infoPanel) infoPanel.remove();
 
     console.log("オープニング演出を破棄しました(メモリ解放完了)");
-}
-
-// ======================================================
-// main.js を動的に読み込んで起動(オープニング中は一切ロードしない)
-// ======================================================
-async function startMainScene(){
-    const mainCanvas = document.getElementById("canvas");
-    mainCanvas.style.display = "block";
-
-    await import("../../main.js");
 }
 
 // ======================================================
@@ -268,4 +250,3 @@ closeInfo.addEventListener("click", () => infoPanel.classList.remove("show"));
 // 初期フェードイン開始
 // ======================================================
 document.body.classList.add("loaded");
-
