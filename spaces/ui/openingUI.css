@@ -38,40 +38,27 @@
 }
 
 html{
-
     width:100%;
     min-height:100%;
-
     background:#000;
-
     overflow-x:hidden;
     overflow-y:auto;
-
     -webkit-text-size-adjust:100%;
-
 }
 
 body{
-
     width:100%;
     min-height:100vh;
-
     background:var(--bg);
-
     color:white;
-
     font-family:"Noto Serif JP",serif;
-
     overflow-x:hidden;
     overflow-y:auto;
-
     display:flex;
     justify-content:center;
     align-items:flex-start;
-
     -webkit-font-smoothing:antialiased;
     text-rendering:optimizeLegibility;
-
 }
 
 
@@ -88,7 +75,7 @@ body{
     justify-content:center;
     gap:40px;
     padding:
-        max(34px,env(safe-area-inset-top))
+        max(90px,env(safe-area-inset-top))
         24px
         max(26px,env(safe-area-inset-bottom));
     margin:0 auto;
@@ -108,7 +95,16 @@ body{
     justify-content:center;
     flex-shrink:0;
     padding-block:12px;
-    top:-45px;
+    opacity:0;
+}
+
+body.loaded .titleArea{
+    animation:titleFadeIn 1.5s ease forwards;
+}
+
+@keyframes titleFadeIn{
+    from{ opacity:0; }
+    to{ opacity:1; }
 }
 
 #flareCanvas{
@@ -121,6 +117,16 @@ body{
     z-index:-1;
     pointer-events:none;
     display:block;
+}
+
+#flareCanvas.flash{
+    animation:flareFlash .7s ease;
+}
+
+@keyframes flareFlash{
+    0%{ filter:brightness(1); }
+    30%{ filter:brightness(2.1) saturate(1.25); }
+    100%{ filter:brightness(1); }
 }
 
 #logoCanvas{
@@ -151,25 +157,31 @@ body{
 
 #clockButtonWrap{
     position:relative;
-    width:min(230px,62vw);
+    width:min(260px,66vw);
     aspect-ratio:1/1;
     flex-shrink:0;
+    opacity:0;
 }
 
-/* ネビュラ：外周にオーラのように滲み出せるよう、枠より一回り大きく */
+#clockButtonWrap.reveal{
+    animation:fadeInPlace 1.2s ease forwards;
+}
+
+@keyframes fadeInPlace{
+    from{ opacity:0; }
+    to{ opacity:1; }
+}
+
 #nebulaCanvas{
     position:absolute;
     top:50%;
     left:50%;
-
     width:135%;
     height:135%;
-
     transform:translate(-50%,-50%);
     pointer-events:none;
 }
 
-/* リング・数字・周回光 */
 #ringCanvas{
     position:absolute;
     top:50%;
@@ -233,14 +245,19 @@ body{
     align-items:center;
     gap:10px;
     margin-top:22px;
+    opacity:0;
+    transform:translateY(16px);
+}
+
+.bottomBar.reveal{
+    animation:fadeUp .9s ease forwards;
 }
 
 .bottomBar button{
     flex:1;
     height:24px;
-    border:none;
     border-radius:10px;
-    border:1px solid rgba(255,255,255,.05);
+    border:1px solid rgba(255,215,145,.28);
     background:rgba(255,255,255,.015);
     color:rgba(255,255,255,.32);
     font-size:.58rem;
@@ -251,7 +268,7 @@ body{
     -webkit-backdrop-filter:blur(10px);
     box-shadow:
         inset 0 1px 2px rgba(0,0,0,.3),
-        0 0 0 1px rgba(0,0,0,.15);
+        0 0 6px rgba(255,215,145,.12);
     position:relative;
     overflow:hidden;
 }
@@ -263,6 +280,26 @@ body{
 
 .bottomBar button:active{
     transform:scale(.98);
+}
+
+
+/* ==========================================================
+   Credit
+   ========================================================== */
+
+.credit{
+    width:100%;
+    text-align:center;
+    margin-top:-28px; /* gapの40pxを打ち消して、実質12px程度の間隔にする */
+    font-family:"Cormorant Garamond", serif;
+    font-size:.9rem;
+    letter-spacing:.14em;
+    color:rgba(230,175,190,.42);
+    opacity:0;
+}
+
+.credit.reveal{
+    animation:fadeUp .9s ease forwards;
 }
 
 
@@ -339,30 +376,6 @@ body{
 
 
 /* ==========================================================
-   Fade In
-   ========================================================== */
-
-.titleArea,
-#clockButtonWrap,
-.bottomBar{
-    opacity:1;
-    transform:translateY(0);
-}
-
-body.loaded .titleArea{
-    animation:fadeUp .9s .2s forwards;
-}
-
-body.loaded #clockButtonWrap{
-    animation:fadeUp .9s 1.0s forwards;
-}
-
-body.loaded .bottomBar{
-    animation:fadeUp .9s 1.25s forwards;
-}
-
-
-/* ==========================================================
    Responsive
    ========================================================== */
 
@@ -376,7 +389,7 @@ body.loaded .bottomBar{
     }
 
     #clockButtonWrap{
-        width:min(200px,60vw);
+        width:min(225px,64vw);
     }
 
     .bottomBar{

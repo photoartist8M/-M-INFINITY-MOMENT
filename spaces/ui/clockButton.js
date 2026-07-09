@@ -11,15 +11,13 @@ const DPR = Math.min(window.devicePixelRatio || 1, 1.5);
 let nw = 0, nh = 0;
 let rw = 0, rh = 0;
 
-// ── ⑨ サイズ計算の統一（定数基準ロジック） ──
 let BASE_SIZE = 0;
 let CLOCK_RADIUS = 0;
 
-// アニメーション・演出管理ステート
 let isTouched = false;
 let touchStartTime = 0;
-let touchProgress = 0; // 0.0 -> 1.0
-let orbitAngle = -Math.PI / 2; // 光の粒の累積角度
+let touchProgress = 0;
+let orbitAngle = -Math.PI / 2;
 let lastFrameTime = 0;
 
 function resizeCanvases(){
@@ -35,16 +33,15 @@ function resizeCanvases(){
     ringCanvas.height = rh * DPR;
     rctx.setTransform(DPR, 0, 0, DPR, 0, 0);
 
-    // 画面サイズに基づき基準半径を一元決定
     BASE_SIZE = Math.min(rw, rh);
-    CLOCK_RADIUS = BASE_SIZE * 0.40; // 画像の美しいバランスに合わせた基準半径
+    CLOCK_RADIUS = BASE_SIZE * 0.40;
 
     buildRingCache();
 }
 window.addEventListener("resize", resizeCanvases);
 
 // ======================================================
-// ①・②・③ ネビュラ（生WebGLシェーダー / GLSLフェード）
+// ネビュラ（生WebGLシェーダー）
 // ======================================================
 const vertSrc = `
 attribute vec2 aPos;
@@ -56,7 +53,7 @@ precision highp float;
 uniform vec2 uResolution;
 uniform float uTime;
 uniform float uClockRadius;
-uniform float uTouchProgress; // ── 消滅演出用 ──
+uniform float uTouchProgress;
 
 float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453123); }
 float vnoise(vec2 p){
@@ -95,21 +92,17 @@ vec3 pastelPalette(float density, float angle, float t){
 }
 
 void main(){
-  // 中心からのピクセル距離ベースに修正 (CSSのclip-path依存を排除)
   vec2 rawUV = (gl_FragCoord.xy - 0.5*uResolution) / min(uResolution.x, uResolution.y);
   float rawRadius = length(rawUV);
 
-  // ── ①・② GLSLによる自然な円形フェードアウトと宇宙の星雲表現 ──
-  // リングの少し外側で完全に消えるようマージンを計算
   float maxEdge = uClockRadius / min(uResolution.x, uResolution.y) * 2.5; 
   float hardEdgeFade = smoothstep(maxEdge, maxEdge * 0.7, rawRadius);
 
-  // 中心ほど濃く、リングに向けて淡くなる星雲のグラデーション密度
   vec2 uv = rawUV / (maxEdge * 0.45);
   float radius = length(uv);
   float angle = atan(uv.y, uv.x);
   
-  float t = uTime * 0.03; // ── ③ 流れをより自然に有機的に ──
+  float t = uTime * 0.03;
   vec2 p = uv * 1.2 + vec2(sin(t*0.5)*0.2, t);
   vec2 q = vec2(fbm(p + vec2(0.0, t)), fbm(p + vec2(3.2, 1.5)));
   float cloud = fbm(p + 0.8*q);
@@ -122,13 +115,11 @@ void main(){
   float coreGlow = colorFalloff * density * 1.5;
   float coreAlpha = clamp(haze + coreGlow, 0.0, 1.0);
 
-  // 外周のうっすら漂うオーラ層
   float auraFalloff = pow(clamp(1.0 - rawRadius/(maxEdge*0.9), 0.0, 1.0), 3.0);
   float auraAlpha = auraFalloff * cloud * 0.25;
 
   float alpha = clamp(coreAlpha + auraAlpha, 0.0, 1.0);
 
-  // 煌めく星々
   float sparkleDensity = 26.0;
   vec2 sparkleCoord = uv * sparkleDensity;
   vec2 sCell = floor(sparkleCoord);
@@ -145,10 +136,7 @@ void main(){
   color += vec3(1.0, 0.98, 0.95) * sparkle;
   alpha = clamp(alpha + sparkle, 0.0, 1.0);
   
-  // 最終ブレンドとCSS境界を消去するマスク
   alpha *= hardEdgeFade;
-
-  // ── ⑦ タッチ時の滑らかな完全透明化フェード ──
   alpha *= (1.0 - uTouchProgress);
 
   gl_FragColor = vec4(color * alpha, alpha);
@@ -186,7 +174,7 @@ gl.enable(gl.BLEND);
 gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
 // ======================================================
-// ④・⑤・⑥ リング・目盛り・ローマ数字（静的キャッシュ）
+// リング・目盛り・ローマ数字（静的キャッシュ）
 // ======================================================
 let ringCache = null;
 
@@ -202,7 +190,6 @@ function buildRingCache(){
     const cx = rw / 2;
     const cy = rh / 2;
 
-    // ── ④ 二重リング ──
     const outerR = CLOCK_RADIUS;
     const innerR = outerR - BASE_SIZE * 0.014;
 
@@ -229,9 +216,9 @@ function buildRingCache(){
     drawGlowRing(outerR, "rgba(255,215,145,0.9)", BASE_SIZE * 0.0045);
     drawGlowRing(innerR, "rgba(255,230,185,0.7)", BASE_SIZE * 0.0025);
 
-    // ── ⑤ アンティーク時計仕様の極細ドット目盛り（画像準拠） ──
+    // ── アンティーク時計仕様の極細ドット目盛り ──
     octx.save();
-    const tickR = outerR + BASE_SIZE * 0.016; // メインリングのすぐ外側に配置
+    const tickR = outerR + BASE_SIZE * 0.016;
     for(let i = 0; i < 60; i++){
         const tickAngle = (i / 60) * Math.PI * 2 - Math.PI / 2;
         const isMajor = i % 5 === 0;
@@ -242,16 +229,16 @@ function buildRingCache(){
 
         if (isMajor) {
             octx.fillStyle = "rgba(255,225,170,0.75)";
-            octx.arc(tx, ty, BASE_SIZE * 0.004, 0, Math.PI * 2); // 象徴的なドット
+            octx.arc(tx, ty, BASE_SIZE * 0.004, 0, Math.PI * 2);
         } else {
             octx.fillStyle = "rgba(240,205,150,0.35)";
-            octx.arc(tx, ty, BASE_SIZE * 0.002, 0, Math.PI * 2); // 非常に繊細なドット
+            octx.arc(tx, ty, BASE_SIZE * 0.002, 0, Math.PI * 2);
         }
         octx.fill();
     }
     octx.restore();
 
-    // ── ⑥ 高可読性・高品質ローマ数字（自然に溶け込むゴールド） ──
+    // ── ローマ数字 ──
     const numR = outerR + BASE_SIZE * 0.065;
     const numerals = [
         { label: "XII", angle: -Math.PI / 2 },
@@ -264,28 +251,34 @@ function buildRingCache(){
     octx.textAlign = "center";
     octx.textBaseline = "middle";
     octx.letterSpacing = "1px";
-    
-    // 高級感を出すため、極薄のシャドウを付与して可読性を担保
     octx.shadowColor = "rgba(0, 0, 0, 0.5)";
     octx.shadowBlur = BASE_SIZE * 0.01;
 
     numerals.forEach(({label, angle}) => {
         const x = cx + Math.cos(angle) * numR;
         const y = cy + Math.sin(angle) * numR;
-        
-        // 繊細なグラデーション風表現
         octx.fillStyle = "rgba(255,230,190,0.85)";
         octx.fillText(label, x, y);
     });
+    octx.restore();
+
+    // ── 数字のさらに外側に、細く薄い円のライン ──
+    const outerLineR = numR + BASE_SIZE * 0.002;
+    octx.save();
+    octx.strokeStyle = "rgba(255,225,170,0.5)";
+    octx.lineWidth = BASE_SIZE * 0.0012;
+    octx.beginPath();
+    octx.arc(cx, cy, outerLineR, 0, Math.PI * 2);
+    octx.stroke();
     octx.restore();
 
     ringCache = off;
 }
 
 // ======================================================
-// ⑦・⑧ 周回する光の粒（Halo・Core・Glow 三層構造モデル）
+// 周回する光の粒
 // ======================================================
-const ORBIT_SPRITE_SIZE = 128; // 尾を引く表現のためにサイズを拡張
+const ORBIT_SPRITE_SIZE = 128;
 const orbitSprite = document.createElement("canvas");
 orbitSprite.width = ORBIT_SPRITE_SIZE;
 orbitSprite.height = ORBIT_SPRITE_SIZE;
@@ -294,8 +287,6 @@ orbitSprite.height = ORBIT_SPRITE_SIZE;
     const sctx = orbitSprite.getContext("2d");
     const center = ORBIT_SPRITE_SIZE / 2;
 
-    // ── ⑧ 高級感のある三層構造の光の粒 ──
-    // 層1: Halo（周囲へ優しく滲む広大な光輪）
     const halo = sctx.createRadialGradient(center, center, 0, center, center, center * 0.85);
     halo.addColorStop(0.0, "rgba(255,220,160,0.35)");
     halo.addColorStop(0.3, "rgba(255,200,130,0.12)");
@@ -303,7 +294,6 @@ orbitSprite.height = ORBIT_SPRITE_SIZE;
     sctx.fillStyle = halo;
     sctx.fillRect(0, 0, ORBIT_SPRITE_SIZE, ORBIT_SPRITE_SIZE);
 
-    // 層2: Glow（密度のある強い輝き）
     const glow = sctx.createRadialGradient(center, center, 0, center, center, center * 0.4);
     glow.addColorStop(0.0, "rgba(255,240,200,0.85)");
     glow.addColorStop(0.5, "rgba(255,210,140,0.40)");
@@ -311,7 +301,6 @@ orbitSprite.height = ORBIT_SPRITE_SIZE;
     sctx.fillStyle = glow;
     sctx.fillRect(0, 0, ORBIT_SPRITE_SIZE, ORBIT_SPRITE_SIZE);
 
-    // 層3: Core（純白に近い極小の核）
     const core = sctx.createRadialGradient(center, center, 0, center, center, center * 0.15);
     core.addColorStop(0.0, "rgba(255,255,255,1.0)");
     core.addColorStop(0.7, "rgba(255,245,220,0.9)");
@@ -323,26 +312,22 @@ orbitSprite.height = ORBIT_SPRITE_SIZE;
 function updateAndDrawOrbitLight(deltaTime){
     if (CLOCK_RADIUS <= 0) return;
 
-    // ── ⑦ 軌道スピード計算（通常時は60秒で1周、タッチ時は猛スピード化） ──
     let speedMultiplier = 1.0;
     if (isTouched) {
-        // 経過時間とともに回転速度を指数関数的にブースト
         const elapsed = Date.now() - touchStartTime;
         speedMultiplier = 1.0 + Math.pow(elapsed * 0.015, 2.5);
     }
 
-    const baseVelocity = (Math.PI * 2) / 60000; // 60秒で2πラジアン
+    const baseVelocity = (Math.PI * 2) / 60000;
     orbitAngle += baseVelocity * deltaTime * speedMultiplier;
 
     const cx = rw / 2;
     const cy = rh / 2;
     
-    // ── ⑦ リングの線の真上（ジャスト）に配置 ──
     const targetRadius = CLOCK_RADIUS; 
     const x = cx + Math.cos(orbitAngle) * targetRadius;
     const y = cy + Math.sin(orbitAngle) * targetRadius;
 
-    // ボタン全体の消滅度合いを適用
     const currentAlpha = 1.0 - touchProgress;
     if (currentAlpha <= 0) return;
 
@@ -351,7 +336,6 @@ function updateAndDrawOrbitLight(deltaTime){
     rctx.globalAlpha = currentAlpha;
     rctx.globalCompositeOperation = "lighter";
     
-    // ほんの少しだけ進行方向と逆側に残像を引くための、シンプルな高級尾引きエフェクト
     if (isTouched) {
         for (let i = 1; i <= 3; i++) {
             const trailAngle = orbitAngle - (0.04 * i * (speedMultiplier * 0.05));
@@ -374,7 +358,7 @@ function updateAndDrawOrbitLight(deltaTime){
 }
 
 // ======================================================
-// ⑩ パフォーマンス（スマホ最適化 / 描画ループ）
+// 描画ループ
 // ======================================================
 let rafId = null;
 
@@ -385,14 +369,12 @@ function frame(timestamp){
     const deltaTime = timestamp - lastFrameTime;
     lastFrameTime = timestamp;
 
-    // ── タッチ時の消滅タイムライン駆動 ──
     if (isTouched) {
         const elapsed = Date.now() - touchStartTime;
-        const duration = 800; // 完全消滅までの時間 (ms)
+        const duration = 800;
         touchProgress = Math.min(elapsed / duration, 1.0);
     }
 
-    // ① WebGLコンテキスト描画
     if(gl){
         gl.clearColor(0, 0, 0, 0);
         gl.clear(gl.COLOR_BUFFER_BIT);
@@ -400,27 +382,23 @@ function frame(timestamp){
         gl.uniform2f(uResolution, nebulaCanvas.width, nebulaCanvas.height);
         gl.uniform1f(uTime, timestamp * 0.001);
         gl.uniform1f(uClockRadius, CLOCK_RADIUS * DPR);
-        gl.uniform1f(uTouchProgress, touchProgress); // シェーダー側でフェード処理
+        gl.uniform1f(uTouchProgress, touchProgress);
         
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     }
 
-    // 2Dコンテキスト（リング＆光粒）描画
     rctx.clearRect(0, 0, rw, rh);
     
-    // ── 静的リングは完全にキャッシュから描画して高パフォーマンスを維持 ──
     if(ringCache && touchProgress < 1.0){
         rctx.save();
-        rctx.globalAlpha = 1.0 - touchProgress; // 〇ボタン（リング構造体）全体の消滅
+        rctx.globalAlpha = 1.0 - touchProgress;
         rctx.drawImage(ringCache, 0, 0, rw, rh);
         rctx.restore();
     }
 
-    // 動的な光の粒の更新と描画
     updateAndDrawOrbitLight(deltaTime);
 }
 
-// ── 外部のメインシステム（ロゴ粒子化ロジック等）からTouch時に呼び出すトリガー関数 ──
 export function triggerTouchAnimation(){
     if (!isTouched) {
         isTouched = true;
@@ -428,7 +406,6 @@ export function triggerTouchAnimation(){
     }
 }
 
-// 初期化起動
 requestAnimationFrame((timestamp) => {
     resizeCanvases();
     lastFrameTime = timestamp;

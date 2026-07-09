@@ -1,6 +1,6 @@
 import { canvas, ctx, drawLogo, stopLogoAnimation } from "./logoCanvas.js";
 import { disposeFlareBackground } from "./flareBackground.js";
-import { disposeClockButton } from "./clockButton.js";
+import { disposeClockButton, triggerTouchAnimation } from "./clockButton.js";
 
 // ======================================================
 // 画面全体を覆う爆発用オーバーレイcanvas
@@ -90,15 +90,22 @@ function explodeLogo(){
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     const titleJapanese = document.querySelector(".titleJapanese");
-    const clockButtonWrap = document.getElementById("clockButtonWrap");
     const bottomBar = document.querySelector(".bottomBar");
+    const startBtnEl = document.getElementById("startButton");
+    const creditEl = document.querySelector(".credit");
 
-    [titleJapanese, clockButtonWrap, bottomBar].forEach(el => {
+    [titleJapanese, bottomBar, creditEl].forEach(el => {
         if(el){
             el.style.transition = "opacity 0.4s ease";
             el.style.opacity = "0";
         }
     });
+
+    if(startBtnEl){
+        startBtnEl.style.transition = "opacity 0.7s ease";
+        startBtnEl.style.opacity = "0";
+    }
+
     particles = points.map(p => {
         const angle = Math.random() * Math.PI * 2;
         const speed = 1.5 + Math.random() * 6.5;
@@ -224,6 +231,7 @@ document.getElementById("startButton").addEventListener("click", () => {
     if (navigator.vibrate) {
         navigator.vibrate(12);
     }
+    triggerTouchAnimation();
     explodeLogo();
 });
 
@@ -247,6 +255,30 @@ infoButton.addEventListener("click", () => infoPanel.classList.add("show"));
 closeInfo.addEventListener("click", () => infoPanel.classList.remove("show"));
 
 // ======================================================
-// 初期フェードイン開始
+// UIフェードイン演出
+// ------------------------------------------------------
+// 黒画面 → タイトルフェードイン(1.5s) → 静止(0.2s)
+// → 発光+光が流れる → ボタン/BGM/クレジットが現れる
 // ======================================================
-document.body.classList.add("loaded");
+const flareCanvasEl = document.getElementById("flareCanvas");
+const clockButtonWrapEl = document.getElementById("clockButtonWrap");
+const bottomBarEl = document.querySelector(".bottomBar");
+const creditEl = document.querySelector(".credit");
+const titleAreaEl = document.querySelector(".titleArea");
+
+document.body.classList.add("loaded"); // タイトルのフェードイン開始(CSS側で1.5s)
+
+// 変更後
+setTimeout(() => {
+    if(flareCanvasEl){
+        flareCanvasEl.classList.add("flash");
+        setTimeout(() => flareCanvasEl.classList.remove("flash"), 700);
+    }
+
+    setTimeout(() => {
+        if(clockButtonWrapEl) clockButtonWrapEl.classList.add("reveal");
+        if(bottomBarEl) bottomBarEl.classList.add("reveal");
+        if(creditEl) creditEl.classList.add("reveal");
+    }, 500);
+
+}, 1700);

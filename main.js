@@ -136,8 +136,8 @@ function getYawLimits() {
 // ======================================================
 const PHOTO_FILES = [
   'assets/photo1.jpg',
-  'assets/photo8.jpg',
-  'assets/photo9.jpg',
+  'assets/photo2.jpg',
+  'assets/photo3.jpg',
   'assets/photo4.jpg',
   'assets/photo5.jpg',
 ];
