@@ -16,6 +16,7 @@ import { loadImageSafely, getTextureSource } from './utils/image.js';
 // ======================================================================
 export function startExhibitionSpace(renderer, camera) {
   const scene = new THREE.Scene();
+  const spaceStartTime = performance.now(); // ★追加：次空間の演出開始時刻（フェードインの基準）
 
   camera.position.set(0, 0, 0);
 
@@ -383,7 +384,7 @@ export function startExhibitionSpace(renderer, camera) {
           map: tex,
           transparent: true,
           side: THREE.DoubleSide,
-          opacity: 1,
+          opacity: 0, // ★変更(1→0)：最初は非表示。update内の時間差フェードインで見せる
         });
 
         item.mesh = new THREE.Mesh(geo, mat);
@@ -396,7 +397,7 @@ export function startExhibitionSpace(renderer, camera) {
         const auraMat = new THREE.MeshBasicMaterial({
           color: 0xffffff,
           transparent: true,
-          opacity: 0.5,
+          opacity: 0, // ★変更(0.5→0)：最初は非表示
           side: THREE.DoubleSide,
         });
         item.aura = new THREE.Mesh(auraGeo, auraMat);
@@ -413,7 +414,12 @@ export function startExhibitionSpace(renderer, camera) {
     return item;
   }
 
-  PHOTO_CONFIG.forEach(cfg => photoItems.push(createPhotoItem(cfg)));
+  // ★変更：時間差フェードインの順序に使う revealIndex を各itemに付与
+  PHOTO_CONFIG.forEach((cfg, idx) => {
+    const item = createPhotoItem(cfg);
+    item.revealIndex = idx;
+    photoItems.push(item);
+  });
   // ====================================================================
   // [SECTION: photos end]
   // ====================================================================
@@ -493,6 +499,10 @@ export function startExhibitionSpace(renderer, camera) {
   }
 
   function onPointerClick(clientX, clientY) {
+    // ★追加：イントロ演出中（2.5秒経過前）はクリック操作を無効化
+    const elapsed = (performance.now() - spaceStartTime) / 1000;
+    if (elapsed < REVEAL_PHOTO_END) return;
+
     pointer.x = (clientX / window.innerWidth) * 2 - 1;
     pointer.y = -(clientY / window.innerHeight) * 2 + 1;
     raycaster.setFromCamera(pointer, camera);
@@ -538,6 +548,17 @@ export function startExhibitionSpace(renderer, camera) {
   let bgUpdateTimer = 0;
   const warmFlareTint = new THREE.Color(0xe0b888);
 
+  // ★追加：フェードイン演出のタイミング定数
+  const REVEAL_BG_END    = 0.8;  // 0.0〜0.8秒: 背景・床・光のみ
+  const REVEAL_PHOTO_END = 2.5;  // 0.8〜2.5秒: 写真が時間差フェードイン。以降は通常モード
+  const PHOTO_FADE_DUR   = 0.5;  // 1枚あたりのフェード所要時間(秒)
+
+  function getStaggerStartTime(index, total) {
+    if (total <= 1) return REVEAL_BG_END;
+    const span = REVEAL_PHOTO_END - REVEAL_BG_END - PHOTO_FADE_DUR;
+    return REVEAL_BG_END + (index / (total - 1)) * Math.max(0, span);
+  }
+
   function updateCamera(dt) {
     yaw += (targetYaw - yaw) * 0.08;
     pitch += (targetPitch - pitch) * 0.08;
@@ -559,6 +580,9 @@ export function startExhibitionSpace(renderer, camera) {
     flareRing.visible = !zoomedIn;
     sparkles.visible = !zoomedIn;
 
+    const elapsed = (performance.now() - spaceStartTime) / 1000; // ★追加
+    const introDone = elapsed >= REVEAL_PHOTO_END; // ★追加：2.5秒経過後は通常モード
+
     if (viewingItem && approachProgress > 0.01) {
       photoItems.forEach(item => {
         if (!item.mesh) return;
@@ -572,9 +596,21 @@ export function startExhibitionSpace(renderer, camera) {
       const t = performance.now() * 0.0006;
       photoItems.forEach(item => {
         if (!item.mesh) return;
-        item.mesh.material.opacity += (1.0 - item.mesh.material.opacity) * 0.05;
+
+        // ★追加：イントロ中は時間差フェードイン、完了後は通常通り1.0を目指す
+        let targetOpacity = 1.0;
+        let targetAuraOpacity = 0.5;
+
+        if (!introDone) {
+          const startT = getStaggerStartTime(item.revealIndex ?? 0, photoItems.length);
+          const progress = THREE.MathUtils.clamp((elapsed - startT) / PHOTO_FADE_DUR, 0, 1);
+          targetOpacity = progress;
+          targetAuraOpacity = progress * 0.5;
+        }
+
+        item.mesh.material.opacity += (targetOpacity - item.mesh.material.opacity) * 0.08;
         if (item.aura) {
-          item.aura.material.opacity += (0.5 - item.aura.material.opacity) * 0.05;
+          item.aura.material.opacity += (targetAuraOpacity - item.aura.material.opacity) * 0.08;
         }
 
         const floatY = Math.sin(t + item.floatPhase) * 0.25;

@@ -120,7 +120,7 @@ body.loaded .titleArea{
 }
 
 #flareCanvas.flash{
-    animation:flareFlash .7s ease;
+    animation:flareFlash 0.7s ease;
 }
 
 @keyframes flareFlash{
@@ -164,7 +164,7 @@ body.loaded .titleArea{
 }
 
 #clockButtonWrap.reveal{
-    animation:fadeInPlace 1.2s ease forwards;
+    animation:fadeInPlace 1.8s ease forwards;
 }
 
 @keyframes fadeInPlace{

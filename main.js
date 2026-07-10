@@ -520,18 +520,18 @@ function createAccumulationGlow() {
 //     開口後の再上書き処理は完全に削除した。
 // ======================================================
 function createPortalPlane() {
-  const PLANE_SIZE = 10;
+  const PLANE_SIZE = 10; // JS側のワールド座標とUVを対応づけるための基準サイズ
   const geo = new THREE.PlaneGeometry(PLANE_SIZE, PLANE_SIZE, 1, 1);
 
   const mat = new THREE.ShaderMaterial({
     transparent: true,
     depthWrite: false,
-    blending: THREE.NormalBlending,
+    blending: THREE.NormalBlending, // 加算合成だと次空間の映像が背景と足し算されて白飛びするため通常合成
     side: THREE.DoubleSide,
     uniforms: {
       uTime:    { value: 0 },
       uWarp:    { value: 0 },
-      uCrack:   { value: 0 },
+      uCrack:   { value: 0 }, // 星雲の"濃さ・出現度合い"として流用
       uOpacity: { value: 0 },
       uPortalTex:    { value: null },
       uPortalReveal: { value: 0 },
@@ -555,6 +555,7 @@ function createPortalPlane() {
       const float PLANE_SIZE  = ${PLANE_SIZE.toFixed(1)};
       const float NEBULA_MAX_R = ${NEBULA_MAX_R.toFixed(2)};
 
+      // ── 疑似乱数・value noise・fbm（ドメインワーピングによる雲の質感） ──
       float hash(vec2 p) {
         return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
       }
@@ -573,21 +574,21 @@ function createPortalPlane() {
         float amp = 0.5;
         for (int i = 0; i < 5; i++) {
           v += amp * vnoise(p);
-          p *= 2.0; // ★修正(2.02→2.0): 木目っぽい高周波の重なりを少し抑える
+          p *= 2.02;
           amp *= 0.5;
         }
         return v;
       }
 
-      // ★修正：筋を細く鋭くしすぎず、ぼんやりした光の帯に近づける
+      // 中心から放射状に伸びる、稲妻・繊維状の筋
       float streaks(vec2 p, float angle, float t) {
         float s = 0.0;
-        for (int i = 0; i < 2; i++) { // ★修正(3→2): 筋の重なりを減らす
+        for (int i = 0; i < 3; i++) {
           float fi = float(i);
-          float freq  = 5.0 + fi * 3.0; // ★修正：周波数を下げて筋を太く・少なく
-          float phase = t * (0.2 + 0.06 * fi);
-          float v = abs(sin(angle * freq + phase + fbm(p * 1.6 + fi * 3.1) * 2.2));
-          s += pow(1.0 - v, 8.0) * (1.0 / (fi + 1.0)); // ★修正(16.0→8.0): エッジを柔らかく
+          float freq  = 8.0 + fi * 6.0;
+          float phase = t * (0.25 + 0.08 * fi);
+          float v = abs(sin(angle * freq + phase + fbm(p * 2.0 + fi * 3.1) * 3.0));
+          s += pow(1.0 - v, 16.0) * (1.0 / (fi + 1.0));
         }
         return s;
       }
@@ -597,97 +598,59 @@ function createPortalPlane() {
         float radius = length(wp);
         float angle  = atan(wp.y, wp.x);
 
-        vec2 p = wp * 0.30 + vec2(0.0, uTime * 0.025); // ★修正(0.55→0.42): 模様のスケールを大きく＝柔らかく
+        // ── ドメインワーピングfbm：雲がゆっくり渦を巻きながら揺らめく ──
+        vec2 p = wp * 0.55 + vec2(0.0, uTime * 0.05);
         vec2 q = vec2(fbm(p), fbm(p + vec2(5.2, 1.3)));
         vec2 r = vec2(
-          fbm(p + 3.0 * q + vec2(1.7, 9.2) + 0.10 * uTime), // ★修正(4.0→3.0): ワープを弱めて滑らかに
-          fbm(p + 3.0 * q + vec2(8.3, 2.8) + 0.08 * uTime)
+          fbm(p + 4.0 * q + vec2(1.7, 9.2) + 0.12 * uTime),
+          fbm(p + 4.0 * q + vec2(8.3, 2.8) + 0.10 * uTime)
         );
-        float cloud = fbm(p + 3.0 * r);
+        float cloud = fbm(p + 4.0 * r);
 
-        float radialFalloff = pow(clamp(1.0 - radius / NEBULA_MAX_R, 0.0, 1.0), 1.6); // ★修正(1.4→1.6): 外側への滲みを穏やかに
+        // 半径方向のフォールオフ（中心が濃く、外側にいくほど淡くなる）
+        float radialFalloff = pow(clamp(1.0 - radius / NEBULA_MAX_R, 0.0, 1.0), 1.4);
 
+        // ★修正：中心を「常に0.7〜1.0に固定」するのではなく、
+        //   ノイズ(cloud)に応じて緩やかに底上げするだけにする。
+        //   これにより中心も星雲のノイズで揺らめき続け、固定の白い円盤にならない。
         float centerBoost = smoothstep(NEBULA_MAX_R * 0.28, 0.0, radius);
-       float density =
-mix(
-    radialFalloff*0.4,
-    cloud*radialFalloff,
-    0.65
-);
+        float density = cloud * radialFalloff + centerBoost * cloud * 0.25; // 0.55 → 0.25程度に
         density = clamp(density, 0.0, 1.0);
         density *= radialFalloff;
 
         float streakFalloff = radialFalloff * radialFalloff;
-        float streakVal = streaks(wp * 0.4, angle, uTime) * streakFalloff * 0.35; // ★修正：筋の強さ全体を0.35倍に大幅減衰
+        float streakVal = streaks(wp * 0.4, angle, uTime) * streakFalloff;
 
-        // 展示空間の色が裂け目から漏れ出すイメージ
+        // ── 色：中心=白熱 → 中間=山吹色/琥珀色 → 外側=深い赤茶色にフェード ──
+        vec3 outerColor = vec3(0.42, 0.16, 0.06);
+        vec3 midColor   = vec3(1.00, 0.55, 0.16);
+        vec3 coreColor  = vec3(1.02, 0.95, 0.85);
 
-vec3 outerColor = vec3(0.10, 0.11, 0.18);   // 暗い空間
-
-vec3 pastelBlue   = vec3(0.72, 0.84, 1.00);
-vec3 pastelPink   = vec3(1.00, 0.82, 0.90);
-vec3 pastelPurple = vec3(0.82, 0.76, 1.00);
-vec3 pastelMint   = vec3(0.78, 0.96, 0.90);
-
-float c1 = 0.5 + 0.5*sin(uTime*0.06);
-float c2 = 0.5 + 0.5*sin(uTime*0.05 + 2.2);
-
-vec3 midColor =
-mix(
-    mix(pastelBlue, pastelPink, c1),
-    mix(pastelPurple, pastelMint, c2),
-    cloud
-);
-
-vec3 coreColor =
-vec3(0.99,0.99,0.98);
-        float pastelNoise =
-fbm(
-    p*0.6 +
-    vec2(
-        uTime*0.02,
-        uTime*0.015
-    )
-);
-
-vec3 flowingColor =
-mix(
-    pastelBlue,
-    pastelPink,
-    pastelNoise
-);
-
-flowingColor =
-mix(flowingColor,pastelPurple,cloud);
-
-flowingColor =
-mix(flowingColor,pastelMint,r.x);
-
-vec3 color =mix(
-    outerColor,
-    flowingColor,
-    smoothstep(0.12,0.60,density)
-);
+        vec3 color = mix(outerColor, midColor, smoothstep(0.15, 0.62, density));
+        // ★修正：coreColorへの遷移条件を元の水準に戻し、広範囲が常時白くならないようにする
         color = mix(color, coreColor, smoothstep(0.58, 1.0, density) * smoothstep(NEBULA_MAX_R * 0.45, 0.0, radius));
-        color += vec3(1.0,0.90,0.95)
-       * streakVal
-       * 0.18; // ★修正：筋の色も柔らかいピンク寄りに、強さも減衰
+        color += vec3(1.0, 0.75, 0.35) * streakVal * 0.9;
 
-        float alpha = clamp(density * 0.7 + streakVal * 0.35, 0.0, 1.0); // ★修正：全体の濃さ上限をさらに少し抑える
+        // ★微調整：全体の濃さの上限を少し下げ、白飛びの余地を減らす
+        float alpha = clamp(density * 0.75 + streakVal * 0.5, 0.0, 1.0);
         alpha *= uCrack * uOpacity;
         vec3 finalGasColor = color * uCrack;
 
-        float noiseWarp = (cloud - 0.5) * 0.7; // ★修正(0.9→0.7): 開口の縁のガタつきを抑える
-        float openR  = NEBULA_MAX_R * 0.5 * clamp(uPortalReveal, 0.0, 1.0);
-        float feather = 1.1 + uWarp * 0.6; // ★修正(0.9→1.1): 開口の境界をより滑らかに
+        // ── 次空間の開口：中心の一番明るい場所がノイズで滲みながら開く ──
+        float noiseWarp = (cloud - 0.5) * 0.9;
+        float openR  = NEBULA_MAX_R * 0.60 * clamp(uPortalReveal, 0.0, 1.0);
+        float feather = 0.9 + uWarp * 0.6;
         float apertureMask = smoothstep(openR + noiseWarp, openR + noiseWarp - feather, radius);
         apertureMask *= step(radius, NEBULA_MAX_R * 0.58);
 
         vec3 portalColor = texture2D(uPortalTex, vUv).rgb;
         vec3 finalColor = mix(finalGasColor, portalColor, apertureMask);
+        // ★削除：ここで finalGasColor を再度上乗せしていたのが、
+        //   開口後も白いベールがかかり続けていた直接の原因。完全に削除。
 
         float finalAlpha = max(alpha, apertureMask);
 
+        // 外周は緩やかにフェードアウトして完全に消える（ハードな縁を作らない）
         float outerFade = smoothstep(NEBULA_MAX_R * 1.15, NEBULA_MAX_R * 0.75, radius);
         finalAlpha *= outerFade;
 
@@ -1410,7 +1373,7 @@ function attractParticles(item) {
   let totalDist = 0;
 
   const elapsed = (Date.now() - (item._attractStart || Date.now())) * 0.001;
-  const speedFactor = 0.06 + elapsed * 0.05;
+  const speedFactor = 0.08 + elapsed * 0.05;
 
   for (let i = 0; i < item.particleCount; i++) {
     const ix = i * 3, iy = i * 3 + 1, iz = i * 3 + 2;
