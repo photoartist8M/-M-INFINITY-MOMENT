@@ -102,7 +102,7 @@ function explodeLogo(){
     });
 
     if(startBtnEl){
-        startBtnEl.style.transition = "opacity 0.7s ease";
+        startBtnEl.style.transition = "opacity 0.45s ease";
         startBtnEl.style.opacity = "0";
     }
 
@@ -272,7 +272,7 @@ document.body.classList.add("loaded"); // タイトルのフェードイン開�
 setTimeout(() => {
     if(flareCanvasEl){
         flareCanvasEl.classList.add("flash");
-        setTimeout(() => flareCanvasEl.classList.remove("flash"), 700);
+        setTimeout(() => flareCanvasEl.classList.remove("flash"), 3200);
     }
 
     setTimeout(() => {

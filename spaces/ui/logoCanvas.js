@@ -75,16 +75,17 @@ function drawLogo(w, h, timestamp){
         const fp = (t - FLICKER_START) / (1 - FLICKER_START);
         const fadeEnvelope = Math.sin(fp * Math.PI);
 
-        const emotionFlicker =
-            0.5 +
-            Math.sin(fp * Math.PI * 5.2) * 0.3 +
-            Math.sin(fp * Math.PI * 11.0 + 1.3) * 0.18;
+const emotionFlicker =
+    0.5 +
+    Math.sin(fp * Math.PI * 2.6) * 0.3 +
+    Math.sin(fp * Math.PI * 5.5 + 1.3) * 0.18;
+
         const emotionAlpha = Math.max(0, Math.min(1, emotionFlicker)) * fadeEnvelope;
 
-        const alFlicker =
-            0.5 +
-            Math.sin(fp * Math.PI * 8.0 + 2.1) * 0.35 +
-            Math.sin(fp * Math.PI * 3.4) * 0.15;
+const alFlicker =
+    0.5 +
+    Math.sin(fp * Math.PI * 4.0 + 2.1) * 0.35 +
+    Math.sin(fp * Math.PI * 1.7) * 0.15;
         const alAlpha = Math.max(0, Math.min(1, alFlicker)) * fadeEnvelope;
 
         let fx = startX;

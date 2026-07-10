@@ -239,7 +239,7 @@ function buildRingCache(){
     octx.restore();
 
     // ── ローマ数字 ──
-    const numR = outerR + BASE_SIZE * 0.065;
+    const numR = outerR + BASE_SIZE * 0.070;
     const numerals = [
         { label: "XII", angle: -Math.PI / 2 },
         { label: "III", angle: 0 },
@@ -271,6 +271,15 @@ function buildRingCache(){
     octx.arc(cx, cy, outerLineR, 0, Math.PI * 2);
     octx.stroke();
     octx.restore();
+    // ── さらにもう一本外側のライン ──
+const outerLineR2 = numR + BASE_SIZE * 0.020; // ← 半径をもう少し外側へ
+octx.save();
+octx.strokeStyle = "rgba(255,225,170,0.35)"; // ← 少し薄めにすると綺麗
+octx.lineWidth = BASE_SIZE * 0.0010; // ← ほんの少し細くして差をつける
+octx.beginPath();
+octx.arc(cx, cy, outerLineR2, 0, Math.PI * 2);
+octx.stroke();
+octx.restore();
 
     ringCache = off;
 }
@@ -371,7 +380,7 @@ function frame(timestamp){
 
     if (isTouched) {
         const elapsed = Date.now() - touchStartTime;
-        const duration = 800;
+        const duration = 500; 
         touchProgress = Math.min(elapsed / duration, 1.0);
     }
 

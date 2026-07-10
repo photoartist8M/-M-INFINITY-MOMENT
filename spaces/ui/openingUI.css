@@ -120,7 +120,7 @@ body.loaded .titleArea{
 }
 
 #flareCanvas.flash{
-    animation:flareFlash .7s ease;
+    animation:flareFlash .3.2s ease;
 }
 
 @keyframes flareFlash{
@@ -164,7 +164,7 @@ body.loaded .titleArea{
 }
 
 #clockButtonWrap.reveal{
-    animation:fadeInPlace 1.2s ease forwards;
+    animation:fadeInPlace 1.8s ease forwards; /ボタンフェードイン速度
 }
 
 @keyframes fadeInPlace{
@@ -217,16 +217,23 @@ body.loaded .titleArea{
 }
 
 #startButton span{
-    font-size:1.15rem;
+    font-size:1.4rem;
+    font-weight:600;
     letter-spacing:.16em;
-    text-shadow:0 0 12px rgba(255,240,220,.35);
+    color:#fff4e0;
+    text-shadow:
+        0 0 16px rgba(255,215,145,.6),
+        0 0 5px rgba(0,0,0,.6); /* 背景との明度差を作るための暗い縁 */
 }
 
 #startButton small{
-    font-size:.82rem;
+    font-size:1rem;
+    font-weight:500;
     letter-spacing:.14em;
     margin-top:.35em;
-    opacity:.85;
+    color:#f0dcc0;
+    opacity:.9;
+    text-shadow:0 0 5px rgba(0,0,0,.5);
 }
 
 #startButton:active{
