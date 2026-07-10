@@ -120,7 +120,7 @@ body.loaded .titleArea{
 }
 
 #flareCanvas.flash{
-    animation:flareFlash .3.2s ease;
+    animation:flareFlash .7s ease;
 }
 
 @keyframes flareFlash{
@@ -164,7 +164,7 @@ body.loaded .titleArea{
 }
 
 #clockButtonWrap.reveal{
-    animation:fadeInPlace 1.8s ease forwards; /ボタンフェードイン速度
+    animation:fadeInPlace 1.2s ease forwards;
 }
 
 @keyframes fadeInPlace{
@@ -217,23 +217,16 @@ body.loaded .titleArea{
 }
 
 #startButton span{
-    font-size:1.4rem;
-    font-weight:600;
+    font-size:1.15rem;
     letter-spacing:.16em;
-    color:#fff4e0;
-    text-shadow:
-        0 0 16px rgba(255,215,145,.6),
-        0 0 5px rgba(0,0,0,.6); /* 背景との明度差を作るための暗い縁 */
+    text-shadow:0 0 12px rgba(255,240,220,.35);
 }
 
 #startButton small{
-    font-size:1rem;
-    font-weight:500;
+    font-size:.82rem;
     letter-spacing:.14em;
     margin-top:.35em;
-    color:#f0dcc0;
-    opacity:.9;
-    text-shadow:0 0 5px rgba(0,0,0,.5);
+    opacity:.85;
 }
 
 #startButton:active{
@@ -380,8 +373,6 @@ body.loaded .titleArea{
 #closeInfo:hover{
     background:var(--glassHover);
 }
-
-
 /* ==========================================================
    Responsive
    ========================================================== */

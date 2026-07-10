@@ -145,8 +145,8 @@ const PHOTO_FILES = [
 // 写真配置
 // ======================================================
 const SPIRAL_CONFIG = {
-  radius: 6,         // 左右に振る幅（0から6に変更）
-  zStep: 8,         // 写真と写真Z軸の間隔（14から16に少し広げて見やすく）
+  radius: 7.5,         // 左右に振る幅（0から6に変更）
+  zStep: 14,         // 写真と写真Z軸の間隔（14から16に少し広げて見やすく）
   yAmplitude: 1.2,   // 上下の緩やかな高低差
 };
 
@@ -520,18 +520,18 @@ function createAccumulationGlow() {
 //     開口後の再上書き処理は完全に削除した。
 // ======================================================
 function createPortalPlane() {
-  const PLANE_SIZE = 10; // JS側のワールド座標とUVを対応づけるための基準サイズ
+  const PLANE_SIZE = 10;
   const geo = new THREE.PlaneGeometry(PLANE_SIZE, PLANE_SIZE, 1, 1);
 
   const mat = new THREE.ShaderMaterial({
     transparent: true,
     depthWrite: false,
-    blending: THREE.NormalBlending, // 加算合成だと次空間の映像が背景と足し算されて白飛びするため通常合成
+    blending: THREE.NormalBlending,
     side: THREE.DoubleSide,
     uniforms: {
       uTime:    { value: 0 },
       uWarp:    { value: 0 },
-      uCrack:   { value: 0 }, // 星雲の"濃さ・出現度合い"として流用
+      uCrack:   { value: 0 },
       uOpacity: { value: 0 },
       uPortalTex:    { value: null },
       uPortalReveal: { value: 0 },
@@ -555,7 +555,6 @@ function createPortalPlane() {
       const float PLANE_SIZE  = ${PLANE_SIZE.toFixed(1)};
       const float NEBULA_MAX_R = ${NEBULA_MAX_R.toFixed(2)};
 
-      // ── 疑似乱数・value noise・fbm（ドメインワーピングによる雲の質感） ──
       float hash(vec2 p) {
         return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
       }
@@ -574,21 +573,21 @@ function createPortalPlane() {
         float amp = 0.5;
         for (int i = 0; i < 5; i++) {
           v += amp * vnoise(p);
-          p *= 2.02;
+          p *= 2.0; // ★修正(2.02→2.0): 木目っぽい高周波の重なりを少し抑える
           amp *= 0.5;
         }
         return v;
       }
 
-      // 中心から放射状に伸びる、稲妻・繊維状の筋
+      // ★修正：筋を細く鋭くしすぎず、ぼんやりした光の帯に近づける
       float streaks(vec2 p, float angle, float t) {
         float s = 0.0;
-        for (int i = 0; i < 3; i++) {
+        for (int i = 0; i < 2; i++) { // ★修正(3→2): 筋の重なりを減らす
           float fi = float(i);
-          float freq  = 8.0 + fi * 6.0;
-          float phase = t * (0.25 + 0.08 * fi);
-          float v = abs(sin(angle * freq + phase + fbm(p * 2.0 + fi * 3.1) * 3.0));
-          s += pow(1.0 - v, 16.0) * (1.0 / (fi + 1.0));
+          float freq  = 5.0 + fi * 3.0; // ★修正：周波数を下げて筋を太く・少なく
+          float phase = t * (0.2 + 0.06 * fi);
+          float v = abs(sin(angle * freq + phase + fbm(p * 1.6 + fi * 3.1) * 2.2));
+          s += pow(1.0 - v, 8.0) * (1.0 / (fi + 1.0)); // ★修正(16.0→8.0): エッジを柔らかく
         }
         return s;
       }
@@ -598,59 +597,97 @@ function createPortalPlane() {
         float radius = length(wp);
         float angle  = atan(wp.y, wp.x);
 
-        // ── ドメインワーピングfbm：雲がゆっくり渦を巻きながら揺らめく ──
-        vec2 p = wp * 0.55 + vec2(0.0, uTime * 0.05);
+        vec2 p = wp * 0.30 + vec2(0.0, uTime * 0.025); // ★修正(0.55→0.42): 模様のスケールを大きく＝柔らかく
         vec2 q = vec2(fbm(p), fbm(p + vec2(5.2, 1.3)));
         vec2 r = vec2(
-          fbm(p + 4.0 * q + vec2(1.7, 9.2) + 0.12 * uTime),
-          fbm(p + 4.0 * q + vec2(8.3, 2.8) + 0.10 * uTime)
+          fbm(p + 3.0 * q + vec2(1.7, 9.2) + 0.10 * uTime), // ★修正(4.0→3.0): ワープを弱めて滑らかに
+          fbm(p + 3.0 * q + vec2(8.3, 2.8) + 0.08 * uTime)
         );
-        float cloud = fbm(p + 4.0 * r);
+        float cloud = fbm(p + 3.0 * r);
 
-        // 半径方向のフォールオフ（中心が濃く、外側にいくほど淡くなる）
-        float radialFalloff = pow(clamp(1.0 - radius / NEBULA_MAX_R, 0.0, 1.0), 1.4);
+        float radialFalloff = pow(clamp(1.0 - radius / NEBULA_MAX_R, 0.0, 1.0), 1.6); // ★修正(1.4→1.6): 外側への滲みを穏やかに
 
-        // ★修正：中心を「常に0.7〜1.0に固定」するのではなく、
-        //   ノイズ(cloud)に応じて緩やかに底上げするだけにする。
-        //   これにより中心も星雲のノイズで揺らめき続け、固定の白い円盤にならない。
         float centerBoost = smoothstep(NEBULA_MAX_R * 0.28, 0.0, radius);
-        float density = cloud * radialFalloff + centerBoost * cloud * 0.55;
+       float density =
+mix(
+    radialFalloff*0.4,
+    cloud*radialFalloff,
+    0.65
+);
         density = clamp(density, 0.0, 1.0);
         density *= radialFalloff;
 
         float streakFalloff = radialFalloff * radialFalloff;
-        float streakVal = streaks(wp * 0.4, angle, uTime) * streakFalloff;
+        float streakVal = streaks(wp * 0.4, angle, uTime) * streakFalloff * 0.35; // ★修正：筋の強さ全体を0.35倍に大幅減衰
 
-        // ── 色：中心=白熱 → 中間=山吹色/琥珀色 → 外側=深い赤茶色にフェード ──
-        vec3 outerColor = vec3(0.42, 0.16, 0.06);
-        vec3 midColor   = vec3(1.00, 0.55, 0.16);
-        vec3 coreColor  = vec3(1.02, 0.95, 0.85);
+        // 展示空間の色が裂け目から漏れ出すイメージ
 
-        vec3 color = mix(outerColor, midColor, smoothstep(0.15, 0.62, density));
-        // ★修正：coreColorへの遷移条件を元の水準に戻し、広範囲が常時白くならないようにする
+vec3 outerColor = vec3(0.10, 0.11, 0.18);   // 暗い空間
+
+vec3 pastelBlue   = vec3(0.72, 0.84, 1.00);
+vec3 pastelPink   = vec3(1.00, 0.82, 0.90);
+vec3 pastelPurple = vec3(0.82, 0.76, 1.00);
+vec3 pastelMint   = vec3(0.78, 0.96, 0.90);
+
+float c1 = 0.5 + 0.5*sin(uTime*0.06);
+float c2 = 0.5 + 0.5*sin(uTime*0.05 + 2.2);
+
+vec3 midColor =
+mix(
+    mix(pastelBlue, pastelPink, c1),
+    mix(pastelPurple, pastelMint, c2),
+    cloud
+);
+
+vec3 coreColor =
+vec3(0.99,0.99,0.98);
+        float pastelNoise =
+fbm(
+    p*0.6 +
+    vec2(
+        uTime*0.02,
+        uTime*0.015
+    )
+);
+
+vec3 flowingColor =
+mix(
+    pastelBlue,
+    pastelPink,
+    pastelNoise
+);
+
+flowingColor =
+mix(flowingColor,pastelPurple,cloud);
+
+flowingColor =
+mix(flowingColor,pastelMint,r.x);
+
+vec3 color =mix(
+    outerColor,
+    flowingColor,
+    smoothstep(0.12,0.60,density)
+);
         color = mix(color, coreColor, smoothstep(0.58, 1.0, density) * smoothstep(NEBULA_MAX_R * 0.45, 0.0, radius));
-        color += vec3(1.0, 0.75, 0.35) * streakVal * 0.9;
+        color += vec3(1.0,0.90,0.95)
+       * streakVal
+       * 0.18; // ★修正：筋の色も柔らかいピンク寄りに、強さも減衰
 
-        // ★微調整：全体の濃さの上限を少し下げ、白飛びの余地を減らす
-        float alpha = clamp(density * 0.75 + streakVal * 0.5, 0.0, 1.0);
+        float alpha = clamp(density * 0.7 + streakVal * 0.35, 0.0, 1.0); // ★修正：全体の濃さ上限をさらに少し抑える
         alpha *= uCrack * uOpacity;
         vec3 finalGasColor = color * uCrack;
 
-        // ── 次空間の開口：中心の一番明るい場所がノイズで滲みながら開く ──
-        float noiseWarp = (cloud - 0.5) * 0.9;
+        float noiseWarp = (cloud - 0.5) * 0.7; // ★修正(0.9→0.7): 開口の縁のガタつきを抑える
         float openR  = NEBULA_MAX_R * 0.5 * clamp(uPortalReveal, 0.0, 1.0);
-        float feather = 0.9 + uWarp * 0.6;
+        float feather = 1.1 + uWarp * 0.6; // ★修正(0.9→1.1): 開口の境界をより滑らかに
         float apertureMask = smoothstep(openR + noiseWarp, openR + noiseWarp - feather, radius);
         apertureMask *= step(radius, NEBULA_MAX_R * 0.58);
 
         vec3 portalColor = texture2D(uPortalTex, vUv).rgb;
         vec3 finalColor = mix(finalGasColor, portalColor, apertureMask);
-        // ★削除：ここで finalGasColor を再度上乗せしていたのが、
-        //   開口後も白いベールがかかり続けていた直接の原因。完全に削除。
 
         float finalAlpha = max(alpha, apertureMask);
 
-        // 外周は緩やかにフェードアウトして完全に消える（ハードな縁を作らない）
         float outerFade = smoothstep(NEBULA_MAX_R * 1.15, NEBULA_MAX_R * 0.75, radius);
         finalAlpha *= outerFade;
 
@@ -909,8 +946,8 @@ function onPhotoArrivedAtLight(index) {
 // ======================================================
 // カメラを裂け目正面・適正距離へ補正してからロックする
 // ======================================================
-const RIFT_VIEW_DISTANCE      = 6;    // Phase4のdistToDoor想定初期値(6.0)と一致させる
-const CAMERA_ALIGN_DURATION   = 1000; // カメラ補正にかける時間(ms)　1秒
+const RIFT_VIEW_DISTANCE      = 5.5;    // Phase4のdistToDoor想定初期値(6.0)と一致させる
+const CAMERA_ALIGN_DURATION   = 2500; // カメラ補正にかける時間(ms)　1秒
 const RIFT_BASE_FOV           = 75;   // カメラ初期FOV（吸い込み演出の基準値）
 
 function computeLookAtQuaternion(fromPos, targetPos) {
@@ -1263,11 +1300,11 @@ function updateDoor() {
     const distToDoor = ACCUM_POINT.z - camera.position.z;
     if (distToDoor < -1.5) {
       // ★高速化(0.15->0.20, 0.03->0.05): 基本速度と加速度を上げる
-      const pull = Math.min(0.20, 0.05 + t * 0.025); 
+      const pull = Math.min(0.40, 0.2 + t * 0.2); 
       camera.position.z -= pull * Math.abs(distToDoor) * 0.3;
       
       // ★高速化(+0.4->+0.5): FOVの変化量を増やし、スピード感を強調
-      camera.fov = Math.min(110, camera.fov + 0.9); 
+      camera.fov = Math.min(110, camera.fov + 3.0); 
       camera.updateProjectionMatrix();
     }
     if (uni) {
@@ -1357,25 +1394,52 @@ function checkTriggers() {
   }
 }
 
+// ======================================================
+// 【修正】写真形成中の粒子収束と白飛び抑制
+// ------------------------------------------------------
+// 元の実装は粒子が写真の形に収束していく最終局面で密集しすぎ、
+// 加算合成(Additive Blending)の重なりにより白飛びしていた。
+// ここでは収束度(_formProgress)を計算するだけに留め、
+// 実際の見た目（不透明度・サイズ・色）の抑制は
+// updateParticleEffects 側に一本化する（責務を分けて事故を防ぐ）。
+// ======================================================
 function attractParticles(item) {
   if (!item.attract || !item.particles || item.formed) return;
   const pos = item.particleGeo.attributes.position.array;
   let allClose = true;
+  let totalDist = 0;
 
-  // 【修正】カメラ吸引スピードをもう少し速く（ベースを0.04→0.06にし、時間経過でさらに加速）
   const elapsed = (Date.now() - (item._attractStart || Date.now())) * 0.001;
-  const speedFactor = 0.06 + elapsed * 0.05; 
+  const speedFactor = 0.06 + elapsed * 0.05;
 
   for (let i = 0; i < item.particleCount; i++) {
-    const ix = i*3, iy = i*3+1, iz = i*3+2;
-    const p = new THREE.Vector3(pos[ix], pos[iy], pos[iz]);
+    const ix = i * 3, iy = i * 3 + 1, iz = i * 3 + 2;
+    const px = pos[ix], py = pos[iy], pz = pos[iz];
     const t = item.targetPositions[i];
-    const dir = t.clone().sub(p).multiplyScalar(speedFactor);
-    p.add(dir);
-    pos[ix] = p.x; pos[iy] = p.y; pos[iz] = p.z;
-    if (dir.length() > 0.01) allClose = false;
+
+    const dx = (t.x - px) * speedFactor;
+    const dy = (t.y - py) * speedFactor;
+    const dz = (t.z - pz) * speedFactor;
+
+    pos[ix] = px + dx;
+    pos[iy] = py + dy;
+    pos[iz] = pz + dz;
+
+    const rdx = t.x - pos[ix];
+    const rdy = t.y - pos[iy];
+    const rdz = t.z - pos[iz];
+    const remain = Math.sqrt(rdx * rdx + rdy * rdy + rdz * rdz);
+    totalDist += remain;
+
+    if (Math.sqrt(dx * dx + dy * dy + dz * dz) > 0.01) allClose = false;
   }
   item.particleGeo.attributes.position.needsUpdate = true;
+
+  // 収束度(0=散らばっている, 1=ほぼ写真の形)を保存しておく
+  const avgDist = item.particleCount > 0 ? totalDist / item.particleCount : 0;
+  const CONVERGE_REF_DIST = 6.0;
+  item._formProgress = Math.min(1, Math.max(0, 1 - avgDist / CONVERGE_REF_DIST));
+
   if (allClose) item.formed = true;
 }
 
@@ -1383,12 +1447,32 @@ function fadeInPhoto(item) {
   if (!item.formed || item.dissolving || item.dissolved) return;
   if (!item.mesh) return;
   if (item.material.opacity < 1) item.material.opacity += 0.01;
-  if (item.particles && item.particles.material.opacity > 0) item.particles.material.opacity -= 0.02;
-  if (item.particles && item.particles.material.opacity <= 0.02) item.particles.visible = false;
+
+  // 【修正】これまでは item.particles.material.opacity を直接減算していたが、
+  // 同じフレーム内で後から呼ばれる updateParticleEffects() がその値を
+  // 毎回まるごと上書きしてしまい、実質フェードアウトが機能していなかった。
+  // → 減衰は独立した係数 item._particleFadeMult (0〜1) として持たせ、
+  //   updateParticleEffects 側でこれを最終的な不透明度に掛け合わせることで
+  //   両者が衝突しないようにする。
+  if (item._particleFadeMult === undefined) item._particleFadeMult = 1;
+  const particleFadeBefore = item._particleFadeMult;
+
+  if (item.particles) {
+    item._particleFadeMult = Math.max(0, item._particleFadeMult - 0.02);
+    if (item._particleFadeMult <= 0.02) item.particles.visible = false;
+  }
+
   if (item.aura) {
+    // 【修正】粒子(加算合成)がまだ明るく残っている間にオーラ(加算合成+Bloom)を
+    // 同時に立ち上げると、重なった瞬間だけBloomが強く反応して白飛びする。
+    // オーラの最終的な明るさ・色は一切変えず、粒子が十分減光してから
+    // 立ち上がり始めるようタイミングだけをずらして重なりのピークを避ける。
     if (!item.aura.visible) item.aura.visible = true;
-    if (item.aura.material.opacity < 1.2) {
-      item.aura.material.opacity += 0.01;
+    const AURA_TARGET = 1.2;
+    const gate = 1.0 - Math.min(1, particleFadeBefore);
+    const step = 0.01 * (0.12 + gate * 0.88);
+    if (item.aura.material.opacity < AURA_TARGET) {
+      item.aura.material.opacity = Math.min(AURA_TARGET, item.aura.material.opacity + step);
     }
   }
 }
@@ -1444,17 +1528,56 @@ function updateParticleEffects() {
       dissolveFactor = Math.max(0.0, 1.0 - dElapsed * 0.7); 
     }
 
+    // 【修正】写真"形成中〜まだ固定されていない間"の白飛び抑制係数。
+    // ★重要な修正: 以前は「!item.formed」（収束しきる前まで）でしか効いておらず、
+    //   一番粒子が密集する「収束し終わった直後(formed=trueになった瞬間)」に
+    //   ダンピングが切れてフル輝度に戻ってしまい、そこが実際のフラッシュの原因だった。
+    //   → 「item.fixed になるまで」(=写真として完全固定されるまで)ずっと
+    //     効かせ続けるようにし、最も密集するピークの瞬間もカバーする。
+    //   item.fixed後は particles は非表示(checkFixedで visible=false)になるため、
+    //   写真そのものや枠の光(aura)には一切影響しない。
+    let convergeDamp = 1.0;
+    if (item.attract && !item.fixed) {
+      const fp = item.formed ? 1 : (item._formProgress || 0);
+      const ramp = Math.min(1, Math.max(0, (fp - 0.35) / 0.65));
+      convergeDamp = 1.0 - ramp * 0.7; // 最大70%まで抑制（0にはしない＝真っ黒防止）
+    }
+
     const customT = now * timeScale;
 
     // 基本の不透明度とサイズ（完全維持ベース）
     const smooth       = 0.72  + Math.sin(customT * 0.15 + mat._phase) * 0.06;
     const photoSparkle = Math.pow(Math.random(), 100) * 0.12;
     
-    // 消滅時は dissolveFactor を掛けて白飛びを完全に潰す
-    mat.opacity = Math.min(1.0, smooth + photoSparkle) * (item.dissolving ? dissolveFactor * 0.1 : 1.0);
-    mat.size    = (0.8 + Math.sin(customT * 1.3 + mat._phase) * 0.1 + photoSparkle * 0.8) * (item.dissolving ? dissolveFactor : 1.0);
+    // 消滅時は dissolveFactor、形成中は convergeDamp を掛けて白飛びを抑える
+    let opacity = Math.min(1.0, smooth + photoSparkle);
+    if (item.dissolving) {
+      opacity *= dissolveFactor * 0.1;
+    } else {
+      opacity *= convergeDamp;
+      // 【追加】fadeInPhoto が進めているフェードアウト係数を反映する。
+      // formed後（写真に収束し終えた後）は必ずこれが1から徐々に0へ減るため、
+      // 密集ピーク後にきちんと暗くなりながら消えていく。
+      if (item.formed && !item.fixed && item._particleFadeMult !== undefined) {
+        opacity *= item._particleFadeMult;
+      }
+    }
+    mat.opacity = opacity;
 
-    // 元の色味の計算（完全維持）
+    let size = 0.8 + Math.sin(customT * 1.3 + mat._phase) * 0.1 + photoSparkle * 0.8;
+    if (item.dissolving) {
+      size *= dissolveFactor;
+    } else if (item.attract && !item.fixed) {
+      size *= (0.6 + convergeDamp * 0.4); // 密集時はサイズも少し絞って重なりを軽減
+      if (item.formed && item._particleFadeMult !== undefined) {
+        size *= (0.5 + item._particleFadeMult * 0.5);
+      }
+    }
+    mat.size = size;
+
+    // 元の色味の計算（完全維持：色相・彩度・明度は一切変更しない）
+    // ★白飛び対策はopacity/sizeの抑制のみで行い、色味には触れない
+    //   （色を暗くすると黄色っぽく見えてしまうため）
     const hueShift = (Math.sin(customT * 0.5 + mat._phase) + 1) / 2;
     const color = new THREE.Color();
     color.setHSL(
@@ -1707,6 +1830,7 @@ if (moveForward) {
       item._dissolvePhase  = null;
       item._auraActivated  = false;
       item._clickTriggered = false;
+      item._particleFadeMult = 1; // 【追加】粒子フェード係数もリセット
       if (item.material) item.material.opacity = 0;
       if (item.aura) {
         item.aura.material.opacity = 0;
