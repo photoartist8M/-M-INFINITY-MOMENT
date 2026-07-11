@@ -279,6 +279,6 @@ setTimeout(() => {
         if(clockButtonWrapEl) clockButtonWrapEl.classList.add("reveal");
         if(bottomBarEl) bottomBarEl.classList.add("reveal");
         if(creditEl) creditEl.classList.add("reveal");
-    }, 500);
+    }, 600);
 
-}, 1700);
+}, 5700);

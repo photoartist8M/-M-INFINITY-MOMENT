@@ -120,7 +120,7 @@ body.loaded .titleArea{
 }
 
 #flareCanvas.flash{
-    animation:flareFlash 0.7s ease;
+    animation:flareFlash 0.9s ease;
 }
 
 @keyframes flareFlash{
@@ -164,7 +164,7 @@ body.loaded .titleArea{
 }
 
 #clockButtonWrap.reveal{
-    animation:fadeInPlace 1.8s ease forwards;
+    animation:fadeInPlace 3.5s ease forwards;
 }
 
 @keyframes fadeInPlace{
@@ -217,16 +217,23 @@ body.loaded .titleArea{
 }
 
 #startButton span{
-    font-size:1.15rem;
+    font-size:1.4rem;
+    font-weight:600;
     letter-spacing:.16em;
-    text-shadow:0 0 12px rgba(255,240,220,.35);
+    color:#fff4e0;
+    text-shadow:
+        0 0 16px rgba(255,215,145,.6),
+        0 0 5px rgba(0,0,0,.6); /* 背景との明度差を作るための暗い縁 */
 }
 
 #startButton small{
-    font-size:.82rem;
+    font-size:1rem;
+    font-weight:500;
     letter-spacing:.14em;
     margin-top:.35em;
-    opacity:.85;
+    color:#f0dcc0;
+    opacity:.9;
+    text-shadow:0 0 5px rgba(0,0,0,.5);
 }
 
 #startButton:active{
@@ -237,11 +244,15 @@ body.loaded .titleArea{
 /* ==========================================================
    Bottom Bar
    ========================================================== */
-
+.bottomBar .bgmButton,
+.bottomBar .infoButton{
+    max-width:65%;
+    padding:4px 10px;
+}
 .bottomBar{
     width:100%;
     display:flex;
-    justify-content:space-between;
+    justify-content:center; /* space-between→center：中央寄せに */
     align-items:center;
     gap:10px;
     margin-top:22px;
@@ -255,6 +266,7 @@ body.loaded .titleArea{
 
 .bottomBar button{
     flex:1;
+    max-width:82%; /* 元の幅から18%程度狭める */
     height:24px;
     border-radius:10px;
     border:1px solid rgba(255,215,145,.28);
@@ -395,10 +407,10 @@ body.loaded .titleArea{
     }
 
     .bottomBar button{
+        max-width:82%;
         height:22px;
         font-size:.55rem;
     }
-
 }
 
 
