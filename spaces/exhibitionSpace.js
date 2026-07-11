@@ -1,8 +1,9 @@
 import * as THREE from 'three';
-import { GALLERY_RADIUS, MAX_TEX_DIM, SPARKLE_COUNT } from './config/constants.js';
+import { GALLERY_RADIUS, MAX_TEX_DIM, SPARKLE_COUNT, IS_MOBILE } from './config/constants.js';
 import { PHOTO_CONFIG } from './core/photoConfig.js';
 import { extractPastelColors } from './utils/color.js';
 import { loadImageSafely, getTextureSource } from './utils/image.js';
+import { hasSubmitted, submitMessage, fetchLetterMessages, fetchBubbleMessages } from './core/messaging.js';
 
 // ======================================================================
 // exhibitionSpace.js
@@ -323,6 +324,652 @@ export function startExhibitionSpace(renderer, camera) {
 
 
   // ====================================================================
+  // [SECTION: mobileFocusButton] スマホ用：正面の写真に留まると出現する決定ボタン
+  // ====================================================================
+  // ★追加：スマホでは正確なタップの代わりに「正面を向いた写真の前で
+  // 一定時間留まる→下部にボタンが出現→タップで確定」という方式にする。
+  // 高齢者や3D操作に不慣れな方でも、狙いを定めず視点を向けるだけで
+  // 操作できるようにするための仕組み。
+  let focusButtonEl = null;
+  if (IS_MOBILE) {
+    focusButtonEl = document.createElement('button');
+    focusButtonEl.textContent = 'view';
+    Object.assign(focusButtonEl.style, {
+      position: 'fixed',
+      left: '50%',
+      top: '85%',
+      bottom: 'auto',
+      transform: 'translateX(-50%) translateY(-20px)',
+      padding: '10px 48px',
+      fontSize: '25px',
+      fontWeight: '400',
+      fontFamily: 'sans-serif',
+      color: '#d8b46a',
+      background: 'rgba(210, 165, 106, 0.04)',
+      border: '1px solid rgba(255, 230, 190, 0.7)',
+      borderRadius: '999px',
+      boxShadow: '0 0 20px rgba(255, 210, 160, 0.35), 0 4px 16px rgba(0,0,0,0.2)',
+      backdropFilter: 'blur(6px)',
+      opacity: '0',
+      pointerEvents: 'none',
+      transition: 'opacity 0.5s ease, transform 0.5s ease',
+      zIndex: '10',
+      letterSpacing: '0.08em',
+      whiteSpace: 'nowrap',
+    });
+    document.body.appendChild(focusButtonEl);
+  }
+
+  let focusedItem = null;      // 現在正面に留まっている写真
+  let focusTimer = 0;          // 留まっている時間(秒)
+  let focusButtonVisible = false;
+  const FOCUS_DWELL_TIME = 1.0; // 何秒留まったらボタンを出すか
+
+  function showFocusButton() {
+    if (!focusButtonEl || focusButtonVisible) return;
+    focusButtonVisible = true;
+    focusButtonEl.style.opacity = '1';
+    focusButtonEl.style.transform = 'translateX(-50%) translateY(0)';
+    focusButtonEl.style.pointerEvents = 'auto';
+  }
+
+  function hideFocusButton() {
+    if (!focusButtonEl || !focusButtonVisible) return;
+    focusButtonVisible = false;
+    focusButtonEl.style.opacity = '0';
+    focusButtonEl.style.transform = 'translateX(-50%) translateY(-20px)';
+    focusButtonEl.style.pointerEvents = 'none';
+  }
+
+  if (focusButtonEl) {
+    focusButtonEl.addEventListener('click', () => {
+      if (focusedItem) {
+        handlePhotoSelect(focusedItem);
+        hideFocusButton();
+        focusTimer = 0;
+      }
+    });
+  }
+  // ====================================================================
+  // [SECTION: mobileFocusButton end]
+  // ====================================================================
+
+
+  // ====================================================================
+  // [SECTION: messageUI] 飛行機・シャボン玉：記入ボタン＆入力フォーム
+  // ====================================================================
+  // ★追加：写真を拡大表示している状態で、その写真が letter/bubble タイプ
+  // かつ未投稿の場合に「記入する」ボタンを表示。押すとフォームが開く。
+  // ------------------------------------------------------
+
+  // --- 記入ボタン ---
+  const writeButtonEl = document.createElement('button');
+  writeButtonEl.textContent = 'メッセージ';
+  Object.assign(writeButtonEl.style, {
+    position: 'fixed',
+    left: '50%',
+    bottom: '9%',
+    transform: 'translateX(-50%) translateY(20px)',
+    padding: '18px 52px',
+    fontSize: '20px',
+    fontFamily: 'sans-serif',
+    color: '#3a2c20',
+    background: 'rgba(255, 240, 220, 0.55)',
+    border: '1px solid rgba(255, 230, 190, 0.7)',
+    borderRadius: '999px',
+    boxShadow: '0 0 20px rgba(255, 210, 160, 0.35), 0 4px 16px rgba(0,0,0,0.2)',
+    backdropFilter: 'blur(6px)',
+    opacity: '0',
+    pointerEvents: 'none',
+    transition: 'opacity 0.5s ease, transform 0.5s ease',
+    zIndex: '15',
+    letterSpacing: '0.08em',
+    whiteSpace: 'nowrap',
+  });
+  document.body.appendChild(writeButtonEl);
+
+  let writeButtonVisible = false;
+  function showWriteButton() {
+    if (writeButtonVisible) return;
+    writeButtonVisible = true;
+    writeButtonEl.style.opacity = '1';
+    writeButtonEl.style.transform = 'translateX(-50%) translateY(0)';
+    writeButtonEl.style.pointerEvents = 'auto';
+  }
+  function hideWriteButton() {
+    if (!writeButtonVisible) return;
+    writeButtonVisible = false;
+    writeButtonEl.style.opacity = '0';
+    writeButtonEl.style.transform = 'translateX(-50%) translateY(20px)';
+    writeButtonEl.style.pointerEvents = 'none';
+  }
+
+  // --- 入力フォーム(オーバーレイ) ---
+  const formOverlayEl = document.createElement('div');
+  Object.assign(formOverlayEl.style, {
+    position: 'fixed',
+    inset: '0',
+    background: 'rgba(10, 8, 15, 0.55)',
+    backdropFilter: 'blur(4px)',
+    display: 'none',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: '20',
+  });
+
+  const formPanelEl = document.createElement('div');
+  Object.assign(formPanelEl.style, {
+    width: 'min(90vw, 420px)',
+    background: 'rgba(30, 24, 38, 0.9)',
+    border: '1px solid rgba(255,255,255,0.15)',
+    borderRadius: '20px',
+    padding: '28px 24px',
+    boxShadow: '0 8px 40px rgba(0,0,0,0.5)',
+    fontFamily: 'sans-serif',
+    color: '#fff',
+  });
+
+  const formTitleEl = document.createElement('div');
+  Object.assign(formTitleEl.style, {
+    fontSize: '15px',
+    marginBottom: '16px',
+    opacity: '0.85',
+    letterSpacing: '0.05em',
+  });
+
+  const nameInputEl = document.createElement('input');
+  nameInputEl.type = 'text';
+  nameInputEl.placeholder = 'お名前（任意）';
+  nameInputEl.maxLength = 30;
+  Object.assign(nameInputEl.style, {
+    width: '100%',
+    boxSizing: 'border-box',
+    padding: '10px 14px',
+    marginBottom: '12px',
+    borderRadius: '10px',
+    border: '1px solid rgba(255,255,255,0.25)',
+    background: 'rgba(255,255,255,0.08)',
+    color: '#fff',
+    fontSize: '14px',
+    outline: 'none',
+  });
+
+  const messageInputEl = document.createElement('textarea');
+  messageInputEl.placeholder = 'メッセージ';
+  messageInputEl.maxLength = 200;
+  messageInputEl.rows = 4;
+  Object.assign(messageInputEl.style, {
+    width: '100%',
+    boxSizing: 'border-box',
+    padding: '10px 14px',
+    marginBottom: '16px',
+    borderRadius: '10px',
+    border: '1px solid rgba(255,255,255,0.25)',
+    background: 'rgba(255,255,255,0.08)',
+    color: '#fff',
+    fontSize: '14px',
+    outline: 'none',
+    resize: 'none',
+    fontFamily: 'sans-serif',
+  });
+
+  const formErrorEl = document.createElement('div');
+  Object.assign(formErrorEl.style, {
+    color: '#ffb4b4',
+    fontSize: '13px',
+    marginBottom: '10px',
+    minHeight: '18px',
+  });
+
+  const formButtonRowEl = document.createElement('div');
+  Object.assign(formButtonRowEl.style, {
+    display: 'flex',
+    gap: '10px',
+    justifyContent: 'flex-end',
+  });
+
+  const cancelButtonEl = document.createElement('button');
+  cancelButtonEl.textContent = 'やめる';
+  Object.assign(cancelButtonEl.style, {
+    padding: '10px 20px',
+    borderRadius: '999px',
+    border: '1px solid rgba(255,255,255,0.25)',
+    background: 'transparent',
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: '14px',
+    cursor: 'pointer',
+  });
+
+  const submitButtonEl = document.createElement('button');
+  submitButtonEl.textContent = '送信する';
+  Object.assign(submitButtonEl.style, {
+    padding: '10px 24px',
+    borderRadius: '999px',
+    border: 'none',
+    background: 'rgba(255, 210, 160, 0.9)',
+    color: '#3a2c20',
+    fontSize: '14px',
+    fontWeight: 'bold',
+    cursor: 'pointer',
+  });
+
+  formButtonRowEl.appendChild(cancelButtonEl);
+  formButtonRowEl.appendChild(submitButtonEl);
+  formPanelEl.appendChild(formTitleEl);
+  formPanelEl.appendChild(nameInputEl);
+  formPanelEl.appendChild(messageInputEl);
+  formPanelEl.appendChild(formErrorEl);
+  formPanelEl.appendChild(formButtonRowEl);
+  formOverlayEl.appendChild(formPanelEl);
+  document.body.appendChild(formOverlayEl);
+
+  let formTargetItem = null; // 今フォームを開いている対象のphotoItem
+  let formSubmitting = false;
+
+  // ★追加：letter(手紙風)/bubble(ガラス風)でフォームの見た目を切り替える
+  function applyLetterStyle() {
+    Object.assign(formPanelEl.style, {
+      background: 'repeating-linear-gradient(#fbf3e0 0px, #fbf3e0 27px, #e8dcc0 28px)',
+      border: '1px solid rgba(120,100,70,0.35)',
+      borderRadius: '4px',
+      boxShadow: '0 10px 40px rgba(0,0,0,0.5)',
+      color: '#4a3c28',
+      fontFamily: `'Georgia', 'Hiragino Mincho ProN', serif`,
+    });
+    formTitleEl.style.color = '#4a3c28';
+    formTitleEl.style.opacity = '0.75';
+    [nameInputEl, messageInputEl].forEach(el => {
+      Object.assign(el.style, {
+        background: 'rgba(255,255,255,0.35)',
+        border: '1px solid rgba(120,100,70,0.3)',
+        color: '#4a3c28',
+        fontFamily: `'Georgia', 'Hiragino Mincho ProN', serif`,
+      });
+    });
+    submitButtonEl.style.background = 'rgba(210, 175, 120, 0.9)';
+    submitButtonEl.style.color = '#3a2c18';
+    cancelButtonEl.style.color = 'rgba(74,60,40,0.6)';
+    cancelButtonEl.style.border = '1px solid rgba(120,100,70,0.3)';
+  }
+
+  function applyBubbleStyle() {
+    Object.assign(formPanelEl.style, {
+      background: 'rgba(30, 24, 38, 0.9)',
+      border: '1px solid rgba(255,255,255,0.15)',
+      borderRadius: '20px',
+      boxShadow: '0 8px 40px rgba(0,0,0,0.5)',
+      color: '#fff',
+      fontFamily: 'sans-serif',
+    });
+    formTitleEl.style.color = '#fff';
+    formTitleEl.style.opacity = '0.85';
+    [nameInputEl, messageInputEl].forEach(el => {
+      Object.assign(el.style, {
+        background: 'rgba(255,255,255,0.08)',
+        border: '1px solid rgba(255,255,255,0.25)',
+        color: '#fff',
+        fontFamily: 'sans-serif',
+      });
+    });
+    submitButtonEl.style.background = 'rgba(255, 210, 160, 0.9)';
+    submitButtonEl.style.color = '#3a2c20';
+    cancelButtonEl.style.color = 'rgba(255,255,255,0.7)';
+    cancelButtonEl.style.border = '1px solid rgba(255,255,255,0.25)';
+  }
+
+  function openMessageForm(item) {
+    formTargetItem = item;
+    formErrorEl.textContent = '';
+    nameInputEl.value = '';
+    messageInputEl.value = '';
+
+    if (item.type === 'letter') {
+      formTitleEl.textContent = '紙飛行機にメッセージをのせて送りましょう';
+      applyLetterStyle();
+    } else {
+      formTitleEl.textContent = 'シャボン玉にメッセージをのせて送りましょう';
+      applyBubbleStyle();
+    }
+
+    formOverlayEl.style.display = 'flex';
+    hideWriteButton();
+  }
+
+  function closeMessageForm() {
+    formOverlayEl.style.display = 'none';
+    formTargetItem = null;
+  }
+
+  cancelButtonEl.addEventListener('click', closeMessageForm);
+
+  submitButtonEl.addEventListener('click', async () => {
+    if (formSubmitting || !formTargetItem) return;
+
+    const message = messageInputEl.value.trim();
+    if (!message) {
+      formErrorEl.textContent = 'メッセージを入力してください';
+      return;
+    }
+
+    formSubmitting = true;
+    submitButtonEl.textContent = '送信中...';
+    submitButtonEl.disabled = true;
+
+    try {
+      const submittedItem = formTargetItem;
+      await submitMessage({
+        photoId: submittedItem.id,
+        type: submittedItem.type,
+        name: nameInputEl.value,
+        message,
+      });
+      closeMessageForm();
+
+      // ★実装：送信した写真の位置から紙飛行機/シャボン玉を生成して漂わせる
+      const spawnData = {
+        name: nameInputEl.value && nameInputEl.value.trim() ? nameInputEl.value.trim() : null,
+        message,
+      };
+      if (submittedItem.type === 'letter') {
+        spawnLetterPlane(spawnData, submittedItem.position.clone());
+      } else if (submittedItem.type === 'bubble') {
+        spawnBubble(spawnData, submittedItem.position.clone());
+      }
+
+      // ★追加：送信直後にズームを解除して、飛んでいく/漂う様子を見えるようにする
+      viewingItem = null;
+      approachTarget = 0;
+    } catch (err) {
+      formErrorEl.textContent = '送信に失敗しました。時間をおいて試してください。';
+    } finally {
+      formSubmitting = false;
+      submitButtonEl.textContent = '送信する';
+      submitButtonEl.disabled = false;
+    }
+  });
+
+  writeButtonEl.addEventListener('click', () => {
+    if (viewingItem && (viewingItem.type === 'letter' || viewingItem.type === 'bubble')) {
+      openMessageForm(viewingItem);
+    }
+  });
+
+  // ★追加：写真を拡大表示しきった状態で、letter/bubble かつ未投稿なら記入ボタンを出す
+  function updateWriteButton() {
+    if (formOverlayEl.style.display === 'flex') return; // フォーム表示中は何もしない
+
+    const zoomedFully = viewingItem && approachProgress > 0.85;
+    const eligible =
+      zoomedFully &&
+      (viewingItem.type === 'letter' || viewingItem.type === 'bubble') &&
+      !hasSubmitted(viewingItem.type);
+
+    if (eligible) {
+      showWriteButton();
+    } else {
+      hideWriteButton();
+    }
+  }
+  // ====================================================================
+  // [SECTION: messageUI end]
+  // ====================================================================
+
+
+  // ====================================================================
+  // [SECTION: flyingMessages] 紙飛行機・シャボン玉の生成と浮遊演出
+  // ====================================================================
+  // ★追加：投稿された/読み込んだメッセージを、紙飛行機orシャボン玉として
+  // 空間に生成し、ゆっくり漂わせる。タップすると内容が読める。
+  // ------------------------------------------------------
+
+  function createPaperPlaneTexture() {
+    const size = 160;
+    const cnv = document.createElement('canvas');
+    cnv.width = size; cnv.height = size;
+    const ctx = cnv.getContext('2d');
+    ctx.translate(size / 2, size / 2);
+    ctx.rotate(-Math.PI / 5); // 少し傾けて飛んでいる感を出す
+
+    // 胴体（左側の大きい面）
+    ctx.fillStyle = '#fdf8ee';
+    ctx.beginPath();
+    ctx.moveTo(-46, 6);
+    ctx.lineTo(46, 0);
+    ctx.lineTo(-30, 30);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(120,100,70,0.35)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // 翼（右上の面、少し暗めで折り目の陰を表現）
+    ctx.fillStyle = '#e9dfc8';
+    ctx.beginPath();
+    ctx.moveTo(-46, 6);
+    ctx.lineTo(46, 0);
+    ctx.lineTo(-30, -22);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // 中央の折り目の線
+    ctx.strokeStyle = 'rgba(120,100,70,0.5)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(-46, 6);
+    ctx.lineTo(46, 0);
+    ctx.stroke();
+
+    // 尾翼の小さな折り返し
+    ctx.fillStyle = '#f4ecd8';
+    ctx.beginPath();
+    ctx.moveTo(-30, 30);
+    ctx.lineTo(-30, -22);
+    ctx.lineTo(-14, 4);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    return new THREE.CanvasTexture(cnv);
+  }
+
+  function createBubbleTexture() {
+    const size = 128;
+    const cnv = document.createElement('canvas');
+    cnv.width = size; cnv.height = size;
+    const ctx = cnv.getContext('2d');
+    const g = ctx.createRadialGradient(size * 0.35, size * 0.32, 2, size / 2, size / 2, size / 2);
+    g.addColorStop(0, 'rgba(255,255,255,0.95)');
+    g.addColorStop(0.25, 'rgba(200,230,255,0.35)');
+    g.addColorStop(0.55, 'rgba(255,200,240,0.28)');
+    g.addColorStop(0.8, 'rgba(210,255,225,0.2)');
+    g.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(size / 2, size / 2, size / 2 - 2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(size / 2, size / 2, size / 2 - 3, 0, Math.PI * 2);
+    ctx.stroke();
+    return new THREE.CanvasTexture(cnv);
+  }
+
+  const paperPlaneTexture = createPaperPlaneTexture();
+  const bubbleTexture = createBubbleTexture();
+
+  const letterPlanes = []; // { sprite, data, angle, radius, height, targetHeight, phase, driftSpeed, rising }
+  const bubbles = [];      // { sprite, data, angle, radius, baseY, phase, driftSpeed }
+  const MAX_BUBBLES = 30;
+
+  function spawnLetterPlane(data, fromPosition) {
+    const mat = new THREE.SpriteMaterial({ map: paperPlaneTexture, transparent: true, depthWrite: false });
+    const sprite = new THREE.Sprite(mat);
+    sprite.scale.set(1.3, 1.3, 1);
+
+    const startHeight = fromPosition ? fromPosition.y : (8 + Math.random() * 6);
+    const startPos = fromPosition
+      ? fromPosition.clone()
+      : new THREE.Vector3(
+          (Math.random() - 0.5) * GALLERY_RADIUS * 1.4,
+          startHeight,
+          (Math.random() - 0.5) * GALLERY_RADIUS * 1.4
+        );
+    sprite.position.copy(startPos);
+    sprite.userData.messageData = data;
+    scene.add(sprite);
+
+    letterPlanes.push({
+      sprite,
+      data,
+      angle: Math.random() * Math.PI * 2,
+      radius: 6 + Math.random() * (GALLERY_RADIUS * 0.85),
+      height: startHeight,
+      targetHeight: 8 + Math.random() * 6,
+      phase: Math.random() * Math.PI * 2,
+      driftSpeed: 0.08 + Math.random() * 0.12,
+      rising: !!fromPosition, // 新規投稿時だけ天井へ上昇する演出をつける
+    });
+  }
+
+  function spawnBubble(data, fromPosition) {
+    const mat = new THREE.SpriteMaterial({
+      map: bubbleTexture,
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+    const sprite = new THREE.Sprite(mat);
+    const s = 0.8 + Math.random() * 0.6;
+    sprite.scale.set(s, s, 1);
+
+    const baseY = fromPosition ? fromPosition.y : (-2 + Math.random() * 10);
+    const startPos = fromPosition
+      ? fromPosition.clone()
+      : new THREE.Vector3(
+          (Math.random() - 0.5) * GALLERY_RADIUS * 1.3,
+          baseY,
+          (Math.random() - 0.5) * GALLERY_RADIUS * 1.3
+        );
+    sprite.position.copy(startPos);
+    sprite.userData.messageData = data;
+    scene.add(sprite);
+
+    bubbles.push({
+      sprite,
+      data,
+      angle: Math.random() * Math.PI * 2,
+      radius: 4 + Math.random() * (GALLERY_RADIUS * 0.7),
+      baseY,
+      phase: Math.random() * Math.PI * 2,
+      driftSpeed: 0.05 + Math.random() * 0.1,
+    });
+
+    // ★シャボン玉は直近30個のみ表示：超えたら一番古いものを消す
+    if (bubbles.length > MAX_BUBBLES) {
+      const removed = bubbles.shift();
+      scene.remove(removed.sprite);
+      removed.sprite.material.dispose();
+    }
+  }
+
+  function updateFlyingMessages(dt) {
+    const t = performance.now() * 0.0004;
+
+    letterPlanes.forEach(e => {
+      if (e.rising && e.height < e.targetHeight) {
+        e.height += dt * 1.4;
+        if (e.height >= e.targetHeight) {
+          e.height = e.targetHeight;
+          e.rising = false;
+        }
+      }
+      e.angle += e.driftSpeed * dt * 0.3;
+      e.sprite.position.set(
+        Math.cos(e.angle) * e.radius,
+        e.height + Math.sin(t * 1.6 + e.phase) * 0.4,
+        Math.sin(e.angle) * e.radius
+      );
+    });
+
+const bt = performance.now() * 0.0003;
+    bubbles.forEach(e => {
+      // ★追加：生成直後、極小から本来の大きさへ膨らむ演出
+      if (e.popProgress < 1) {
+        e.popProgress = Math.min(1, e.popProgress + dt * 2.2);
+        const eased = 1 - Math.pow(1 - e.popProgress, 3); // ease-out
+        const s = e.targetScale * eased;
+        e.sprite.scale.set(s, s, 1);
+      }
+
+      e.angle += e.driftSpeed * dt * 0.2;
+      e.sprite.position.set(
+        Math.cos(e.angle) * e.radius,
+        e.baseY + Math.sin(bt * 1.3 + e.phase) * 0.6,
+        Math.sin(e.angle) * e.radius
+      );
+    });
+  }
+
+  // --- メッセージ内容を表示するツールチップ ---
+  const messageTooltipEl = document.createElement('div');
+  Object.assign(messageTooltipEl.style, {
+    position: 'fixed',
+    left: '50%',
+    bottom: '14%',
+    transform: 'translateX(-50%) translateY(10px)',
+    maxWidth: '80vw',
+    width: 'min(90vw, 380px)',
+    padding: '16px 20px',
+    borderRadius: '16px',
+    background: 'rgba(30, 24, 38, 0.85)',
+    border: '1px solid rgba(255,255,255,0.15)',
+    boxShadow: '0 8px 30px rgba(0,0,0,0.4)',
+    color: '#fff',
+    fontFamily: 'sans-serif',
+    fontSize: '14px',
+    lineHeight: '1.6',
+    opacity: '0',
+    pointerEvents: 'none',
+    transition: 'opacity 0.35s ease, transform 0.35s ease',
+    zIndex: '18',
+  });
+  document.body.appendChild(messageTooltipEl);
+
+  let tooltipHideTimer = null;
+  function showMessageTooltip(data) {
+    const who = data.name && data.name.trim() ? data.name.trim() : '匿名';
+    messageTooltipEl.innerHTML = `<div style="opacity:0.6;font-size:12px;margin-bottom:6px;">${who}</div><div>${data.message.replace(/</g, '&lt;')}</div>`;
+    messageTooltipEl.style.opacity = '1';
+    messageTooltipEl.style.transform = 'translateX(-50%) translateY(0)';
+
+    if (tooltipHideTimer) clearTimeout(tooltipHideTimer);
+    tooltipHideTimer = setTimeout(() => {
+      messageTooltipEl.style.opacity = '0';
+      messageTooltipEl.style.transform = 'translateX(-50%) translateY(10px)';
+    }, 4000);
+  }
+
+  // --- 過去の投稿を読み込んで空間に配置(初回のみ) ---
+  (async () => {
+    try {
+      const letters = await fetchLetterMessages();
+      letters.forEach(m => spawnLetterPlane(m, null));
+
+      const bubbleMessages = await fetchBubbleMessages(MAX_BUBBLES);
+      // 新しい順で来るので、逆順(古い→新しい)に積み直してから表示する
+      bubbleMessages.reverse().forEach(m => spawnBubble(m, null));
+    } catch (err) {
+      console.error('[flyingMessages] 過去の投稿の読み込みに失敗しました:', err);
+    }
+  })();
+  // ====================================================================
+  // [SECTION: flyingMessages end]
+  // ====================================================================
+
+
+  // ====================================================================
   // [SECTION: photos] 写真アイテムの生成
   // ====================================================================
   const photoItems = [];
@@ -374,6 +1021,10 @@ export function startExhibitionSpace(renderer, camera) {
         const baseWidth = frameHeight * aspect;
         const baseHeight = frameHeight;
 
+        // ★追加：スマホでのズーム時見切れ対策のため、写真の実サイズをitemに保存
+        item.frameWidth = baseWidth;
+        item.frameHeight = baseHeight;
+
         const texSource = getTextureSource(img, MAX_TEX_DIM);
         const tex = new THREE.Texture(texSource);
         tex.needsUpdate = true;
@@ -392,6 +1043,17 @@ export function startExhibitionSpace(renderer, camera) {
         item.mesh.lookAt(0, position.y, 0);
         item.mesh.userData.photoItem = item;
         scene.add(item.mesh);
+
+        // ★追加：タップ判定だけを広げるための見えない当たり判定用メッシュ
+        // 見た目のサイズは変えず、タップの許容範囲だけ広げる
+        const hitPadding = 1.5;
+        const hitGeo = new THREE.PlaneGeometry(baseWidth * hitPadding, baseHeight * hitPadding);
+        const hitMat = new THREE.MeshBasicMaterial({ visible: false }); // 描画はしない
+        item.hitMesh = new THREE.Mesh(hitGeo, hitMat);
+        item.hitMesh.position.copy(position);
+        item.hitMesh.lookAt(0, position.y, 0);
+        item.hitMesh.userData.photoItem = item;
+        scene.add(item.hitMesh);
 
         const auraGeo = new THREE.PlaneGeometry(baseWidth + 0.15, baseHeight + 0.15);
         const auraMat = new THREE.MeshBasicMaterial({
@@ -451,10 +1113,17 @@ export function startExhibitionSpace(renderer, camera) {
     lastX = e.clientX; lastY = e.clientY;
   });
 
+  // ★追加：ドラッグとタップを区別するための変数
+  let touchStartX = 0, touchStartY = 0, touchMoved = false;
+  const TAP_MOVE_THRESHOLD = 10; // これ以上動いたら「タップ」ではなく「ドラッグ」とみなす(px)
+
   canvasEl.addEventListener('touchstart', (e) => {
     if (e.touches.length === 1) {
       lastX = e.touches[0].clientX;
       lastY = e.touches[0].clientY;
+      touchStartX = lastX;      // ★追加
+      touchStartY = lastY;      // ★追加
+      touchMoved = false;       // ★追加
     }
   }, { passive: true });
 
@@ -465,6 +1134,13 @@ export function startExhibitionSpace(renderer, camera) {
       onDragMove(dx, dy);
       lastX = e.touches[0].clientX;
       lastY = e.touches[0].clientY;
+
+      // ★追加：タップ開始位置からの総移動距離をチェック
+      const totalDx = e.touches[0].clientX - touchStartX;
+      const totalDy = e.touches[0].clientY - touchStartY;
+      if (Math.sqrt(totalDx * totalDx + totalDy * totalDy) > TAP_MOVE_THRESHOLD) {
+        touchMoved = true;
+      }
     }
   }, { passive: true });
 
@@ -476,6 +1152,28 @@ export function startExhibitionSpace(renderer, camera) {
   let approachTarget = 0;
   const cameraHomePos = new THREE.Vector3(0, 0, 0);
   let cameraApproachPos = new THREE.Vector3();
+
+  // ★追加：写真全体が画面（カメラのFOV・aspect）にちょうど収まる距離を計算
+  // スマホ（縦長・aspectが小さい）でも横長写真がはみ出ないようにするための関数
+  function calcFitDistance(item) {
+    const w = item.frameWidth || 4;
+    const h = item.frameHeight || 4;
+
+    const vFov = THREE.MathUtils.degToRad(camera.fov); // 縦方向の視野角
+    const aspect = camera.aspect;
+
+    // 縦方向に収めるために必要な距離
+    const distForHeight = (h / 2) / Math.tan(vFov / 2);
+
+    // 横方向に収めるために必要な距離
+    // 横方向の視野角は aspect を掛けて求める
+    const hFov = 2 * Math.atan(Math.tan(vFov / 2) * aspect);
+    const distForWidth = (w / 2) / Math.tan(hFov / 2);
+
+    // 縦・横どちらも収まる方（大きい方）を採用し、少し余白を持たせる
+    const margin = 1.35; // 余白係数。1.2〜1.5くらいで調整
+    return Math.max(distForHeight, distForWidth) * margin;
+  }
 
   function handlePhotoSelect(item) {
     switch (item.type) {
@@ -490,8 +1188,16 @@ export function startExhibitionSpace(renderer, camera) {
         } else {
           viewingItem = item;
           approachTarget = 1;
-          const dir = item.position.clone().normalize();
-          cameraApproachPos = item.position.clone().sub(dir.multiplyScalar(5));
+
+          // ★修正：Y成分を無視した水平方向のみのdirを使う
+          // → カメラの高さを写真と揃えて、正面から見たときの台形歪みを防ぐ
+          const dir = item.position.clone();
+          dir.y = 0;
+          dir.normalize();
+
+          const fitDistance = calcFitDistance(item);
+          cameraApproachPos = item.position.clone().sub(dir.multiplyScalar(fitDistance));
+          cameraApproachPos.y = item.position.y; // 念のため高さを完全に一致させる
         }
         break;
       }
@@ -507,7 +1213,31 @@ export function startExhibitionSpace(renderer, camera) {
     pointer.y = -(clientY / window.innerHeight) * 2 + 1;
     raycaster.setFromCamera(pointer, camera);
 
-    const meshes = photoItems.filter(it => it.mesh).map(it => it.mesh);
+    // ★追加：浮遊する紙飛行機・シャボン玉へのタップ判定(PC/スマホ共通)
+    // 写真拡大中は判定しない(誤タップ防止)
+    if (!viewingItem) {
+      const flyingSprites = [
+        ...letterPlanes.map(e => e.sprite),
+        ...bubbles.map(e => e.sprite),
+      ];
+      const flyingHits = raycaster.intersectObjects(flyingSprites);
+      if (flyingHits.length > 0) {
+        showMessageTooltip(flyingHits[0].object.userData.messageData);
+        return;
+      }
+    }
+
+    // ★変更：mesh → hitMesh に変更（当たり判定を広げた透明な板を使う）
+    // ★追加：スマホでは写真への直接タップ選択を無効化（留まってボタン確定方式に統一）
+    if (IS_MOBILE) {
+      if (viewingItem) {
+        viewingItem = null;
+        approachTarget = 0;
+      }
+      return;
+    }
+
+    const meshes = photoItems.filter(it => it.hitMesh).map(it => it.hitMesh);
     const hits = raycaster.intersectObjects(meshes);
 
     if (hits.length > 0) {
@@ -521,6 +1251,7 @@ export function startExhibitionSpace(renderer, camera) {
 
   canvasEl.addEventListener('click', (e) => onPointerClick(e.clientX, e.clientY));
   canvasEl.addEventListener('touchend', (e) => {
+    if (touchMoved) return; // ★追加：ドラッグだった場合はクリック扱いしない
     if (e.changedTouches.length > 0) {
       onPointerClick(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
     }
@@ -696,12 +1427,42 @@ export function startExhibitionSpace(renderer, camera) {
     }
   }
 
+  // ★追加：スマホ用、正面の写真に一定時間留まっているかを判定してボタンを出す
+  function updateFocusButton(dt) {
+    if (!IS_MOBILE) return;
+
+    // ズーム中や視点移動が終わっていない間はボタンを出さない
+    if (viewingItem || approachProgress > 0.01) {
+      hideFocusButton();
+      focusedItem = null;
+      focusTimer = 0;
+      return;
+    }
+
+    const facing = getFacingItem();
+
+    if (facing && facing === focusedItem) {
+      focusTimer += dt;
+      if (focusTimer >= FOCUS_DWELL_TIME) {
+        showFocusButton();
+      }
+    } else {
+      // 向いている写真が変わった → タイマーをリセットしてボタンを隠す
+      focusedItem = facing;
+      focusTimer = 0;
+      hideFocusButton();
+    }
+  }
+
   function update(dt) {
     updateCamera(dt);
     updatePhotos(dt);
     updateRipple(dt);
     updateSparkles(dt);
     updateBackground(dt);
+    updateFocusButton(dt);
+    updateWriteButton();
+    updateFlyingMessages(dt); // ★追加
   }
   // ====================================================================
   // [SECTION: update end]

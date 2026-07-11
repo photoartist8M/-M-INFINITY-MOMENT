@@ -407,7 +407,6 @@ function frame(timestamp){
 
     updateAndDrawOrbitLight(deltaTime);
 }
-
 export function triggerTouchAnimation(){
     if (!isTouched) {
         isTouched = true;
