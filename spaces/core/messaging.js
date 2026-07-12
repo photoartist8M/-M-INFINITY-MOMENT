@@ -35,7 +35,59 @@ function markSubmitted(type) {
 // ------------------------------------------------------
 // メッセージ投稿
 // ------------------------------------------------------
+// ★追加：わかりやすい誹謗中傷・NGワードの簡易フィルタ
+// 完璧な防止はできないが、明らかな暴言の一次的な防波堤として機能する
+const NG_WORDS = [
+  '死ね', 'しね', 'ﾀﾋね',
+  'バカ', 'ばか', '馬鹿',
+  'カス', 'かす',
+  'ブス', 'ぶす',
+  'キモい', 'きもい',
+  'クズ', 'くず',
+  'うざい', 'ウザい',
+  'fuck', 'shit', 'bitch',
+ 
+  '殺す','ころす',
+  '消えろ',
+  '失せろ',
+
+  'アホ','あほ',
+  'クズ','くず',
+  'ゴミ','ごみ',
+  'ブス','ぶす',
+  'デブ','でぶ',
+  'ハゲ','はげ',
+  'チビ','ちび',
+  'キモ','きも',
+
+  '最低',
+  '無能',
+
+  // 差別・人格攻撃
+  '障害者',
+  '知恵遅れ',
+  '池沼',
+
+  // 英語
+  'fucking',
+  'asshole',
+  'idiot',
+  'moron',
+  'kill yourself',
+  'kys',
+];
+
+function containsNGWord(text) {
+  const normalized = text.toLowerCase();
+  return NG_WORDS.some(word => normalized.includes(word.toLowerCase()));
+}
+
 export async function submitMessage({ photoId, type, name, message }) {
+  // ★追加：送信前にNGワードチェック
+  if (containsNGWord(message) || (name && containsNGWord(name))) {
+    throw new Error('NG_WORD_DETECTED');
+  }
+
   const userToken = getUserToken();
 
   const { error } = await supabase.from('messages').insert({
