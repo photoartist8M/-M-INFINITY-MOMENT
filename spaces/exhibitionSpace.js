@@ -1144,10 +1144,9 @@ if (e.sprite.position.y > 20) { e.sprite.position.y = 20; e.velocity.y = -Math.a
           opacity: 0, // ★変更(1→0)：最初は非表示。update内の時間差フェードインで見せる
         });
 
-item.mesh = new THREE.Mesh(geo, mat);
+        item.mesh = new THREE.Mesh(geo, mat);
         item.mesh.position.copy(position);
         item.mesh.lookAt(0, position.y, 0);
-        item.mesh.rotateX(THREE.MathUtils.degToRad(config.tiltX || 0)); // ★追加：段ごとの下向き傾きを反映
         item.mesh.userData.photoItem = item;
         scene.add(item.mesh);
 
@@ -1159,7 +1158,6 @@ item.mesh = new THREE.Mesh(geo, mat);
         item.hitMesh = new THREE.Mesh(hitGeo, hitMat);
         item.hitMesh.position.copy(position);
         item.hitMesh.lookAt(0, position.y, 0);
-        item.hitMesh.rotateX(THREE.MathUtils.degToRad(config.tiltX || 0)); // ★追加：見た目と当たり判定の向きを一致させる
         item.hitMesh.userData.photoItem = item;
         scene.add(item.hitMesh);
 
@@ -1173,7 +1171,6 @@ item.mesh = new THREE.Mesh(geo, mat);
         item.aura = new THREE.Mesh(auraGeo, auraMat);
         item.aura.position.copy(position).multiplyScalar(1.002);
         item.aura.lookAt(0, position.y, 0);
-        item.aura.rotateX(THREE.MathUtils.degToRad(config.tiltX || 0)); // ★追加：光る縁取りも同じ向きに
         scene.add(item.aura);
 
         item.pastelColors = extractPastelColors(img);
