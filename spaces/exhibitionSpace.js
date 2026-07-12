@@ -459,7 +459,7 @@ export function startExhibitionSpace(renderer, camera) {
 
   const formPanelEl = document.createElement('div');
   Object.assign(formPanelEl.style, {
-    width: 'min(90vw, 420px)',
+    width: 'min(92vw, 560px)',
     background: 'rgba(30, 24, 38, 0.9)',
     border: '1px solid rgba(255,255,255,0.15)',
     borderRadius: '20px',
@@ -490,14 +490,14 @@ export function startExhibitionSpace(renderer, camera) {
     border: '1px solid rgba(255,255,255,0.25)',
     background: 'rgba(255,255,255,0.08)',
     color: '#fff',
-    fontSize: '14px',
+    fontSize: '17px',
     outline: 'none',
   });
 
   const messageInputEl = document.createElement('textarea');
   messageInputEl.placeholder = 'メッセージ';
   messageInputEl.maxLength = 200;
-  messageInputEl.rows = 4;
+  messageInputEl.rows = 5;
   Object.assign(messageInputEl.style, {
     width: '100%',
     boxSizing: 'border-box',
@@ -507,7 +507,7 @@ export function startExhibitionSpace(renderer, camera) {
     border: '1px solid rgba(255,255,255,0.25)',
     background: 'rgba(255,255,255,0.08)',
     color: '#fff',
-    fontSize: '14px',
+    fontSize: '17px',
     outline: 'none',
     resize: 'none',
     fontFamily: 'sans-serif',
@@ -670,15 +670,25 @@ export function startExhibitionSpace(renderer, camera) {
         name: nameInputEl.value && nameInputEl.value.trim() ? nameInputEl.value.trim() : null,
         message,
       };
+let trackedPosition = null;
       if (submittedItem.type === 'letter') {
         spawnLetterPlane(spawnData, submittedItem.position.clone());
+        trackedPosition = letterPlanes[letterPlanes.length - 1].sprite.position;
       } else if (submittedItem.type === 'bubble') {
         spawnBubble(spawnData, submittedItem.position.clone());
+        trackedPosition = bubbles[bubbles.length - 1].sprite.position;
       }
 
-      // ★追加：送信直後にズームを解除して、飛んでいく/漂う様子を見えるようにする
-      viewingItem = null;
-      approachTarget = 0;
+      // ★変更：即座に離れるのではなく、少し視点を引きながら
+      // 生まれた紙飛行機/シャボン玉を数秒間追いかけてから自由視点に戻す
+      if (trackedPosition) {
+        viewingItem = { position: trackedPosition };
+        approachTarget = 0.45;
+        setTimeout(() => {
+          viewingItem = null;
+          approachTarget = 0;
+        }, 3500);
+      }
     } catch (err) {
       formErrorEl.textContent = '送信に失敗しました。時間をおいて試してください。';
     } finally {
@@ -722,93 +732,129 @@ export function startExhibitionSpace(renderer, camera) {
   // 空間に生成し、ゆっくり漂わせる。タップすると内容が読める。
   // ------------------------------------------------------
 
-  function createPaperPlaneTexture() {
-    const size = 160;
+  // ★変更：色紙のランダム化に対応。引数の色でダート型の紙飛行機を描く
+  const PLANE_COLORS = ['#8fc8f0', '#a8d97a', '#f2b06a', '#f095c0', '#c79bf0', '#f5da6e'];
+
+  function createPaperPlaneTexture(baseColor) {
+    const size = 200;
     const cnv = document.createElement('canvas');
     cnv.width = size; cnv.height = size;
     const ctx = cnv.getContext('2d');
     ctx.translate(size / 2, size / 2);
-    ctx.rotate(-Math.PI / 5); // 少し傾けて飛んでいる感を出す
+    ctx.rotate(-Math.PI / 9);
 
-    // 胴体（左側の大きい面）
-    ctx.fillStyle = '#fdf8ee';
+    function shade(hex, amt) {
+      const n = parseInt(hex.slice(1), 16);
+      const r = Math.min(255, Math.max(0, (n >> 16) + amt));
+      const g = Math.min(255, Math.max(0, ((n >> 8) & 0xff) + amt));
+      const b = Math.min(255, Math.max(0, (n & 0xff) + amt));
+      return `rgb(${r},${g},${b})`;
+    }
+
+    // 胴体・機首(尖った先端のダート型)
+    ctx.fillStyle = shade(baseColor, 25);
     ctx.beginPath();
-    ctx.moveTo(-46, 6);
-    ctx.lineTo(46, 0);
-    ctx.lineTo(-30, 30);
+    ctx.moveTo(72, 0);
+    ctx.lineTo(-58, 20);
+    ctx.lineTo(-30, 4);
     ctx.closePath();
     ctx.fill();
-    ctx.strokeStyle = 'rgba(120,100,70,0.35)';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
 
-    // 翼（右上の面、少し暗めで折り目の陰を表現）
-    ctx.fillStyle = '#e9dfc8';
+    // 上翼(折り返し面)
+    ctx.fillStyle = baseColor;
     ctx.beginPath();
-    ctx.moveTo(-46, 6);
-    ctx.lineTo(46, 0);
-    ctx.lineTo(-30, -22);
+    ctx.moveTo(72, 0);
+    ctx.lineTo(-58, -34);
+    ctx.lineTo(-22, -4);
     ctx.closePath();
     ctx.fill();
-    ctx.stroke();
 
-    // 中央の折り目の線
-    ctx.strokeStyle = 'rgba(120,100,70,0.5)';
-    ctx.lineWidth = 1;
+    // 下翼(奥、少し暗め)
+    ctx.fillStyle = shade(baseColor, -20);
     ctx.beginPath();
-    ctx.moveTo(-46, 6);
-    ctx.lineTo(46, 0);
-    ctx.stroke();
-
-    // 尾翼の小さな折り返し
-    ctx.fillStyle = '#f4ecd8';
-    ctx.beginPath();
-    ctx.moveTo(-30, 30);
-    ctx.lineTo(-30, -22);
-    ctx.lineTo(-14, 4);
+    ctx.moveTo(72, 0);
+    ctx.lineTo(-30, 4);
+    ctx.lineTo(-22, -4);
     ctx.closePath();
     ctx.fill();
+
+    // 折り目の線
+    ctx.strokeStyle = 'rgba(60,40,20,0.35)';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(72, 0);
+    ctx.lineTo(-30, 4);
+    ctx.moveTo(72, 0);
+    ctx.lineTo(-22, -4);
     ctx.stroke();
 
     return new THREE.CanvasTexture(cnv);
   }
 
   function createBubbleTexture() {
-    const size = 128;
+    const size = 200;
     const cnv = document.createElement('canvas');
     cnv.width = size; cnv.height = size;
     const ctx = cnv.getContext('2d');
-    const g = ctx.createRadialGradient(size * 0.35, size * 0.32, 2, size / 2, size / 2, size / 2);
-    g.addColorStop(0, 'rgba(255,255,255,0.95)');
-    g.addColorStop(0.25, 'rgba(200,230,255,0.35)');
-    g.addColorStop(0.55, 'rgba(255,200,240,0.28)');
-    g.addColorStop(0.8, 'rgba(210,255,225,0.2)');
-    g.addColorStop(1, 'rgba(255,255,255,0)');
-    ctx.fillStyle = g;
+    const cx = size / 2, cy = size / 2, r = size / 2 - 6;
+
+    const fill = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+    fill.addColorStop(0, 'rgba(255,255,255,0.10)');
+    fill.addColorStop(0.7, 'rgba(255,255,255,0.05)');
+    fill.addColorStop(1, 'rgba(255,255,255,0.0)');
+    ctx.fillStyle = fill;
     ctx.beginPath();
-    ctx.arc(size / 2, size / 2, size / 2 - 2, 0, Math.PI * 2);
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
     ctx.fill();
-    ctx.strokeStyle = 'rgba(255,255,255,0.55)';
-    ctx.lineWidth = 2;
+
+    const rim = ctx.createConicGradient(0, cx, cy);
+    rim.addColorStop(0.0, 'rgba(255,180,220,0.9)');
+    rim.addColorStop(0.2, 'rgba(180,210,255,0.9)');
+    rim.addColorStop(0.4, 'rgba(190,255,220,0.9)');
+    rim.addColorStop(0.6, 'rgba(255,240,180,0.9)');
+    rim.addColorStop(0.8, 'rgba(230,180,255,0.9)');
+    rim.addColorStop(1.0, 'rgba(255,180,220,0.9)');
+    ctx.strokeStyle = rim;
+    ctx.lineWidth = 5;
     ctx.beginPath();
-    ctx.arc(size / 2, size / 2, size / 2 - 3, 0, Math.PI * 2);
+    ctx.arc(cx, cy, r - 2, 0, Math.PI * 2);
     ctx.stroke();
+
+    const glow = ctx.createRadialGradient(cx, cy, r - 8, cx, cy, r + 10);
+    glow.addColorStop(0, 'rgba(255,255,255,0.25)');
+    glow.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r + 10, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    ctx.beginPath();
+    ctx.ellipse(cx - r * 0.38, cy - r * 0.4, r * 0.22, r * 0.13, -0.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.beginPath();
+    ctx.ellipse(cx + r * 0.3, cy + r * 0.32, r * 0.1, r * 0.06, -0.5, 0, Math.PI * 2);
+    ctx.fill();
+
     return new THREE.CanvasTexture(cnv);
   }
 
-  const paperPlaneTexture = createPaperPlaneTexture();
-  const bubbleTexture = createBubbleTexture();
+  const bubbleTexture = createBubbleTexture(); // 飛行機は色紙ごとにspawn時生成するためここでは作らない
 
   const letterPlanes = []; // { sprite, data, angle, radius, height, targetHeight, phase, driftSpeed, rising }
   const bubbles = [];      // { sprite, data, angle, radius, baseY, phase, driftSpeed }
   const MAX_BUBBLES = 30;
 
   function spawnLetterPlane(data, fromPosition) {
-    const mat = new THREE.SpriteMaterial({ map: paperPlaneTexture, transparent: true, depthWrite: false });
+    // ★変更：ランダムな色紙で生成
+    const color = PLANE_COLORS[Math.floor(Math.random() * PLANE_COLORS.length)];
+    const mat = new THREE.SpriteMaterial({ map: createPaperPlaneTexture(color), transparent: true, depthWrite: false });
     const sprite = new THREE.Sprite(mat);
-    sprite.scale.set(1.3, 1.3, 1);
+    sprite.scale.set(2.4, 2.4, 1); // ★変更：大きく
 
-    const startHeight = fromPosition ? fromPosition.y : (8 + Math.random() * 6);
+    // ★変更：写真より高く、見上げないと気づかない高度(22〜30)まで上昇するように
+    const startHeight = fromPosition ? fromPosition.y : (22 + Math.random() * 8);
     const startPos = fromPosition
       ? fromPosition.clone()
       : new THREE.Vector3(
@@ -826,7 +872,7 @@ export function startExhibitionSpace(renderer, camera) {
       angle: Math.random() * Math.PI * 2,
       radius: 6 + Math.random() * (GALLERY_RADIUS * 0.85),
       height: startHeight,
-      targetHeight: 8 + Math.random() * 6,
+      targetHeight: 22 + Math.random() * 8, // ★変更：高い上空(22〜30)を漂うように
       phase: Math.random() * Math.PI * 2,
       driftSpeed: 0.08 + Math.random() * 0.12,
       rising: !!fromPosition, // 新規投稿時だけ天井へ上昇する演出をつける
@@ -838,18 +884,21 @@ export function startExhibitionSpace(renderer, camera) {
       map: bubbleTexture,
       transparent: true,
       depthWrite: false,
-      blending: THREE.AdditiveBlending,
+      blending: THREE.NormalBlending, // ★変更：加算合成をやめ、既存の光の粒子と混同しないように
     });
     const sprite = new THREE.Sprite(mat);
-    const s = 0.8 + Math.random() * 0.6;
-    sprite.scale.set(s, s, 1);
+    const s = 1.6 + Math.random() * 0.8; // ★変更：大きく
+    sprite.scale.set(0.01, 0.01, 1); // ★変更：生成時は極小からスタートして膨らむ演出をつける
 
-    const baseY = fromPosition ? fromPosition.y : (-2 + Math.random() * 10);
+    // ★変更：写真より高く、見上げないと気づかない高度(20〜30)に落ち着かせる
+    const restingY = fromPosition ? (20 + Math.random() * 10) : (20 + Math.random() * 10);
+    const startY = fromPosition ? fromPosition.y : restingY;
+
     const startPos = fromPosition
       ? fromPosition.clone()
       : new THREE.Vector3(
           (Math.random() - 0.5) * GALLERY_RADIUS * 1.3,
-          baseY,
+          startY,
           (Math.random() - 0.5) * GALLERY_RADIUS * 1.3
         );
     sprite.position.copy(startPos);
@@ -861,9 +910,12 @@ export function startExhibitionSpace(renderer, camera) {
       data,
       angle: Math.random() * Math.PI * 2,
       radius: 4 + Math.random() * (GALLERY_RADIUS * 0.7),
-      baseY,
+      baseY: restingY,   // ★変更：最終的に落ち着く高さ
+      currentY: startY,  // ★追加：現在の高さ(ここから上昇していく)
       phase: Math.random() * Math.PI * 2,
       driftSpeed: 0.05 + Math.random() * 0.1,
+      targetScale: s,    // ★追加：最終的な大きさ
+      popProgress: 0,    // ★追加：膨らむ演出の進行度(0〜1)
     });
 
     // ★シャボン玉は直近30個のみ表示：超えたら一番古いものを消す
@@ -893,20 +945,25 @@ export function startExhibitionSpace(renderer, camera) {
       );
     });
 
-const bt = performance.now() * 0.0003;
+    const bt = performance.now() * 0.0003;
     bubbles.forEach(e => {
       // ★追加：生成直後、極小から本来の大きさへ膨らむ演出
       if (e.popProgress < 1) {
         e.popProgress = Math.min(1, e.popProgress + dt * 2.2);
-        const eased = 1 - Math.pow(1 - e.popProgress, 3); // ease-out
+        const eased = 1 - Math.pow(1 - e.popProgress, 3);
         const s = e.targetScale * eased;
         e.sprite.scale.set(s, s, 1);
+      }
+
+      // ★追加：目標の高さまでゆっくり上昇
+      if (e.currentY < e.baseY) {
+        e.currentY = Math.min(e.baseY, e.currentY + dt * 1.2);
       }
 
       e.angle += e.driftSpeed * dt * 0.2;
       e.sprite.position.set(
         Math.cos(e.angle) * e.radius,
-        e.baseY + Math.sin(bt * 1.3 + e.phase) * 0.6,
+        e.currentY + Math.sin(bt * 1.3 + e.phase) * 0.6,
         Math.sin(e.angle) * e.radius
       );
     });
@@ -920,7 +977,7 @@ const bt = performance.now() * 0.0003;
     bottom: '14%',
     transform: 'translateX(-50%) translateY(10px)',
     maxWidth: '80vw',
-    width: 'min(90vw, 380px)',
+    width: 'min(92vw, 480px)',
     padding: '16px 20px',
     borderRadius: '16px',
     background: 'rgba(30, 24, 38, 0.85)',
@@ -928,7 +985,7 @@ const bt = performance.now() * 0.0003;
     boxShadow: '0 8px 30px rgba(0,0,0,0.4)',
     color: '#fff',
     fontFamily: 'sans-serif',
-    fontSize: '14px',
+    fontSize: '17px',
     lineHeight: '1.6',
     opacity: '0',
     pointerEvents: 'none',

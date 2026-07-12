@@ -1,34 +1,30 @@
 import { PHOTO_DATA, GALLERY_RADIUS } from '../config/constants.js';
 
-// ======================================================================
-// core/photoConfig.js
-// 元ファイルの [SECTION: photoConfigBuilder] 〜 [SECTION: photoConfigBuilder end] をそのまま移動
-// ======================================================================
+// ★変更：2段→可変段数(デフォルト4段)構成に。段ごとに高さと半径をずらして
+// 奥行きと余白を作り、窮屈さを解消する。
+const TIER_COUNT = 4; // ★ここを3〜5で調整
+const TIER_HEIGHTS = [7.0, 2.3, -2.3, -6.5]; // 上から下へ。TIER_COUNTと同じ数だけ用意する
 
-// ------------------------------------------------------
-// ② buildPhotoConfig()
-// ------------------------------------------------------
-// PHOTO_DATA（写真のメタ情報）を受け取り、配置計算した
-// angle / radius / height / scale を追加したオブジェクト配列を返す。
-// 計算ロジック自体は元のコードと完全に同一（挙動を変えないため）。
-// ------------------------------------------------------
 export function buildPhotoConfig(photoData) {
   const count = photoData.length;
+  const perTier = Math.ceil(count / TIER_COUNT);
+
   return photoData.map((photo, i) => {
-    // 1. 角度のズレ（jitter）を完全にゼロにして、円周上の重なりを100%防ぐ
-    const baseAngle = (360 / count) * i;
-    const angle = baseAngle;
+    const tier = Math.floor(i / perTier);
+    const indexInTier = i % perTier;
+    const countInThisTier = Math.min(perTier, count - tier * perTier);
 
-    // 2. 上下の配置を大きく散らす（偶数は上め、奇数は下めに配置。上段・下段の二段構成）
-    const isEven = i % 2 === 0;
-    const baseHeight = isEven ? 6.0 : -2.5;
-    const height = baseHeight + (Math.random() - 0.5) * 2.5;
+    // 段ごとに角度を少しずらして、縦に写真が重ならないようにする(互い違い配置)
+    const tierOffset = (tier % 2 === 0) ? 0 : (360 / countInThisTier) / 2;
+    const angle = (360 / countInThisTier) * indexInTier + tierOffset;
 
-    // 3. サイズ（scale）の大小にメリハリをつける
-    const scale = 0.85 + Math.random() * 0.75; // 0.85〜1.6倍の範囲でばらつかせる
+    const baseHeight = TIER_HEIGHTS[tier] ?? TIER_HEIGHTS[TIER_HEIGHTS.length - 1];
+    const height = baseHeight + (Math.random() - 0.5) * 1.6;
 
-    // 4. 前後の奥行き（半径）にも緩やかな変化をつける
-    const radius = GALLERY_RADIUS + (Math.random() - 0.5) * 3;
+    const scale = 0.85 + Math.random() * 0.75;
+
+    // 段ごとに半径も少し変えて奥行きを出す
+    const radius = GALLERY_RADIUS + (tier - TIER_COUNT / 2) * 1.5 + (Math.random() - 0.5) * 2;
 
     return { ...photo, angle, radius, height, scale };
   });
