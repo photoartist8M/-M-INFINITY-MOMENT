@@ -1578,95 +1578,160 @@ function updateParticleEffects() {
 // ======================================================
 // 入力管理（PC・スマホ）
 // ======================================================
+
 let targetRotX = 0;
 let targetRotY = 0;
-let cameraLocked   = false; // 裂け目演出開始と同時に true になり、以後の手動カメラ操作を無効化する
-let cameraAligning = false; // 裂け目正面へカメラを補正している間 true になる
 
-window.addEventListener('mousemove', (e) => {
+let cameraLocked = false;
+let cameraAligning = false;
+
+//------------------------------------------------------
+// PC
+//------------------------------------------------------
+
+window.addEventListener("mousemove", (e) => {
+
   if (cameraLocked || cameraAligning) return;
-  let ty = (e.clientX / window.innerWidth  - 0.5) * 0.5;
-  const _ml = getYawLimits();
-  if (_ml) ty = Math.max(_ml.min, Math.min(_ml.max, ty));
+
+  let ty = (e.clientX / window.innerWidth - 0.5) * 0.5;
+
+  const limits = getYawLimits();
+  if (limits) {
+    ty = Math.max(limits.min, Math.min(limits.max, ty));
+  }
+
   targetRotY = ty;
   targetRotX = (e.clientY / window.innerHeight - 0.5) * 0.3;
+
 });
 
-window.addEventListener('keydown', (e) => {
+window.addEventListener("keydown", (e) => {
+
   if (cameraLocked || cameraAligning) return;
-  if (e.key === 'ArrowUp')   camera.position.z -= 1.5;
-  if (e.key === 'ArrowDown') camera.position.z += 1.5;
+
+  if (e.key === "ArrowUp") {
+    camera.position.z -= 1.5;
+  }
+
+  if (e.key === "ArrowDown") {
+    camera.position.z += 1.5;
+  }
+
 });
+
+// マウスホイール（PC）
+window.addEventListener("wheel", (e) => {
+
+  if (cameraLocked || cameraAligning) return;
+
+  camera.position.z += e.deltaY * 0.01;
+
+}, { passive: true });
+
+
+//------------------------------------------------------
+// スマホ
+//------------------------------------------------------
 
 let lastTouchX = 0;
 let lastTouchY = 0;
 let lastPinchDist = 0;
+
 let lastTapTime = 0;
 let moveForward = false;
 let moveTargetZ = 0;
 
-window.addEventListener('touchstart', (e) => {
+window.addEventListener("touchstart", (e) => {
 
   const now = Date.now();
 
-  if (!cameraLocked && !cameraAligning && now - lastTapTime < 300) {
-    moveTargetZ = camera.position.z - 5; //カメラ自動前進 3から5へ
+  if (!cameraLocked &&
+      !cameraAligning &&
+      now - lastTapTime < 300) {
+
+    moveTargetZ = camera.position.z - 5;
     moveForward = true;
   }
 
   lastTapTime = now;
 
   if (e.touches.length === 1) {
+
     lastTouchX = e.touches[0].clientX;
     lastTouchY = e.touches[0].clientY;
+
   }
+
   if (e.touches.length === 2) {
+
     const dx = e.touches[0].clientX - e.touches[1].clientX;
     const dy = e.touches[0].clientY - e.touches[1].clientY;
-    lastPinchDist = Math.sqrt(dx*dx + dy*dy);
-    lastTouchY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+
+    lastPinchDist = Math.sqrt(dx * dx + dy * dy);
+
   }
+
 }, { passive: true });
 
-window.addEventListener('touchmove', (e) => {
+
+window.addEventListener("touchmove", (e) => {
+
   if (cameraLocked || cameraAligning) return;
+
   e.preventDefault();
 
+  //--------------------------------------------------
+  // 一本指
+  //--------------------------------------------------
+
   if (e.touches.length === 1) {
+
     const dx = e.touches[0].clientX - lastTouchX;
     const dy = e.touches[0].clientY - lastTouchY;
-    targetRotY -= dx * 0.0015; //スマホ感度
-  camera.position.z -= dy * 0.03;
-    const _yawLimits = getYawLimits();
-if (_yawLimits) {
-  targetRotY = Math.max(_yawLimits.min, Math.min(_yawLimits.max, targetRotY));
-} else {
-  targetRotY = Math.max(-0.5, Math.min(0.5, targetRotY)); // 写真表示外はそのまま
-}
+
+    // 左右を見る
+    targetRotY -= dx * 0.0015;
+
+    // 前後移動
+    camera.position.z -= dy * 0.035;
+
+    const limits = getYawLimits();
+
+    if (limits) {
+
+      targetRotY = Math.max(
+        limits.min,
+        Math.min(limits.max, targetRotY)
+      );
+
+    } else {
+
+      targetRotY = Math.max(
+        -0.5,
+        Math.min(0.5, targetRotY)
+      );
+
+    }
+
     lastTouchX = e.touches[0].clientX;
     lastTouchY = e.touches[0].clientY;
+
   }
+
+  //--------------------------------------------------
+  // ピンチ（今は何もしない）
+  //--------------------------------------------------
 
   if (e.touches.length === 2) {
+
     const dx = e.touches[0].clientX - e.touches[1].clientX;
     const dy = e.touches[0].clientY - e.touches[1].clientY;
-    const dist = Math.sqrt(dx*dx + dy*dy);
-    const centerY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
 
-    const pinchDelta = dist - lastPinchDist;
-    if (Math.abs(pinchDelta) > 1) {
-      camera.position.z -= pinchDelta * 0.05;
-      lastPinchDist = dist;
-    }
+    lastPinchDist = Math.sqrt(dx * dx + dy * dy);
 
-    const swipeDelta = lastTouchY - centerY;
-    if (Math.abs(swipeDelta) > 1) {
-      camera.position.z -= swipeDelta * 0.03;
-      lastTouchY = centerY;
-    }
   }
-}, { passive: false });
 
+}, { passive: false });
 // ======================================================
 // 事前確保ベクトル（フレームごとの new/clone を排除）
 // ======================================================

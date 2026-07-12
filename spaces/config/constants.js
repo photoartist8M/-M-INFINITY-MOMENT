@@ -25,7 +25,7 @@ export const PHOTO_DATA = [
   { id: 14, src: '../assets/photo14.JPEG', type: 'normal', depth: null, interaction: null },
   { id: 15, src: '../assets/photo15.jpg', type: 'normal', depth: null, interaction: null },
   { id: 16, src: '../assets/photo16.jpg', type: 'normal', depth: null, interaction: null },
-  { id: 17, src: '../assets/photo17.jpg', ypee: 'normal', depth: null, interaction: null },
+  { id: 17, src: '../assets/photo17.jpg', type: 'normal', depth: null, interaction: null },
   { id: 18, src: '../assets/photo18.jpg', type: 'normal', depth: null, interaction: null },
   { id: 19, src: '../assets/photo19.jpg', type: 'normal', depth: null, interaction: null },
   { id: 20, src: '../assets/photo20.jpg', type: 'normal', depth: null, interaction: null },

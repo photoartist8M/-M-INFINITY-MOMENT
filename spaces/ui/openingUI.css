@@ -149,8 +149,64 @@ body.loaded .titleArea{
     text-align:center;
     line-height:1.8;
 }
+/* ==========================================================
+   Opening Message
+   ========================================================== */
 
+.openingMessage{
 
+    position:absolute;
+
+    left:50%;
+
+    top:55%;
+
+    transform:translate(-50%,10px);
+
+    width:min(88vw,420px);
+
+    padding:0 16px;
+
+    text-align:center;
+
+    line-height:1.95;
+
+    font-size:clamp(0.82rem,2.8vw,0.92rem);
+
+    letter-spacing:.06em;
+
+    color:rgba(230,230,230,.84);
+
+    opacity:0;
+
+    transition:
+        opacity 1.5s ease,
+        transform 1.5s ease;
+
+    pointer-events:none;
+
+    z-index:2;
+}
+
+.openingMessage p{
+    white-space:nowrap;
+}
+
+.openingMessage.show{
+
+    opacity:1;
+
+    transform:translate(-50%,0);
+
+}
+
+.openingMessage.hide{
+
+    opacity:0;
+
+    transform:translate(-50%,-8px);
+
+}
 /* ==========================================================
    Clock Button（円形・ネビュラ・リング・周回光）
    ========================================================== */
@@ -310,17 +366,26 @@ body.loaded .titleArea{
 #infoPanel{
     position:fixed;
     inset:0;
+
     background:rgba(0,0,0,.72);
     backdrop-filter:blur(18px);
     -webkit-backdrop-filter:blur(18px);
+
     display:flex;
     justify-content:center;
-    align-items:center;
+    align-items:flex-start;
+
+    overflow-y:auto;
+
+    padding:40px 18px;
+
     opacity:0;
     visibility:hidden;
+
     transition:
         opacity .45s ease,
         visibility .45s ease;
+
     z-index:100;
 }
 
@@ -330,48 +395,132 @@ body.loaded .titleArea{
 }
 
 .infoContent{
-    width:min(90vw,520px);
-    background:rgba(20,20,20,.78);
-    border:1px solid rgba(255,255,255,.14);
+
+    width:min(90vw,500px);
+
+    margin:auto 0;
+
+    max-height:calc(100vh - 80px);
+
+    overflow-y:auto;
+
+    background:rgba(18,18,18,.84);
+
+    border:1px solid rgba(255,255,255,.12);
+
     border-radius:28px;
+
     padding:34px 28px;
-    box-shadow:
-        0 24px 80px rgba(0,0,0,.65);
+
     display:flex;
     flex-direction:column;
-    gap:22px;
+
+    gap:18px;
+
+    box-shadow:
+        0 24px 80px rgba(0,0,0,.65);
+
+    -webkit-overflow-scrolling:touch;
 }
 
 .infoContent h3{
-    font-family:"Cormorant Garamond", serif;
+
+    font-family:"Cormorant Garamond",serif;
+
     font-size:2rem;
+
     font-weight:400;
+
     letter-spacing:.08em;
+
     text-align:center;
-    color:white;
+
+    color:rgba(255,248,240,.95);
 }
 
 .infoContent p{
-    font-size:.92rem;
-    line-height:1.95;
-    color:rgba(255,255,255,.82);
+
+    font-size:.9rem;
+
+    line-height:1.9;
+
+    color:rgba(235,235,235,.82);
+}
+
+.infoContent strong{
+
+    display:block;
+
+    margin-bottom:8px;
+
+    font-family:"Cormorant Garamond",serif;
+
+    font-size:1.1rem;
+
+    font-weight:500;
+
+    color:rgba(255,240,220,.92);
+}
+
+.infoDivider{
+
+    width:100%;
+
+    height:1px;
+
+    background:linear-gradient(
+        90deg,
+        transparent,
+        rgba(255,255,255,.15),
+        transparent
+    );
+}
+
+.infoNote{
+
+    text-align:center;
+
+    font-size:.8rem;
+
+    color:rgba(255,255,255,.52);
+
+    letter-spacing:.04em;
 }
 
 #closeInfo{
+
     align-self:center;
-    width:180px;
-    height:48px;
+
+    width:170px;
+
+    height:44px;
+
+    margin-top:8px;
+
     border:none;
+
     border-radius:999px;
-    background:var(--glass);
-    border:1px solid var(--border);
-    color:white;
+
+    background:rgba(255,255,255,.04);
+
+    border:1px solid rgba(255,255,255,.14);
+
+    color:rgba(255,255,255,.9);
+
+    font-family:"Cormorant Garamond",serif;
+
+    font-size:1rem;
+
     cursor:pointer;
-    transition:all var(--transition);
+
+    transition:all .35s ease;
 }
 
 #closeInfo:hover{
-    background:var(--glassHover);
+
+    background:rgba(255,255,255,.08);
+
+    border-color:rgba(255,220,170,.28);
 }
 /* ==========================================================
    Responsive

@@ -265,20 +265,51 @@ const clockButtonWrapEl = document.getElementById("clockButtonWrap");
 const bottomBarEl = document.querySelector(".bottomBar");
 const creditEl = document.querySelector(".credit");
 const titleAreaEl = document.querySelector(".titleArea");
+const openingMessageEl = document.getElementById("openingMessage");
 
-document.body.classList.add("loaded"); // タイトルのフェードイン開始(CSS側で1.5s)
+document.body.classList.add("loaded");
 
-// 変更後
+
+// ======================================================
+// 鑑賞メッセージ
+// ======================================================
+
+// タイトル表示後、少し間を置いてゆっくり表示
 setTimeout(() => {
-    if(flareCanvasEl){
+    openingMessageEl?.classList.add("show");
+}, 1800);
+
+// 十分読める時間を確保してからゆっくり消す
+setTimeout(() => {
+    openingMessageEl?.classList.add("hide");
+}, 8200);
+
+
+// ======================================================
+// フレア
+// ======================================================
+
+setTimeout(() => {
+
+    if (flareCanvasEl) {
         flareCanvasEl.classList.add("flash");
-        setTimeout(() => flareCanvasEl.classList.remove("flash"), 3200);
+
+        setTimeout(() => {
+            flareCanvasEl.classList.remove("flash");
+        }, 3200);
     }
 
-    setTimeout(() => {
-        if(clockButtonWrapEl) clockButtonWrapEl.classList.add("reveal");
-        if(bottomBarEl) bottomBarEl.classList.add("reveal");
-        if(creditEl) creditEl.classList.add("reveal");
-    }, 600);
+}, 9800);
 
-}, 5700);
+
+// ======================================================
+// ボタン・UI表示
+// ======================================================
+
+setTimeout(() => {
+
+    clockButtonWrapEl?.classList.add("reveal");
+    bottomBarEl?.classList.add("reveal");
+    creditEl?.classList.add("reveal");
+
+}, 10400);
