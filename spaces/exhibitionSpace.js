@@ -326,10 +326,6 @@ export function startExhibitionSpace(renderer, camera) {
   // ====================================================================
   // [SECTION: mobileFocusButton] スマホ用：正面の写真に留まると出現する決定ボタン
   // ====================================================================
-  // ★追加：スマホでは正確なタップの代わりに「正面を向いた写真の前で
-  // 一定時間留まる→下部にボタンが出現→タップで確定」という方式にする。
-  // 高齢者や3D操作に不慣れな方でも、狙いを定めず視点を向けるだけで
-  // 操作できるようにするための仕組み。
   let focusButtonEl = null;
   if (IS_MOBILE) {
     focusButtonEl = document.createElement('button');
@@ -398,11 +394,6 @@ export function startExhibitionSpace(renderer, camera) {
   // ====================================================================
   // [SECTION: messageUI] 飛行機・シャボン玉：記入ボタン＆入力フォーム
   // ====================================================================
-  // ★追加：写真を拡大表示している状態で、その写真が letter/bubble タイプ
-  // かつ未投稿の場合に「記入する」ボタンを表示。押すとフォームが開く。
-  // ------------------------------------------------------
-
-  // --- 記入ボタン ---
   const writeButtonEl = document.createElement('button');
   writeButtonEl.textContent = 'メッセージ';
   Object.assign(writeButtonEl.style, {
@@ -444,7 +435,6 @@ export function startExhibitionSpace(renderer, camera) {
     writeButtonEl.style.pointerEvents = 'none';
   }
 
-  // --- 入力フォーム(オーバーレイ) ---
   const formOverlayEl = document.createElement('div');
   Object.assign(formOverlayEl.style, {
     position: 'fixed',
@@ -563,10 +553,9 @@ export function startExhibitionSpace(renderer, camera) {
   formOverlayEl.appendChild(formPanelEl);
   document.body.appendChild(formOverlayEl);
 
-  let formTargetItem = null; // 今フォームを開いている対象のphotoItem
+  let formTargetItem = null;
   let formSubmitting = false;
 
-  // ★追加：letter(手紙風)/bubble(ガラス風)でフォームの見た目を切り替える
   function applyLetterStyle() {
     Object.assign(formPanelEl.style, {
       background: 'repeating-linear-gradient(#fbf3e0 0px, #fbf3e0 27px, #e8dcc0 28px)',
@@ -665,7 +654,6 @@ export function startExhibitionSpace(renderer, camera) {
       });
       closeMessageForm();
 
-      // ★実装：送信した写真の位置から紙飛行機/シャボン玉を生成して漂わせる
       const spawnData = {
         name: nameInputEl.value && nameInputEl.value.trim() ? nameInputEl.value.trim() : null,
         message,
@@ -679,8 +667,6 @@ export function startExhibitionSpace(renderer, camera) {
         trackedPosition = bubbles[bubbles.length - 1].sprite.position;
       }
 
-      // ★変更：即座に離れるのではなく、少し視点を引きながら生まれた
-      // 紙飛行機/シャボン玉を数秒間追いかけてから自由視点に戻す
       if (trackedPosition) {
         viewingItem = { position: trackedPosition };
         approachTarget = 0.45;
@@ -689,7 +675,7 @@ export function startExhibitionSpace(renderer, camera) {
           approachTarget = 0;
         }, 3500);
       }
-} catch (err) {
+    } catch (err) {
       if (err && err.message === 'NG_WORD_DETECTED') {
         formErrorEl.textContent = '不適切な言葉が含まれている可能性があります。内容を見直してください。';
       } else {
@@ -708,9 +694,8 @@ export function startExhibitionSpace(renderer, camera) {
     }
   });
 
-  // ★追加：写真を拡大表示しきった状態で、letter/bubble かつ未投稿なら記入ボタンを出す
   function updateWriteButton() {
-    if (formOverlayEl.style.display === 'flex') return; // フォーム表示中は何もしない
+    if (formOverlayEl.style.display === 'flex') return;
 
     const zoomedFully = viewingItem && approachProgress > 0.85;
     const eligible =
@@ -730,17 +715,10 @@ export function startExhibitionSpace(renderer, camera) {
 
 
   // ====================================================================
-  // ====================================================================
   // [SECTION: flyingMessages] 紙飛行機・シャボン玉の生成と浮遊演出
   // ====================================================================
-  // ★変更：3Dメッシュ化をやめ、元のスプライト(常にカメラを向く2D切り絵)
-  // 方式に戻す。キラキラ・透明感はCanvasのテクスチャ側に焼き込む。
-  // ------------------------------------------------------
+  const PLANE_COLORS = ['#3d8fd6', '#4fa84f', '#e8822a', '#e8508f', '#8a4fd6', '#e8b800'];
 
-  const PLANE_COLORS = ['#3d8fd6', '#4fa84f', '#e8822a', '#e8508f', '#8a4fd6', '#e8b800']; // ★変更：より濃く鮮やかな色に
-  // ★変更：B案(フラット切り絵＋キラキラ粒子)。周囲の四角い背景が出ないよう
-  // Sprite用のクリアな透明キャンバスに、輪郭のはっきりした紙飛行機＋
-  // 周りに散らすキラキラの粒を焼き込む。
   function createPaperPlaneTexture(baseColor) {
     const size = 220;
     const cnv = document.createElement('canvas');
@@ -759,7 +737,7 @@ export function startExhibitionSpace(renderer, camera) {
     ctx.translate(size / 2, size / 2);
     ctx.rotate(-Math.PI / 9);
 
-   ctx.fillStyle = shade(baseColor, 35);
+    ctx.fillStyle = shade(baseColor, 35);
     ctx.beginPath();
     ctx.moveTo(58, 0);
     ctx.lineTo(-46, 16);
@@ -795,17 +773,16 @@ export function startExhibitionSpace(renderer, camera) {
     return new THREE.CanvasTexture(cnv);
   }
 
-  // ★変更：夜空ではなく「日没前のブルーモーメント」の色味に。星は控えめ・軽量
   function createSkyDomeTexture() {
     const w = 512, h = 256;
     const cnv = document.createElement('canvas');
     cnv.width = w; cnv.height = h;
     const ctx = cnv.getContext('2d');
-const g = ctx.createLinearGradient(0, 0, 0, h);
-    g.addColorStop(0, '#232f52');    // ★変更：さらに深いブルー
-    g.addColorStop(0.45, '#455470'); // ★変更：中間も暗めに
-    g.addColorStop(0.8, '#6f6f88');  // ★変更：下寄りも少し落ち着いた色に
-    g.addColorStop(1, 'rgba(120,115,140,0)'); // ★変更：透明に抜ける手前の色も暗めに調整
+    const g = ctx.createLinearGradient(0, 0, 0, h);
+    g.addColorStop(0, '#232f52');
+    g.addColorStop(0.45, '#455470');
+    g.addColorStop(0.8, '#6f6f88');
+    g.addColorStop(1, 'rgba(120,115,140,0)');
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, w, h);
 
@@ -832,8 +809,6 @@ const g = ctx.createLinearGradient(0, 0, 0, h);
   const skyDome = new THREE.Mesh(skyDomeGeo, skyDomeMat);
   scene.add(skyDome);
 
-  // ★変更：E案(ほんのり色づき＋反射)のシャボン玉。透明感を保ちつつ
-  // 淡い色と虹色のリム、ハイライト(反射)を持たせる。
   function createBubbleTexture() {
     const size = 200;
     const cnv = document.createElement('canvas');
@@ -841,8 +816,7 @@ const g = ctx.createLinearGradient(0, 0, 0, h);
     const ctx = cnv.getContext('2d');
     const cx = size / 2, cy = size / 2, r = size / 2 - 6;
 
-    // ほんのり色づいた内側(E案：透明感は保ちつつ少し実体感を出す)
-   const fill = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+    const fill = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
     fill.addColorStop(0, 'rgba(255,255,255,0.40)');
     fill.addColorStop(0.55, 'rgba(220,230,255,0.26)');
     fill.addColorStop(1, 'rgba(255,255,255,0.0)');
@@ -851,7 +825,6 @@ const g = ctx.createLinearGradient(0, 0, 0, h);
     ctx.arc(cx, cy, r, 0, Math.PI * 2);
     ctx.fill();
 
-    // 虹色のリム
     const rim = ctx.createConicGradient(0, cx, cy);
     rim.addColorStop(0.0, 'rgba(255,180,220,0.85)');
     rim.addColorStop(0.2, 'rgba(180,210,255,0.85)');
@@ -865,7 +838,6 @@ const g = ctx.createLinearGradient(0, 0, 0, h);
     ctx.arc(cx, cy, r - 2, 0, Math.PI * 2);
     ctx.stroke();
 
-    // 反射(ハイライト)
     ctx.fillStyle = 'rgba(255,255,255,0.85)';
     ctx.beginPath();
     ctx.ellipse(cx - r * 0.38, cy - r * 0.4, r * 0.22, r * 0.13, -0.5, 0, Math.PI * 2);
@@ -880,20 +852,20 @@ const g = ctx.createLinearGradient(0, 0, 0, h);
 
   const bubbleTexture = createBubbleTexture();
 
-  const letterPlanes = []; // { sprite, data, velocity, height, targetHeight, rising, phase }
-  const bubbles = [];      // { sprite, data, angle, radius, baseY, currentY, phase, driftSpeed, targetScale, popProgress }
+  const letterPlanes = [];
+  const bubbles = [];
   const MAX_BUBBLES = 30;
 
   function spawnLetterPlane(data, fromPosition) {
     const color = PLANE_COLORS[Math.floor(Math.random() * PLANE_COLORS.length)];
-  const mat = new THREE.SpriteMaterial({
+    const mat = new THREE.SpriteMaterial({
       map: createPaperPlaneTexture(color),
       transparent: true,
       depthWrite: false,
-      opacity: 0.50, // ★追加：念のため明示的に不透明を指定
+      opacity: 0.50,
     });
     const sprite = new THREE.Sprite(mat);
-    const scaleV = 4.6 + Math.random() * 1.3; // 大きめ
+    const scaleV = 4.6 + Math.random() * 1.3;
     sprite.scale.set(scaleV, scaleV, 1);
 
     const startHeight = fromPosition ? fromPosition.y : (15 + Math.random() * 6);
@@ -905,11 +877,10 @@ const g = ctx.createLinearGradient(0, 0, 0, h);
           (Math.random() - 0.5) * GALLERY_RADIUS * 1.6
         );
     sprite.position.copy(startPos);
-    sprite.material.rotation = Math.random() * Math.PI * 2; // ランダムな向きから始める
+    sprite.material.rotation = Math.random() * Math.PI * 2;
     sprite.userData.messageData = data;
     scene.add(sprite);
 
-    // ★各機体ごとにバラバラな方向へ飛んでいく速度ベクトル
     const heading = Math.random() * Math.PI * 2;
     const speed = 0.5 + Math.random() * 0.7;
 
@@ -989,10 +960,9 @@ const g = ctx.createLinearGradient(0, 0, 0, h);
         e.velocity.x *= -1;
         e.velocity.z *= -1;
       }
-     if (e.sprite.position.y < 10) { e.sprite.position.y = 10; e.velocity.y = Math.abs(e.velocity.y); }
-if (e.sprite.position.y > 20) { e.sprite.position.y = 20; e.velocity.y = -Math.abs(e.velocity.y); }
+      if (e.sprite.position.y < 10) { e.sprite.position.y = 10; e.velocity.y = Math.abs(e.velocity.y); }
+      if (e.sprite.position.y > 20) { e.sprite.position.y = 20; e.velocity.y = -Math.abs(e.velocity.y); }
 
-      // ゆるやかに向き(2D回転)を変えて、単調に見えないようにする
       e.sprite.material.rotation += Math.sin(t + e.phase) * 0.004;
     });
 
@@ -1018,7 +988,6 @@ if (e.sprite.position.y > 20) { e.sprite.position.y = 20; e.velocity.y = -Math.a
     });
   }
 
-  // --- メッセージ内容を表示するツールチップ ---
   const messageTooltipEl = document.createElement('div');
   Object.assign(messageTooltipEl.style, {
     position: 'fixed',
@@ -1029,7 +998,7 @@ if (e.sprite.position.y > 20) { e.sprite.position.y = 20; e.velocity.y = -Math.a
     width: 'min(92vw, 480px)',
     padding: '16px 20px',
     borderRadius: '16px',
-   background: 'rgba(30, 24, 38, 0.35)',
+    background: 'rgba(30, 24, 38, 0.35)',
     border: '1px solid rgba(255,255,255,0.15)',
     boxShadow: '0 8px 30px rgba(0,0,0,0.4)',
     color: '#fff',
@@ -1070,8 +1039,6 @@ if (e.sprite.position.y > 20) { e.sprite.position.y = 20; e.velocity.y = -Math.a
   })();
   // ====================================================================
   // [SECTION: flyingMessages end]
-  // ====================================================================
-
   // ====================================================================
 
 
@@ -1127,7 +1094,6 @@ if (e.sprite.position.y > 20) { e.sprite.position.y = 20; e.velocity.y = -Math.a
         const baseWidth = frameHeight * aspect;
         const baseHeight = frameHeight;
 
-        // ★追加：スマホでのズーム時見切れ対策のため、写真の実サイズをitemに保存
         item.frameWidth = baseWidth;
         item.frameHeight = baseHeight;
 
@@ -1141,7 +1107,7 @@ if (e.sprite.position.y > 20) { e.sprite.position.y = 20; e.velocity.y = -Math.a
           map: tex,
           transparent: true,
           side: THREE.DoubleSide,
-          opacity: 0, // ★変更(1→0)：最初は非表示。update内の時間差フェードインで見せる
+          opacity: 0,
         });
 
         item.mesh = new THREE.Mesh(geo, mat);
@@ -1150,11 +1116,9 @@ if (e.sprite.position.y > 20) { e.sprite.position.y = 20; e.velocity.y = -Math.a
         item.mesh.userData.photoItem = item;
         scene.add(item.mesh);
 
-        // ★追加：タップ判定だけを広げるための見えない当たり判定用メッシュ
-        // 見た目のサイズは変えず、タップの許容範囲だけ広げる
         const hitPadding = 1.5;
         const hitGeo = new THREE.PlaneGeometry(baseWidth * hitPadding, baseHeight * hitPadding);
-        const hitMat = new THREE.MeshBasicMaterial({ visible: false }); // 描画はしない
+        const hitMat = new THREE.MeshBasicMaterial({ visible: false });
         item.hitMesh = new THREE.Mesh(hitGeo, hitMat);
         item.hitMesh.position.copy(position);
         item.hitMesh.lookAt(0, position.y, 0);
@@ -1165,7 +1129,7 @@ if (e.sprite.position.y > 20) { e.sprite.position.y = 20; e.velocity.y = -Math.a
         const auraMat = new THREE.MeshBasicMaterial({
           color: 0xffffff,
           transparent: true,
-          opacity: 0, // ★変更(0.5→0)：最初は非表示
+          opacity: 0,
           side: THREE.DoubleSide,
         });
         item.aura = new THREE.Mesh(auraGeo, auraMat);
@@ -1182,7 +1146,6 @@ if (e.sprite.position.y > 20) { e.sprite.position.y = 20; e.velocity.y = -Math.a
     return item;
   }
 
-  // ★変更：時間差フェードインの順序に使う revealIndex を各itemに付与
   PHOTO_CONFIG.forEach((cfg, idx) => {
     const item = createPhotoItem(cfg);
     item.revealIndex = idx;
@@ -1200,11 +1163,11 @@ if (e.sprite.position.y > 20) { e.sprite.position.y = 20; e.velocity.y = -Math.a
   let isDragging = false;
   let lastX = 0, lastY = 0;
 
-function onDragMove(dx, dy) {
-  targetYaw -= dx * 0.003;
-  targetPitch -= dy * 0.003;
-  targetPitch = Math.max(-0.6, Math.min(1.0, targetPitch)); // ★変更：もっと見上げられるように上限を緩和
-}
+  function onDragMove(dx, dy) {
+    targetYaw -= dx * 0.003;
+    targetPitch -= dy * 0.003;
+    targetPitch = Math.max(-0.6, Math.min(1.0, targetPitch));
+  }
 
   const canvasEl = renderer.domElement;
 
@@ -1219,17 +1182,16 @@ function onDragMove(dx, dy) {
     lastX = e.clientX; lastY = e.clientY;
   });
 
-  // ★追加：ドラッグとタップを区別するための変数
   let touchStartX = 0, touchStartY = 0, touchMoved = false;
-  const TAP_MOVE_THRESHOLD = 10; // これ以上動いたら「タップ」ではなく「ドラッグ」とみなす(px)
+  const TAP_MOVE_THRESHOLD = 10;
 
   canvasEl.addEventListener('touchstart', (e) => {
     if (e.touches.length === 1) {
       lastX = e.touches[0].clientX;
       lastY = e.touches[0].clientY;
-      touchStartX = lastX;      // ★追加
-      touchStartY = lastY;      // ★追加
-      touchMoved = false;       // ★追加
+      touchStartX = lastX;
+      touchStartY = lastY;
+      touchMoved = false;
     }
   }, { passive: true });
 
@@ -1241,7 +1203,6 @@ function onDragMove(dx, dy) {
       lastX = e.touches[0].clientX;
       lastY = e.touches[0].clientY;
 
-      // ★追加：タップ開始位置からの総移動距離をチェック
       const totalDx = e.touches[0].clientX - touchStartX;
       const totalDy = e.touches[0].clientY - touchStartY;
       if (Math.sqrt(totalDx * totalDx + totalDy * totalDy) > TAP_MOVE_THRESHOLD) {
@@ -1259,25 +1220,19 @@ function onDragMove(dx, dy) {
   const cameraHomePos = new THREE.Vector3(0, 0, 0);
   let cameraApproachPos = new THREE.Vector3();
 
-  // ★追加：写真全体が画面（カメラのFOV・aspect）にちょうど収まる距離を計算
-  // スマホ（縦長・aspectが小さい）でも横長写真がはみ出ないようにするための関数
   function calcFitDistance(item) {
     const w = item.frameWidth || 4;
     const h = item.frameHeight || 4;
 
-    const vFov = THREE.MathUtils.degToRad(camera.fov); // 縦方向の視野角
+    const vFov = THREE.MathUtils.degToRad(camera.fov);
     const aspect = camera.aspect;
 
-    // 縦方向に収めるために必要な距離
     const distForHeight = (h / 2) / Math.tan(vFov / 2);
 
-    // 横方向に収めるために必要な距離
-    // 横方向の視野角は aspect を掛けて求める
     const hFov = 2 * Math.atan(Math.tan(vFov / 2) * aspect);
     const distForWidth = (w / 2) / Math.tan(hFov / 2);
 
-    // 縦・横どちらも収まる方（大きい方）を採用し、少し余白を持たせる
-    const margin = 1.35; // 余白係数。1.2〜1.5くらいで調整
+    const margin = 1.35;
     return Math.max(distForHeight, distForWidth) * margin;
   }
 
@@ -1295,15 +1250,13 @@ function onDragMove(dx, dy) {
           viewingItem = item;
           approachTarget = 1;
 
-          // ★修正：Y成分を無視した水平方向のみのdirを使う
-          // → カメラの高さを写真と揃えて、正面から見たときの台形歪みを防ぐ
           const dir = item.position.clone();
           dir.y = 0;
           dir.normalize();
 
           const fitDistance = calcFitDistance(item);
           cameraApproachPos = item.position.clone().sub(dir.multiplyScalar(fitDistance));
-          cameraApproachPos.y = item.position.y; // 念のため高さを完全に一致させる
+          cameraApproachPos.y = item.position.y;
         }
         break;
       }
@@ -1311,7 +1264,6 @@ function onDragMove(dx, dy) {
   }
 
   function onPointerClick(clientX, clientY) {
-    // ★追加：イントロ演出中（2.5秒経過前）はクリック操作を無効化
     const elapsed = (performance.now() - spaceStartTime) / 1000;
     if (elapsed < REVEAL_PHOTO_END) return;
 
@@ -1319,8 +1271,6 @@ function onDragMove(dx, dy) {
     pointer.y = -(clientY / window.innerHeight) * 2 + 1;
     raycaster.setFromCamera(pointer, camera);
 
-    // ★追加：浮遊する紙飛行機・シャボン玉へのタップ判定(PC/スマホ共通)
-    // 写真拡大中は判定しない(誤タップ防止)
     if (!viewingItem) {
       const flyingSprites = [
         ...letterPlanes.map(e => e.sprite),
@@ -1333,8 +1283,6 @@ function onDragMove(dx, dy) {
       }
     }
 
-    // ★変更：mesh → hitMesh に変更（当たり判定を広げた透明な板を使う）
-    // ★追加：スマホでは写真への直接タップ選択を無効化（留まってボタン確定方式に統一）
     if (IS_MOBILE) {
       if (viewingItem) {
         viewingItem = null;
@@ -1357,7 +1305,7 @@ function onDragMove(dx, dy) {
 
   canvasEl.addEventListener('click', (e) => onPointerClick(e.clientX, e.clientY));
   canvasEl.addEventListener('touchend', (e) => {
-    if (touchMoved) return; // ★追加：ドラッグだった場合はクリック扱いしない
+    if (touchMoved) return;
     if (e.changedTouches.length > 0) {
       onPointerClick(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
     }
@@ -1385,10 +1333,9 @@ function onDragMove(dx, dy) {
   let bgUpdateTimer = 0;
   const warmFlareTint = new THREE.Color(0xe0b888);
 
-  // ★追加：フェードイン演出のタイミング定数
-  const REVEAL_BG_END    = 0.8;  // 0.0〜0.8秒: 背景・床・光のみ
-  const REVEAL_PHOTO_END = 2.5;  // 0.8〜2.5秒: 写真が時間差フェードイン。以降は通常モード
-  const PHOTO_FADE_DUR   = 0.5;  // 1枚あたりのフェード所要時間(秒)
+  const REVEAL_BG_END    = 0.8;
+  const REVEAL_PHOTO_END = 2.5;
+  const PHOTO_FADE_DUR   = 0.5;
 
   function getStaggerStartTime(index, total) {
     if (total <= 1) return REVEAL_BG_END;
@@ -1417,8 +1364,8 @@ function onDragMove(dx, dy) {
     flareRing.visible = !zoomedIn;
     sparkles.visible = !zoomedIn;
 
-    const elapsed = (performance.now() - spaceStartTime) / 1000; // ★追加
-    const introDone = elapsed >= REVEAL_PHOTO_END; // ★追加：2.5秒経過後は通常モード
+    const elapsed = (performance.now() - spaceStartTime) / 1000;
+    const introDone = elapsed >= REVEAL_PHOTO_END;
 
     if (viewingItem && approachProgress > 0.01) {
       photoItems.forEach(item => {
@@ -1434,7 +1381,6 @@ function onDragMove(dx, dy) {
       photoItems.forEach(item => {
         if (!item.mesh) return;
 
-        // ★追加：イントロ中は時間差フェードイン、完了後は通常通り1.0を目指す
         let targetOpacity = 1.0;
         let targetAuraOpacity = 0.5;
 
@@ -1533,11 +1479,9 @@ function onDragMove(dx, dy) {
     }
   }
 
-  // ★追加：スマホ用、正面の写真に一定時間留まっているかを判定してボタンを出す
   function updateFocusButton(dt) {
     if (!IS_MOBILE) return;
 
-    // ズーム中や視点移動が終わっていない間はボタンを出さない
     if (viewingItem || approachProgress > 0.01) {
       hideFocusButton();
       focusedItem = null;
@@ -1553,7 +1497,6 @@ function onDragMove(dx, dy) {
         showFocusButton();
       }
     } else {
-      // 向いている写真が変わった → タイマーをリセットしてボタンを隠す
       focusedItem = facing;
       focusTimer = 0;
       hideFocusButton();
@@ -1568,13 +1511,12 @@ function onDragMove(dx, dy) {
     updateBackground(dt);
     updateFocusButton(dt);
     updateWriteButton();
-    updateFlyingMessages(dt); // ★追加
+    updateFlyingMessages(dt);
   }
   // ====================================================================
   // [SECTION: update end]
   // ====================================================================
 
-  // ★追加：Portalなど、次の空間に切り替える際に呼び出してもらうための掃除関数
   function hideUI() {
     hideFocusButton();
     hideWriteButton();
