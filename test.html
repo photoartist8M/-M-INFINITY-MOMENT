@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
-  <title>Exhibition Space Test</title>
+  <title>Exhibition Space Test (root)</title>
   <style>
     html, body {
       margin: 0;
@@ -20,7 +20,7 @@
 <body>
   <canvas id="canvas"></canvas>
 
-<script type="importmap">
+  <script type="importmap">
     {
       "imports": {
         "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
@@ -30,10 +30,12 @@
     }
   </script>
 
-
   <script type="module">
     import * as THREE from 'three';
-    import { startExhibitionSpace } from './exhibitionSpace.js';
+    // ★このファイルはルート(index.htmlと同じ階層)に置くので、
+    //   exhibitionSpace.js への相対パスに spaces/ をつける
+   import { startExhibitionSpace } from './spaces/exhibitionSpace.js';
+
     // --- renderer ---
     const canvas = document.getElementById('canvas');
     const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -48,22 +50,19 @@
       1000
     );
 
-let exhibition = startExhibitionSpace(renderer, camera);
-exhibition.activateIntro(); // ★追加：単体テスト用に即座に導入演出を開始
+    // exhibitionSpace.js を起動
+    let exhibition = startExhibitionSpace(renderer, camera);
+    exhibition.activateIntro(); // 単体テスト用に即座に導入演出を開始
 
     // --- アニメーションループ ---
     const clock = new THREE.Clock();
 
     function animate() {
       requestAnimationFrame(animate);
-
       const dt = clock.getDelta();
-
       exhibition.update(dt);
-
       renderer.render(exhibition.scene, camera);
     }
-
     animate();
 
     // --- リサイズ ---

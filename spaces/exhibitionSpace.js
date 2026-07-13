@@ -336,8 +336,8 @@ export function startExhibitionSpace(renderer, camera) {
       top: '85%',
       bottom: 'auto',
       transform: 'translateX(-50%) translateY(-20px)',
-      padding: '10px 48px',
-      fontSize: '25px',
+      padding: '8px 32px',
+      fontSize: '18px',
       fontWeight: '400',
       fontFamily: 'sans-serif',
       color: '#d8b46a',
@@ -395,17 +395,17 @@ export function startExhibitionSpace(renderer, camera) {
   // [SECTION: messageUI] 飛行機・シャボン玉：記入ボタン＆入力フォーム
   // ====================================================================
   const writeButtonEl = document.createElement('button');
-  writeButtonEl.textContent = 'メッセージ';
+  writeButtonEl.textContent = 'message';
   Object.assign(writeButtonEl.style, {
     position: 'fixed',
     left: '50%',
     bottom: '9%',
     transform: 'translateX(-50%) translateY(20px)',
-    padding: '18px 52px',
-    fontSize: '20px',
+    padding: '6px 20px',
+    fontSize: '10px',
     fontFamily: 'sans-serif',
     color: '#3a2c20',
-    background: 'rgba(255, 240, 220, 0.55)',
+    background: 'rgba(255, 240, 220, 0.3)',
     border: '1px solid rgba(255, 230, 190, 0.7)',
     borderRadius: '999px',
     boxShadow: '0 0 20px rgba(255, 210, 160, 0.35), 0 4px 16px rgba(0,0,0,0.2)',
@@ -673,7 +673,7 @@ export function startExhibitionSpace(renderer, camera) {
         setTimeout(() => {
           viewingItem = null;
           approachTarget = 0;
-        }, 3500);
+        }, 4000);
       }
     } catch (err) {
       if (err && err.message === 'NG_WORD_DETECTED') {
@@ -694,15 +694,15 @@ export function startExhibitionSpace(renderer, camera) {
     }
   });
 
-  function updateWriteButton() {
+function updateWriteButton() {
     if (formOverlayEl.style.display === 'flex') return;
-    if (introCinematicActive) { hideWriteButton(); return; } // ★追加：導入演出中は出さない
+    if (introCinematicActive) { hideWriteButton(); return; }
 
     const zoomedFully = viewingItem && approachProgress > 0.85;
     const eligible =
       zoomedFully &&
-      (viewingItem.type === 'letter' || viewingItem.type === 'bubble') &&
-      !hasSubmitted(viewingItem.type);
+      (viewingItem.type === 'letter' || viewingItem.type === 'bubble');
+      // ★変更：!hasSubmitted(viewingItem.type) の条件を削除。何度でも投稿できるようにする
 
     if (eligible) {
       showWriteButton();
@@ -890,8 +890,9 @@ export function startExhibitionSpace(renderer, camera) {
       data,
       velocity: new THREE.Vector3(Math.cos(heading) * speed, (Math.random() - 0.5) * 0.15, Math.sin(heading) * speed),
       height: startHeight,
-      targetHeight: 12 + Math.random() * 6,
+      targetHeight: 24 + Math.random() * 10, // ★変更(12〜18→24〜34)：もっと高く上がる
       rising: !!fromPosition,
+      risingSpeed: 0.6, // ★追加：上昇スピードを緩めて、長くゆっくり上がる演出にする
       phase: Math.random() * Math.PI * 2,
     });
   }
@@ -907,7 +908,7 @@ export function startExhibitionSpace(renderer, camera) {
     const s = 1.6 + Math.random() * 0.8;
     sprite.scale.set(0.01, 0.01, 1);
 
-    const restingY = 20 + Math.random() * 10;
+    const restingY = 32 + Math.random() * 14; // ★変更(20〜30→32〜46)：もっと高い位置で漂うように
     const startY = fromPosition ? fromPosition.y : restingY;
 
     const startPos = fromPosition
@@ -941,7 +942,7 @@ export function startExhibitionSpace(renderer, camera) {
     }
   }
 
-  function updateFlyingMessages(dt) {
+ function updateFlyingMessages(dt) {
     const maxR = GALLERY_RADIUS * 1.8;
     const t = performance.now() * 0.0004;
 
@@ -965,6 +966,10 @@ export function startExhibitionSpace(renderer, camera) {
       if (e.sprite.position.y > 20) { e.sprite.position.y = 20; e.velocity.y = -Math.abs(e.velocity.y); }
 
       e.sprite.material.rotation += Math.sin(t + e.phase) * 0.004;
+
+      // ★追加：ゆるく明滅させて「触れる」ことを示唆する
+      const pulse = 0.75 + Math.sin(performance.now() * 0.002 + e.phase) * 0.25;
+      e.sprite.material.opacity = 0.5 * pulse;
     });
 
     const bt = performance.now() * 0.0003;
@@ -986,58 +991,14 @@ export function startExhibitionSpace(renderer, camera) {
         e.currentY + Math.sin(bt * 1.3 + e.phase) * 0.6,
         Math.sin(e.angle) * e.radius
       );
+
+      // ★追加：シャボン玉もゆるく明滅
+      if (e.popProgress >= 1) {
+        const pulse = 0.85 + Math.sin(performance.now() * 0.0018 + e.phase) * 0.15;
+        e.sprite.material.opacity = pulse;
+      }
     });
   }
-
-  const messageTooltipEl = document.createElement('div');
-  Object.assign(messageTooltipEl.style, {
-    position: 'fixed',
-    left: '50%',
-    bottom: '70%',
-    transform: 'translateX(-50%) translateY(10px)',
-    maxWidth: '80vw',
-    width: 'min(92vw, 480px)',
-    padding: '16px 20px',
-    borderRadius: '16px',
-    background: 'rgba(30, 24, 38, 0.35)',
-    border: '1px solid rgba(255,255,255,0.15)',
-    boxShadow: '0 8px 30px rgba(0,0,0,0.4)',
-    color: '#fff',
-    fontFamily: 'sans-serif',
-    fontSize: '17px',
-    lineHeight: '1.6',
-    opacity: '0',
-    pointerEvents: 'none',
-    transition: 'opacity 0.35s ease, transform 0.35s ease',
-    zIndex: '18',
-  });
-  document.body.appendChild(messageTooltipEl);
-
-  let tooltipHideTimer = null;
-  function showMessageTooltip(data) {
-    const who = data.name && data.name.trim() ? data.name.trim() : '匿名';
-    messageTooltipEl.innerHTML = `<div style="opacity:0.6;font-size:12px;margin-bottom:6px;">${who}</div><div>${data.message.replace(/</g, '&lt;')}</div>`;
-    messageTooltipEl.style.opacity = '1';
-    messageTooltipEl.style.transform = 'translateX(-50%) translateY(0)';
-
-    if (tooltipHideTimer) clearTimeout(tooltipHideTimer);
-    tooltipHideTimer = setTimeout(() => {
-      messageTooltipEl.style.opacity = '0';
-      messageTooltipEl.style.transform = 'translateX(-50%) translateY(10px)';
-    }, 4000);
-  }
-
-  (async () => {
-    try {
-      const letters = await fetchLetterMessages();
-      letters.forEach(m => spawnLetterPlane(m, null));
-
-      const bubbleMessages = await fetchBubbleMessages(MAX_BUBBLES);
-      bubbleMessages.reverse().forEach(m => spawnBubble(m, null));
-    } catch (err) {
-      console.error('[flyingMessages] 過去の投稿の読み込みに失敗しました:', err);
-    }
-  })();
   // ====================================================================
   // [SECTION: flyingMessages end]
   // ====================================================================
@@ -1402,21 +1363,21 @@ export function startExhibitionSpace(renderer, camera) {
   const conceptTitleEl = document.createElement('div');
   conceptTitleEl.textContent = CONCEPT_TITLE;
   Object.assign(conceptTitleEl.style, {
-    fontSize: '13px',
-    letterSpacing: '0.5em',
+    fontSize: '30px',
+    letterSpacing: '0.35em',
     color: '#d8b46a',
     opacity: '0.9',
     textTransform: 'uppercase',
-    marginBottom: '10px',
+    marginBottom: '14px',
   });
 
   const conceptSubtitleEl = document.createElement('div');
   conceptSubtitleEl.textContent = CONCEPT_SUBTITLE;
   Object.assign(conceptSubtitleEl.style, {
-    fontSize: '20px',
-    letterSpacing: '0.25em',
+    fontSize: '13px',           // ★変更(20px→13px)：サブタイトルを小さく
+    letterSpacing: '0.2em',     // ★変更(0.25em→0.2em)
     color: '#f0e8d8',
-    opacity: '0.92',
+    opacity: '0.75',            // ★変更(0.92→0.75)：控えめに
     marginBottom: '22px',
   });
 
@@ -1495,7 +1456,7 @@ export function startExhibitionSpace(renderer, camera) {
   Object.assign(conceptReadButtonEl.style, {
     position: 'fixed',
     left: '50%',
-    top: '18%',
+    top: '78%',
     transform: 'translateX(-50%) translateY(-16px)',
     padding: '12px 36px',
     fontSize: '13px',

@@ -11,18 +11,32 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // ------------------------------------------------------
 // 端末を識別するためのトークン(匿名)
 // ------------------------------------------------------
-function getUserToken() {
-  let token = localStorage.getItem('exhibition_user_token');
-  if (!token) {
-    token = crypto.randomUUID();
-    localStorage.setItem('exhibition_user_token', token);
+function generateUUID() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
   }
-  return token;
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
 }
 
+function getUserToken() {
+  try {
+    let token = localStorage.getItem('exhibition_user_token');
+    if (!token) {
+      token = generateUUID();
+      localStorage.setItem('exhibition_user_token', token);
+    }
+    return token;
+  } catch (err) {
+    console.error('[messaging] localStorageへのアクセスに失敗しました:', err);
+    return generateUUID();
+  }
+}
 // ------------------------------------------------------
 // 「飛行機」「シャボン玉」それぞれ1回だけ投稿できたかの判定
-// (localStorageベースの緩やかな制限。展示の性質上これで十分)
 // ------------------------------------------------------
 export function hasSubmitted(type) {
   return localStorage.getItem(`exhibition_submitted_${type}`) === '1';
@@ -35,46 +49,13 @@ function markSubmitted(type) {
 // ------------------------------------------------------
 // メッセージ投稿
 // ------------------------------------------------------
-// ★追加：わかりやすい誹謗中傷・NGワードの簡易フィルタ
-// 完璧な防止はできないが、明らかな暴言の一次的な防波堤として機能する
 const NG_WORDS = [
-  '死ね', 'しね', 'ﾀﾋね',
-  'バカ', 'ばか', '馬鹿',
-  'カス', 'かす',
-  'ブス', 'ぶす',
-  'キモい', 'きもい',
-  'クズ', 'くず',
-  'うざい', 'ウザい',
-  'fuck', 'shit', 'bitch',
- 
-  '殺す','ころす',
-  '消えろ',
-  '失せろ',
-
-  'アホ','あほ',
-  'クズ','くず',
-  'ゴミ','ごみ',
-  'ブス','ぶす',
-  'デブ','でぶ',
-  'ハゲ','はげ',
-  'チビ','ちび',
-  'キモ','きも',
-
-  '最低',
-  '無能',
-
-  // 差別・人格攻撃
-  '障害者',
-  '知恵遅れ',
-  '池沼',
-
-  // 英語
-  'fucking',
-  'asshole',
-  'idiot',
-  'moron',
-  'kill yourself',
-  'kys',
+  '死ね', 'しね', 'ﾀﾋね', 'バカ', 'ばか', '馬鹿', 'カス', 'かす',
+  'ブス', 'ぶす', 'キモい', 'きもい', 'クズ', 'くず', 'うざい', 'ウザい',
+  'fuck', 'shit', 'bitch', '殺す','ころす', '消えろ', '失せろ',
+  'アホ','あほ', 'ゴミ','ごみ', 'デブ','でぶ', 'ハゲ','はげ',
+  'チビ','ちび', 'キモ','きも', '最低', '無能', '障害者', '知恵遅れ',
+  '池沼', 'fucking', 'asshole', 'idiot', 'moron', 'kill yourself', 'kys',
 ];
 
 function containsNGWord(text) {
@@ -83,7 +64,6 @@ function containsNGWord(text) {
 }
 
 export async function submitMessage({ photoId, type, name, message }) {
-  // ★追加：送信前にNGワードチェック
   if (containsNGWord(message) || (name && containsNGWord(name))) {
     throw new Error('NG_WORD_DETECTED');
   }
@@ -103,11 +83,12 @@ export async function submitMessage({ photoId, type, name, message }) {
     throw error;
   }
 
+  // ★修正箇所：ここに閉じタグと処理を追加
   markSubmitted(type);
 }
 
 // ------------------------------------------------------
-// 飛行機メッセージ：全件取得(残り続ける)
+// 飛行機メッセージ：全件取得
 // ------------------------------------------------------
 export async function fetchLetterMessages() {
   const { data, error } = await supabase
@@ -124,7 +105,7 @@ export async function fetchLetterMessages() {
 }
 
 // ------------------------------------------------------
-// シャボン玉メッセージ：直近30件のみ取得(古いものは表示から外れる)
+// シャボン玉メッセージ：直近30件のみ取得
 // ------------------------------------------------------
 export async function fetchBubbleMessages(limit = 30) {
   const { data, error } = await supabase
