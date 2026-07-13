@@ -2005,6 +2005,7 @@ if (moveForward) {
   if (doorPhase === 'switched') {
     completePortalSwitch();
     disposeMainScene();
+    getExhibition().activateIntro?.(); // ★追加：導入カメラワークをここで初めて起動する
     return;
   }
 

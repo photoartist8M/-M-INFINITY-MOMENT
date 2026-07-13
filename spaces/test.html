@@ -48,8 +48,8 @@
       1000
     );
 
-    // exhibitionSpace.js を起動
-    let exhibition = startExhibitionSpace(renderer, camera);
+let exhibition = startExhibitionSpace(renderer, camera);
+exhibition.activateIntro(); // ★追加：単体テスト用に即座に導入演出を開始
 
     // --- アニメーションループ ---
     const clock = new THREE.Clock();

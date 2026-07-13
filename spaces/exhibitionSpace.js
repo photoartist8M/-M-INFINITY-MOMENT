@@ -696,6 +696,7 @@ export function startExhibitionSpace(renderer, camera) {
 
   function updateWriteButton() {
     if (formOverlayEl.style.display === 'flex') return;
+    if (introCinematicActive) { hideWriteButton(); return; } // ★追加：導入演出中は出さない
 
     const zoomedFully = viewingItem && approachProgress > 0.85;
     const eligible =
@@ -1164,6 +1165,7 @@ export function startExhibitionSpace(renderer, camera) {
   let lastX = 0, lastY = 0;
 
   function onDragMove(dx, dy) {
+    if (introCinematicActive) return; // ★追加：導入演出中は操作を無効化
     targetYaw -= dx * 0.003;
     targetPitch -= dy * 0.003;
     targetPitch = Math.max(-0.6, Math.min(1.0, targetPitch));
@@ -1266,6 +1268,7 @@ export function startExhibitionSpace(renderer, camera) {
   function onPointerClick(clientX, clientY) {
     const elapsed = (performance.now() - spaceStartTime) / 1000;
     if (elapsed < REVEAL_PHOTO_END) return;
+    if (introCinematicActive) return; // ★追加：導入カメラワーク中は無効化
 
     pointer.x = (clientX / window.innerWidth) * 2 - 1;
     pointer.y = -(clientY / window.innerHeight) * 2 + 1;
@@ -1324,6 +1327,246 @@ export function startExhibitionSpace(renderer, camera) {
   }
   // ====================================================================
   // [SECTION: controls end]
+  // ====================================================================
+
+
+  // ====================================================================
+  // [SECTION: conceptIntro] 導入カメラワーク＋コンセプト文
+  // ====================================================================
+  // ★変更：自動タイマーではなく、外部(Portalなど)から activateIntro() を
+  // 呼んでもらって初めて演出を開始する方式に変更。裂け目からのチラ見え
+  // 段階では一切動かず、実際に空間へ入ってきた瞬間から始まる。
+  // ------------------------------------------------------
+
+  const CONCEPT_TITLE = 'emotional';
+  const CONCEPT_SUBTITLE = '― 時の瞬き ―';
+  const CONCEPT_BODY = `あの日見上げた雲は、
+手を伸ばせば届きそうだった。
+
+時は流れても、
+記憶はいつも胸の奥で、
+静かに息をしている。
+
+この一瞬が、
+あなたの記憶と未来を、
+そっと繋ぎますように。`;
+
+  let introCinematicActive = false; // ★変更：初期状態はロックしない(activateIntroが呼ばれるまで何もしない)
+  let introPhase = 'idle';          // idle -> up -> holdUp -> down -> showingConcept -> done
+  let introElapsedInPhase = 0;
+  let introStartedAt = null;        // ★追加：activateIntro()が呼ばれた時刻
+  const INTRO_LOOKUP_DUR = 3.0;
+  const INTRO_HOLD_DUR = 0.7;
+  const INTRO_LOOKDOWN_DUR = 3.2;
+  const INTRO_PITCH_UP = 1.0;
+  const INTRO_PITCH_DOWN = -0.55;
+
+  const LOOKDOWN_THRESHOLD = -0.35;
+
+  // ★追加：外部から呼び出す起動関数。Portalの演出が完全に終わり、
+  // プレイヤーがこの空間の主導権を得たタイミングで呼んでもらう。
+  function activateIntro() {
+    if (introPhase !== 'idle') return; // 二重起動防止
+    introCinematicActive = true;
+    introPhase = 'up';
+    introElapsedInPhase = 0;
+    introStartedAt = performance.now();
+  }
+
+  // --- コンセプト文オーバーレイ(洗練された美術館の解説パネル風) ---
+  const conceptOverlayEl = document.createElement('div');
+  Object.assign(conceptOverlayEl.style, {
+    position: 'fixed',
+    inset: '0',
+    background: 'rgba(8, 6, 12, 0.68)',
+    backdropFilter: 'blur(10px)',
+    display: 'none',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: '25',
+  });
+
+  const conceptPanelEl = document.createElement('div');
+  Object.assign(conceptPanelEl.style, {
+    width: 'min(88vw, 480px)',
+    padding: '52px 40px',
+    borderRadius: '2px',
+    background: 'rgba(20, 16, 26, 0.55)',
+    border: '1px solid rgba(212, 175, 120, 0.3)',
+    boxShadow: '0 20px 60px rgba(0,0,0,0.55), inset 0 0 40px rgba(212,175,120,0.04)',
+    color: '#f0e8d8',
+    fontFamily: `'Hiragino Mincho ProN', 'Georgia', serif`,
+    textAlign: 'center',
+  });
+
+  const conceptTitleEl = document.createElement('div');
+  conceptTitleEl.textContent = CONCEPT_TITLE;
+  Object.assign(conceptTitleEl.style, {
+    fontSize: '13px',
+    letterSpacing: '0.5em',
+    color: '#d8b46a',
+    opacity: '0.9',
+    textTransform: 'uppercase',
+    marginBottom: '10px',
+  });
+
+  const conceptSubtitleEl = document.createElement('div');
+  conceptSubtitleEl.textContent = CONCEPT_SUBTITLE;
+  Object.assign(conceptSubtitleEl.style, {
+    fontSize: '20px',
+    letterSpacing: '0.25em',
+    color: '#f0e8d8',
+    opacity: '0.92',
+    marginBottom: '22px',
+  });
+
+  const conceptDividerEl = document.createElement('div');
+  Object.assign(conceptDividerEl.style, {
+    width: '48px',
+    height: '1px',
+    margin: '0 auto 28px',
+    background: 'linear-gradient(90deg, transparent, rgba(212,175,120,0.7), transparent)',
+  });
+
+  const conceptBodyEl = document.createElement('div');
+  conceptBodyEl.textContent = CONCEPT_BODY;
+  Object.assign(conceptBodyEl.style, {
+    whiteSpace: 'pre-line',
+    fontSize: '15px',
+    lineHeight: '2.3',
+    letterSpacing: '0.04em',
+    opacity: '0.88',
+    marginBottom: '36px',
+    fontWeight: '300',
+  });
+
+  const conceptCloseButtonEl = document.createElement('button');
+  conceptCloseButtonEl.textContent = '閉じる';
+  Object.assign(conceptCloseButtonEl.style, {
+    padding: '8px 0',
+    border: 'none',
+    borderTop: '1px solid rgba(212,175,120,0.35)',
+    background: 'transparent',
+    color: 'rgba(240,232,216,0.75)',
+    fontFamily: `'Hiragino Mincho ProN', 'Georgia', serif`,
+    fontSize: '12px',
+    letterSpacing: '0.4em',
+    cursor: 'pointer',
+    width: '140px',
+    margin: '0 auto',
+    display: 'block',
+    transition: 'color 0.3s ease, border-color 0.3s ease',
+  });
+  conceptCloseButtonEl.addEventListener('mouseenter', () => {
+    conceptCloseButtonEl.style.color = '#d8b46a';
+    conceptCloseButtonEl.style.borderTopColor = 'rgba(212,175,120,0.8)';
+  });
+  conceptCloseButtonEl.addEventListener('mouseleave', () => {
+    conceptCloseButtonEl.style.color = 'rgba(240,232,216,0.75)';
+    conceptCloseButtonEl.style.borderTopColor = 'rgba(212,175,120,0.35)';
+  });
+
+  conceptPanelEl.appendChild(conceptTitleEl);
+  conceptPanelEl.appendChild(conceptSubtitleEl);
+  conceptPanelEl.appendChild(conceptDividerEl);
+  conceptPanelEl.appendChild(conceptBodyEl);
+  conceptPanelEl.appendChild(conceptCloseButtonEl);
+  conceptOverlayEl.appendChild(conceptPanelEl);
+  document.body.appendChild(conceptOverlayEl);
+
+  function showConceptOverlay() {
+    conceptOverlayEl.style.display = 'flex';
+  }
+
+  function closeConceptOverlay() {
+    conceptOverlayEl.style.display = 'none';
+    if (introPhase !== 'done') {
+      introPhase = 'done';
+      introCinematicActive = false;
+    }
+    hideConceptReadButton();
+  }
+
+  conceptCloseButtonEl.addEventListener('click', closeConceptOverlay);
+
+  // --- 自由閲覧中、下を向くと出る「コンセプトを読む」ボタン(同じ上品なトーンに) ---
+  const conceptReadButtonEl = document.createElement('button');
+  conceptReadButtonEl.textContent = 'コンセプトを読む';
+  Object.assign(conceptReadButtonEl.style, {
+    position: 'fixed',
+    left: '50%',
+    top: '18%',
+    transform: 'translateX(-50%) translateY(-16px)',
+    padding: '12px 36px',
+    fontSize: '13px',
+    fontFamily: `'Hiragino Mincho ProN', 'Georgia', serif`,
+    color: '#f0e8d8',
+    background: 'rgba(20, 16, 26, 0.4)',
+    border: '1px solid rgba(212, 175, 120, 0.5)',
+    borderRadius: '999px',
+    backdropFilter: 'blur(6px)',
+    opacity: '0',
+    pointerEvents: 'none',
+    transition: 'opacity 0.4s ease, transform 0.4s ease',
+    zIndex: '15',
+    letterSpacing: '0.3em',
+    whiteSpace: 'nowrap',
+  });
+  document.body.appendChild(conceptReadButtonEl);
+
+  let conceptReadButtonVisible = false;
+  function showConceptReadButton() {
+    if (conceptReadButtonVisible) return;
+    conceptReadButtonVisible = true;
+    conceptReadButtonEl.style.opacity = '1';
+    conceptReadButtonEl.style.transform = 'translateX(-50%) translateY(0)';
+    conceptReadButtonEl.style.pointerEvents = 'auto';
+  }
+  function hideConceptReadButton() {
+    if (!conceptReadButtonVisible) return;
+    conceptReadButtonVisible = false;
+    conceptReadButtonEl.style.opacity = '0';
+    conceptReadButtonEl.style.transform = 'translateX(-50%) translateY(-16px)';
+    conceptReadButtonEl.style.pointerEvents = 'none';
+  }
+  conceptReadButtonEl.addEventListener('click', showConceptOverlay);
+
+  function updateConceptIntro(dt) {
+    if (introPhase === 'idle') return; // ★変更：activateIntro()が呼ばれるまで何もしない
+
+    if (introPhase === 'done') {
+      if (!viewingItem && pitch < LOOKDOWN_THRESHOLD && conceptOverlayEl.style.display !== 'flex') {
+        showConceptReadButton();
+      } else {
+        hideConceptReadButton();
+      }
+      return;
+    }
+
+    introElapsedInPhase += dt;
+
+    if (introPhase === 'up') {
+      const p = Math.min(1, introElapsedInPhase / INTRO_LOOKUP_DUR);
+      const eased = 1 - Math.pow(1 - p, 2);
+      targetPitch = eased * INTRO_PITCH_UP;
+      pitch = targetPitch;
+      if (p >= 1) { introPhase = 'holdUp'; introElapsedInPhase = 0; }
+    } else if (introPhase === 'holdUp') {
+      if (introElapsedInPhase >= INTRO_HOLD_DUR) { introPhase = 'down'; introElapsedInPhase = 0; }
+    } else if (introPhase === 'down') {
+      const p = Math.min(1, introElapsedInPhase / INTRO_LOOKDOWN_DUR);
+      const eased = 1 - Math.pow(1 - p, 2);
+      targetPitch = INTRO_PITCH_UP + (INTRO_PITCH_DOWN - INTRO_PITCH_UP) * eased;
+      pitch = targetPitch;
+      if (p >= 1) {
+        introPhase = 'showingConcept';
+        introElapsedInPhase = 0;
+        showConceptOverlay();
+      }
+    }
+  }
+  // ====================================================================
+  // [SECTION: conceptIntro end]
   // ====================================================================
 
 
@@ -1481,6 +1724,7 @@ export function startExhibitionSpace(renderer, camera) {
 
   function updateFocusButton(dt) {
     if (!IS_MOBILE) return;
+    if (introCinematicActive) { hideFocusButton(); return; } // ★追加：導入演出中は出さない
 
     if (viewingItem || approachProgress > 0.01) {
       hideFocusButton();
@@ -1512,6 +1756,7 @@ export function startExhibitionSpace(renderer, camera) {
     updateFocusButton(dt);
     updateWriteButton();
     updateFlyingMessages(dt);
+    updateConceptIntro(dt); // ★追加
   }
   // ====================================================================
   // [SECTION: update end]
@@ -1522,7 +1767,9 @@ export function startExhibitionSpace(renderer, camera) {
     hideWriteButton();
     formOverlayEl.style.display = 'none';
     messageTooltipEl.style.opacity = '0';
+    conceptOverlayEl.style.display = 'none'; // ★追加
+    hideConceptReadButton(); // ★追加
   }
 
-  return { scene, update, hideUI };
+  return { scene, update, hideUI, activateIntro };
 }

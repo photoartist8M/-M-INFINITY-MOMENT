@@ -10,6 +10,7 @@ let renderTarget = null;
 let exhibitionCamera = null;
 let exhibitionScene = null;
 let exhibitionUpdate = null;
+let exhibitionInstance = null;
 let portalPlaneRef = null;
 let renderer = null;
 let state = 'idle'; // idle -> loading -> ready -> switched
@@ -60,6 +61,7 @@ export function initPortal(threeRenderer, portalPlane) {
   renderTarget = makeRenderTarget();
 
   const result = startExhibitionSpace(renderer, exhibitionCamera);
+  exhibitionInstance = result; // ★追加：hideUIやactivateIntroも含めてまるごと保持
   exhibitionScene = result.scene;
   exhibitionUpdate = result.update;
 
@@ -122,6 +124,8 @@ export function getExhibition() {
     scene: exhibitionScene,
     camera: exhibitionCamera,
     update: exhibitionUpdate,
+    activateIntro: exhibitionInstance ? exhibitionInstance.activateIntro : undefined, // ★追加
+    hideUI: exhibitionInstance ? exhibitionInstance.hideUI : undefined, // ★追加(将来Portal切替時に使う用)
   };
 }
 
