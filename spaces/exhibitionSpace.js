@@ -694,6 +694,71 @@ export function startExhibitionSpace(renderer, camera) {
     }
   });
 
+  // ★追加：紙飛行機・シャボン玉をタップした時に、そこに書かれたメッセージを
+  // 読める吹き出し（ツールチップ）。これが無いためタップしても無反応だった。
+  const messageTooltipEl = document.createElement('div');
+  Object.assign(messageTooltipEl.style, {
+    position: 'fixed',
+    left: '50%',
+    top: '50%',
+    transform: 'translate(-50%, -50%) scale(0.96)',
+    maxWidth: 'min(86vw, 380px)',
+    padding: '22px 26px',
+    borderRadius: '14px',
+    background: 'rgba(20, 16, 26, 0.35)',
+    border: '1px solid rgba(255,255,255,0.12)',
+    boxShadow: '0 12px 40px rgba(0,0,0,0.3)',
+    backdropFilter: 'blur(6px)',
+    color: '#fff',
+    fontFamily: `'Hiragino Mincho ProN', 'Georgia', serif`,
+    textAlign: 'center',
+    opacity: '0',
+    pointerEvents: 'none',
+    transition: 'opacity 0.35s ease, transform 0.35s ease',
+    zIndex: '22',
+  });
+  const messageTooltipNameEl = document.createElement('div');
+  Object.assign(messageTooltipNameEl.style, {
+    fontSize: '12px',
+    opacity: '0.6',
+    marginBottom: '10px',
+    letterSpacing: '0.08em',
+  });
+  const messageTooltipBodyEl = document.createElement('div');
+  Object.assign(messageTooltipBodyEl.style, {
+    fontSize: '15px',
+    lineHeight: '1.8',
+    whiteSpace: 'pre-line',
+    wordBreak: 'break-word',
+  });
+  messageTooltipEl.appendChild(messageTooltipNameEl);
+  messageTooltipEl.appendChild(messageTooltipBodyEl);
+  document.body.appendChild(messageTooltipEl);
+
+  let messageTooltipTimer = null;
+  function showMessageTooltip(data) {
+    if (!data) return;
+    const message = (data.message || '').trim();
+    if (!message) return; // メッセージが無いものはタップしても何も出さない
+
+    messageTooltipNameEl.textContent = data.name ? data.name : '匿名';
+    messageTooltipBodyEl.textContent = message;
+
+    messageTooltipEl.style.opacity = '1';
+    messageTooltipEl.style.transform = 'translate(-50%, -50%) scale(1)';
+    messageTooltipEl.style.pointerEvents = 'auto';
+
+    clearTimeout(messageTooltipTimer);
+    messageTooltipTimer = setTimeout(hideMessageTooltip, 4000);
+  }
+  function hideMessageTooltip() {
+    clearTimeout(messageTooltipTimer);
+    messageTooltipEl.style.opacity = '0';
+    messageTooltipEl.style.transform = 'translate(-50%, -50%) scale(0.96)';
+    messageTooltipEl.style.pointerEvents = 'none';
+  }
+  messageTooltipEl.addEventListener('click', hideMessageTooltip);
+
 function updateWriteButton() {
     if (formOverlayEl.style.display === 'flex') return;
     if (introCinematicActive) { hideWriteButton(); return; }
@@ -863,7 +928,7 @@ function updateWriteButton() {
       map: createPaperPlaneTexture(color),
       transparent: true,
       depthWrite: false,
-      opacity: 0.50,
+      opacity: 0.95,
     });
     const sprite = new THREE.Sprite(mat);
     const scaleV = 4.6 + Math.random() * 1.3;
@@ -908,7 +973,7 @@ function updateWriteButton() {
     const s = 1.6 + Math.random() * 0.8;
     sprite.scale.set(0.01, 0.01, 1);
 
-    const restingY = 32 + Math.random() * 14; // ★変更(20〜30→32〜46)：もっと高い位置で漂うように
+    const restingY = 44 + Math.random() * 20; // ★変更(32〜46→44〜64)：さらに高い位置で漂うように
     const startY = fromPosition ? fromPosition.y : restingY;
 
     const startPos = fromPosition
@@ -942,6 +1007,51 @@ function updateWriteButton() {
     }
   }
 
+  // ★変更：起動時は「過去に送信された本物のメッセージ」を復元して表示する。
+  // 取得できなかった／件数が少ない場合のみ、環境演出として空メッセージの
+  // 紙飛行機・シャボン玉で補う。
+  const TARGET_LETTER_COUNT = 8;
+  const TARGET_BUBBLE_COUNT = 14;
+
+  function fillAmbientLetters(existingCount) {
+    for (let i = existingCount; i < TARGET_LETTER_COUNT; i++) {
+      spawnLetterPlane({ name: null, message: '' });
+    }
+  }
+  function fillAmbientBubbles(existingCount) {
+    for (let i = existingCount; i < TARGET_BUBBLE_COUNT; i++) {
+      spawnBubble({ name: null, message: '' });
+    }
+  }
+
+  (async () => {
+    try {
+      const pastLetters = await fetchLetterMessages();
+      const list = Array.isArray(pastLetters) ? pastLetters : [];
+      list.forEach((msg) => {
+        spawnLetterPlane({ name: msg.name ?? null, message: msg.message ?? '' });
+      });
+      fillAmbientLetters(list.length);
+    } catch (err) {
+      console.warn('紙飛行機メッセージの復元に失敗しました:', err);
+      fillAmbientLetters(0);
+    }
+  })();
+
+  (async () => {
+    try {
+      const pastBubbles = await fetchBubbleMessages();
+      const list = Array.isArray(pastBubbles) ? pastBubbles : [];
+      list.forEach((msg) => {
+        spawnBubble({ name: msg.name ?? null, message: msg.message ?? '' });
+      });
+      fillAmbientBubbles(list.length);
+    } catch (err) {
+      console.warn('シャボン玉メッセージの復元に失敗しました:', err);
+      fillAmbientBubbles(0);
+    }
+  })();
+
  function updateFlyingMessages(dt) {
     const maxR = GALLERY_RADIUS * 1.8;
     const t = performance.now() * 0.0004;
@@ -963,13 +1073,13 @@ function updateWriteButton() {
         e.velocity.z *= -1;
       }
       if (e.sprite.position.y < 10) { e.sprite.position.y = 10; e.velocity.y = Math.abs(e.velocity.y); }
-      if (e.sprite.position.y > 20) { e.sprite.position.y = 20; e.velocity.y = -Math.abs(e.velocity.y); }
+      if (e.sprite.position.y > 34) {
+    e.sprite.position.y = 34;
+    e.velocity.y = -Math.abs(e.velocity.y);
+}
 
       e.sprite.material.rotation += Math.sin(t + e.phase) * 0.004;
 
-      // ★追加：ゆるく明滅させて「触れる」ことを示唆する
-      const pulse = 0.75 + Math.sin(performance.now() * 0.002 + e.phase) * 0.25;
-      e.sprite.material.opacity = 0.5 * pulse;
     });
 
     const bt = performance.now() * 0.0003;
@@ -982,21 +1092,16 @@ function updateWriteButton() {
       }
 
       if (e.currentY < e.baseY) {
-        e.currentY = Math.min(e.baseY, e.currentY + dt * 1.2);
+        e.currentY = Math.min(e.baseY, e.currentY + dt * 2.4); // ★変更(1.2→2.4)：上昇速度を速く
       }
 
-      e.angle += e.driftSpeed * dt * 0.2;
+      e.angle += e.driftSpeed * dt * 0.4; // ★変更(0.2→0.4)：横方向の漂いも少し速く
       e.sprite.position.set(
         Math.cos(e.angle) * e.radius,
         e.currentY + Math.sin(bt * 1.3 + e.phase) * 0.6,
         Math.sin(e.angle) * e.radius
       );
 
-      // ★追加：シャボン玉もゆるく明滅
-      if (e.popProgress >= 1) {
-        const pulse = 0.85 + Math.sin(performance.now() * 0.0018 + e.phase) * 0.15;
-        e.sprite.material.opacity = pulse;
-      }
     });
   }
   // ====================================================================
@@ -1306,9 +1411,9 @@ function updateWriteButton() {
 
   const CONCEPT_REMEMBER = 'Remember.';
   const CONCEPT_PARAGRAPHS = [
-    'あの日見上げた雲は、\n手を伸ばせば届きそうだった。',
-    '時は流れても、\n記憶はいつも胸の奥で、\n静かに息をしている。',
-    'この一瞬が、\nあなたの記憶と未来を、\nそっと繋ぎますように。',
+    'あの日 見上げた雲は \n手を伸ばせば 届きそうだった',
+    '時は流れても \n記憶は いつも胸の奥で \n静かに 息をしている',
+    'この一瞬が \nあなたの 記憶と未来を \nそっと 繋ぎますように',
   ];
   const CONCEPT_SIGNATURE = 'photoartist.M';
 
@@ -1362,8 +1467,8 @@ function updateWriteButton() {
   const conceptPanelEl = document.createElement('div');
   Object.assign(conceptPanelEl.style, {
     position: 'relative',
-    width: 'min(88vw, 480px)',
-    padding: '56px 42px 40px',
+    width: 'min(78vw, 380px)',
+    padding: '52px 36px 36px',
     borderRadius: '10px',
     background: 'linear-gradient(160deg, rgba(255,255,255,0.045), rgba(255,255,255,0.015))',
     boxShadow: '0 30px 80px rgba(0,0,0,0.6)',
@@ -1920,9 +2025,14 @@ function updateWriteButton() {
     hideFocusButton();
     hideWriteButton();
     formOverlayEl.style.display = 'none';
-    messageTooltipEl.style.opacity = '0';
+    hideMessageTooltip();
     conceptOverlayEl.style.display = 'none'; // ★追加
     hideConceptReadButton(); // ★追加
+    guideCardEl.style.opacity = '0';
+    guideCardEl.style.pointerEvents = 'none';
+    guideHintButtonEl.style.opacity = '0';
+    guideHintButtonEl.style.pointerEvents = 'none';
+    clearTimeout(guideCardTimer);
   }
 
   return { scene, update, hideUI, activateIntro };
