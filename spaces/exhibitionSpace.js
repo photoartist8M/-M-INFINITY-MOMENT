@@ -1291,28 +1291,39 @@ function updateWriteButton() {
   // ====================================================================
 
 
-  // ====================================================================
-  // [SECTION: conceptIntro] 導入カメラワーク＋コンセプト文
+// ====================================================================
+  // [SECTION: conceptIntro] 導入カメラワーク＋コンセプト文（手紙エピローグ版）
   // ====================================================================
   // ★変更：自動タイマーではなく、外部(Portalなど)から activateIntro() を
   // 呼んでもらって初めて演出を開始する方式に変更。裂け目からのチラ見え
   // 段階では一切動かず、実際に空間へ入ってきた瞬間から始まる。
   // ------------------------------------------------------
 
-  const CONCEPT_TITLE = 'emotional';
-  const CONCEPT_SUBTITLE = '― 時の瞬き ―';
-  const CONCEPT_BODY = `あの日見上げた雲は、
-手を伸ばせば届きそうだった。
+  // --- デザイン確定値（承認済み：A案 / グロー100% / アイボリーゴールド / 署名ピンクゴールド） ---
+  const CONCEPT_ACCENT = '#e8dcc4';     // Remember./グロー/閉じるボタンの色（アイボリーゴールド）
+  const CONCEPT_SIG_COLOR = '#e0a8ac';  // 署名だけの色（ピンクゴールド）
+  const CONCEPT_GLOW = 1.0;             // 枠の光の強さ（0〜1、承認値=100%）
 
-時は流れても、
-記憶はいつも胸の奥で、
-静かに息をしている。
+  const CONCEPT_REMEMBER = 'Remember.';
+  const CONCEPT_PARAGRAPHS = [
+    'あの日見上げた雲は、\n手を伸ばせば届きそうだった。',
+    '時は流れても、\n記憶はいつも胸の奥で、\n静かに息をしている。',
+    'この一瞬が、\nあなたの記憶と未来を、\nそっと繋ぎますように。',
+  ];
+  const CONCEPT_SIGNATURE = 'photoartist.M';
 
-この一瞬が、
-あなたの記憶と未来を、
-そっと繋ぎますように。`;
+  // --- 承認デザインで使用するフォントを読み込む（Klee One / Cormorant Garamond） ---
+  // 既にページ側で読み込み済みの場合は重複読み込みを避ける
+  if (!document.getElementById('concept-fonts-link')) {
+    const fontLink = document.createElement('link');
+    fontLink.id = 'concept-fonts-link';
+    fontLink.rel = 'stylesheet';
+    fontLink.href =
+      'https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital@1&family=Klee+One:wght@400;600&display=swap';
+    document.head.appendChild(fontLink);
+  }
 
-  let introCinematicActive = false; // ★変更：初期状態はロックしない(activateIntroが呼ばれるまで何もしない)
+  let introCinematicActive = true; // ★変更：起動直後(裂け目演出中含む)はロック。activateIntro()が呼ばれて初めて解除
   let introPhase = 'idle';          // idle -> up -> holdUp -> down -> showingConcept -> done
   let introElapsedInPhase = 0;
   let introStartedAt = null;        // ★追加：activateIntro()が呼ばれた時刻
@@ -1334,12 +1345,12 @@ function updateWriteButton() {
     introStartedAt = performance.now();
   }
 
-  // --- コンセプト文オーバーレイ(洗練された美術館の解説パネル風) ---
+  // --- コンセプト文オーバーレイ（"一枚の手紙が浮かぶ"デザイン） ---
   const conceptOverlayEl = document.createElement('div');
   Object.assign(conceptOverlayEl.style, {
     position: 'fixed',
     inset: '0',
-    background: 'rgba(8, 6, 12, 0.68)',
+    background: 'rgba(8, 6, 12, 0.7)',
     backdropFilter: 'blur(10px)',
     display: 'none',
     alignItems: 'center',
@@ -1347,110 +1358,215 @@ function updateWriteButton() {
     zIndex: '25',
   });
 
+  // カード本体：半透明ガラス、角丸、柔らかい影（紙の質感・ノイズは持たせない）
   const conceptPanelEl = document.createElement('div');
   Object.assign(conceptPanelEl.style, {
+    position: 'relative',
     width: 'min(88vw, 480px)',
-    padding: '52px 40px',
-    borderRadius: '2px',
-    background: 'rgba(20, 16, 26, 0.55)',
-    border: '1px solid rgba(212, 175, 120, 0.3)',
-    boxShadow: '0 20px 60px rgba(0,0,0,0.55), inset 0 0 40px rgba(212,175,120,0.04)',
+    padding: '56px 42px 40px',
+    borderRadius: '10px',
+    background: 'linear-gradient(160deg, rgba(255,255,255,0.045), rgba(255,255,255,0.015))',
+    boxShadow: '0 30px 80px rgba(0,0,0,0.6)',
     color: '#f0e8d8',
-    fontFamily: `'Hiragino Mincho ProN', 'Georgia', serif`,
-    textAlign: 'center',
+    fontFamily: `'Klee One', 'Hiragino Mincho ProN', serif`,
+    textAlign: 'left',
+    opacity: '0',
+    transform: 'translateY(14px)',
+    transition: 'opacity 1.1s ease, transform 1.1s ease',
   });
 
-  const conceptTitleEl = document.createElement('div');
-  conceptTitleEl.textContent = CONCEPT_TITLE;
-  Object.assign(conceptTitleEl.style, {
-    fontSize: '30px',
-    letterSpacing: '0.35em',
-    color: '#d8b46a',
-    opacity: '0.9',
-    textTransform: 'uppercase',
-    marginBottom: '14px',
+  // 縁の淡いグロー（紙の質感の代わりに、ふんわり光る枠で"手紙"の存在感を出す）
+  const conceptGlowRingEl = document.createElement('div');
+  Object.assign(conceptGlowRingEl.style, {
+    position: 'absolute',
+    inset: '-1px',
+    borderRadius: 'inherit',
+    pointerEvents: 'none',
+    boxShadow: [
+      `0 0 0 1px ${hexToRgba(CONCEPT_ACCENT, CONCEPT_GLOW * 0.55)}`,
+      `0 0 18px ${hexToRgba(CONCEPT_ACCENT, CONCEPT_GLOW * 0.35)}`,
+      `0 0 46px ${hexToRgba(CONCEPT_ACCENT, CONCEPT_GLOW * 0.22)}`,
+    ].join(', '),
   });
 
-  const conceptSubtitleEl = document.createElement('div');
-  conceptSubtitleEl.textContent = CONCEPT_SUBTITLE;
-  Object.assign(conceptSubtitleEl.style, {
-    fontSize: '13px',           // ★変更(20px→13px)：サブタイトルを小さく
-    letterSpacing: '0.2em',     // ★変更(0.25em→0.2em)
-    color: '#f0e8d8',
-    opacity: '0.75',            // ★変更(0.92→0.75)：控えめに
-    marginBottom: '22px',
+  // ガラスのハイライト（斜めの淡い光沢）
+  const conceptGlassSheenEl = document.createElement('div');
+  Object.assign(conceptGlassSheenEl.style, {
+    position: 'absolute',
+    inset: '0',
+    borderRadius: 'inherit',
+    background:
+      'linear-gradient(155deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0) 30%, rgba(255,255,255,0) 70%, rgba(255,255,255,0.03) 100%)',
+    pointerEvents: 'none',
   });
 
-  const conceptDividerEl = document.createElement('div');
-  Object.assign(conceptDividerEl.style, {
-    width: '48px',
-    height: '1px',
-    margin: '0 auto 28px',
-    background: 'linear-gradient(90deg, transparent, rgba(212,175,120,0.7), transparent)',
-  });
-
-  const conceptBodyEl = document.createElement('div');
-  conceptBodyEl.textContent = CONCEPT_BODY;
-  Object.assign(conceptBodyEl.style, {
-    whiteSpace: 'pre-line',
-    fontSize: '15px',
-    lineHeight: '2.3',
+  // "Remember." ―― 小さなセリフ程度の存在感
+  const conceptRememberEl = document.createElement('div');
+  conceptRememberEl.textContent = CONCEPT_REMEMBER;
+  Object.assign(conceptRememberEl.style, {
+    fontFamily: `'Cormorant Garamond', serif`,
+    fontStyle: 'italic',
+    fontWeight: '500',
+    fontSize: '20px',
+    color: CONCEPT_ACCENT,
     letterSpacing: '0.04em',
-    opacity: '0.88',
-    marginBottom: '36px',
-    fontWeight: '300',
+    marginBottom: '28px',
+    opacity: '0',
+    transform: 'translateY(6px)',
+    transition: 'opacity 1s ease, transform 1s ease',
   });
+
+  // 本文：段落ごとに要素を分け、順番にフェードインさせる
+  const conceptParagraphEls = CONCEPT_PARAGRAPHS.map((text) => {
+    const el = document.createElement('div');
+    el.textContent = text;
+    Object.assign(el.style, {
+      whiteSpace: 'pre-line',
+      fontSize: '15.5px',
+      lineHeight: '2.15',
+      textAlign: 'left',
+      letterSpacing: '0.03em',
+      marginBottom: '22px',
+      fontWeight: '400',
+      opacity: '0',
+      transform: 'translateY(8px)',
+      transition: 'opacity 1s ease, transform 1s ease',
+    });
+    return el;
+  });
+
+  // 署名：ピンクゴールド・細線のイタリック。下にごく細いラインを添える
+  const conceptSignatureEl = document.createElement('div');
+  conceptSignatureEl.textContent = CONCEPT_SIGNATURE;
+  Object.assign(conceptSignatureEl.style, {
+    position: 'relative',
+    textAlign: 'right',
+    fontFamily: `'Cormorant Garamond', serif`,
+    fontStyle: 'italic',
+    fontSize: '17px',
+    letterSpacing: '0.08em',
+    color: CONCEPT_SIG_COLOR,
+    marginTop: '30px',
+    opacity: '0',
+    transition: 'opacity 1.2s ease',
+  });
+  const conceptSignatureLineEl = document.createElement('div');
+  Object.assign(conceptSignatureLineEl.style, {
+    width: '64px',
+    height: '1px',
+    margin: '6px 0 0 auto',
+    background: `linear-gradient(90deg, transparent, ${CONCEPT_SIG_COLOR})`,
+    opacity: '0.55',
+  });
+  conceptSignatureEl.appendChild(conceptSignatureLineEl);
 
   const conceptCloseButtonEl = document.createElement('button');
   conceptCloseButtonEl.textContent = '閉じる';
   Object.assign(conceptCloseButtonEl.style, {
-    padding: '8px 0',
+    display: 'block',
+    margin: '34px auto 0',
+    padding: '10px 0 0',
+    width: '120px',
     border: 'none',
-    borderTop: '1px solid rgba(212,175,120,0.35)',
+    borderTop: `1px solid ${hexToRgba(CONCEPT_ACCENT, 0.55)}`,
     background: 'transparent',
-    color: 'rgba(240,232,216,0.75)',
-    fontFamily: `'Hiragino Mincho ProN', 'Georgia', serif`,
+    color: 'rgba(240,232,216,0.7)',
+    fontFamily: `'Klee One', 'Hiragino Mincho ProN', serif`,
     fontSize: '12px',
     letterSpacing: '0.4em',
     cursor: 'pointer',
-    width: '140px',
-    margin: '0 auto',
-    display: 'block',
-    transition: 'color 0.3s ease, border-color 0.3s ease',
+    opacity: '0',
+    transition: 'opacity 1s ease, color 0.3s ease, border-color 0.3s ease',
   });
   conceptCloseButtonEl.addEventListener('mouseenter', () => {
-    conceptCloseButtonEl.style.color = '#d8b46a';
-    conceptCloseButtonEl.style.borderTopColor = 'rgba(212,175,120,0.8)';
+    conceptCloseButtonEl.style.color = CONCEPT_ACCENT;
+    conceptCloseButtonEl.style.borderTopColor = CONCEPT_ACCENT;
   });
   conceptCloseButtonEl.addEventListener('mouseleave', () => {
-    conceptCloseButtonEl.style.color = 'rgba(240,232,216,0.75)';
-    conceptCloseButtonEl.style.borderTopColor = 'rgba(212,175,120,0.35)';
+    conceptCloseButtonEl.style.color = 'rgba(240,232,216,0.7)';
+    conceptCloseButtonEl.style.borderTopColor = hexToRgba(CONCEPT_ACCENT, 0.55);
   });
 
-  conceptPanelEl.appendChild(conceptTitleEl);
-  conceptPanelEl.appendChild(conceptSubtitleEl);
-  conceptPanelEl.appendChild(conceptDividerEl);
-  conceptPanelEl.appendChild(conceptBodyEl);
+  conceptPanelEl.appendChild(conceptGlowRingEl);
+  conceptPanelEl.appendChild(conceptGlassSheenEl);
+  conceptPanelEl.appendChild(conceptRememberEl);
+  conceptParagraphEls.forEach((el) => conceptPanelEl.appendChild(el));
+  conceptPanelEl.appendChild(conceptSignatureEl);
   conceptPanelEl.appendChild(conceptCloseButtonEl);
   conceptOverlayEl.appendChild(conceptPanelEl);
   document.body.appendChild(conceptOverlayEl);
 
+  // 16進カラー+アルファ変換ユーティリティ（グローや細線の色に使用）
+  function hexToRgba(hex, alpha) {
+    const n = parseInt(hex.replace('#', ''), 16);
+    const r = (n >> 16) & 255;
+    const g = (n >> 8) & 255;
+    const b = n & 255;
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  }
+
+  // --- 映画のエンドロールのような、静かな順次フェードイン ---
+  let conceptRevealTimers = [];
+  function clearConceptRevealTimers() {
+    conceptRevealTimers.forEach((id) => clearTimeout(id));
+    conceptRevealTimers = [];
+  }
+
+  function resetConceptReveal() {
+    conceptPanelEl.style.opacity = '0';
+    conceptPanelEl.style.transform = 'translateY(14px)';
+    conceptRememberEl.style.opacity = '0';
+    conceptRememberEl.style.transform = 'translateY(6px)';
+    conceptParagraphEls.forEach((el) => {
+      el.style.opacity = '0';
+      el.style.transform = 'translateY(8px)';
+    });
+    conceptSignatureEl.style.opacity = '0';
+    conceptCloseButtonEl.style.opacity = '0';
+  }
+
+  function playConceptReveal() {
+    clearConceptRevealTimers();
+    resetConceptReveal();
+
+    const show = (el, withTransform) => {
+      el.style.opacity = withTransform ? '0.92' : '1';
+      if (withTransform) el.style.transform = 'translateY(0)';
+    };
+
+    conceptRevealTimers.push(
+      setTimeout(() => {
+        conceptPanelEl.style.opacity = '1';
+        conceptPanelEl.style.transform = 'translateY(0)';
+      }, 50),
+      setTimeout(() => show(conceptRememberEl, true), 500),
+      setTimeout(() => show(conceptParagraphEls[0], true), 1300),
+      setTimeout(() => show(conceptParagraphEls[1], true), 2700),
+      setTimeout(() => show(conceptParagraphEls[2], true), 4100),
+      setTimeout(() => { conceptSignatureEl.style.opacity = '0.85'; }, 5100),
+      setTimeout(() => { conceptCloseButtonEl.style.opacity = '1'; }, 5700),
+    );
+  }
+
   function showConceptOverlay() {
     conceptOverlayEl.style.display = 'flex';
+    playConceptReveal();
   }
 
   function closeConceptOverlay() {
+    clearConceptRevealTimers();
     conceptOverlayEl.style.display = 'none';
     if (introPhase !== 'done') {
       introPhase = 'done';
       introCinematicActive = false;
     }
     hideConceptReadButton();
+    showGuideCard(); // ★追加：閉じたら自動でガイドカードを見せる
   }
 
   conceptCloseButtonEl.addEventListener('click', closeConceptOverlay);
 
-  // --- 自由閲覧中、下を向くと出る「コンセプトを読む」ボタン(同じ上品なトーンに) ---
+  // --- 自由閲覧中、下を向くと出る「コンセプトを読む」ボタン ---
   const conceptReadButtonEl = document.createElement('button');
   conceptReadButtonEl.textContent = 'コンセプトを読む';
   Object.assign(conceptReadButtonEl.style, {
@@ -1460,10 +1576,10 @@ function updateWriteButton() {
     transform: 'translateX(-50%) translateY(-16px)',
     padding: '12px 36px',
     fontSize: '13px',
-    fontFamily: `'Hiragino Mincho ProN', 'Georgia', serif`,
+    fontFamily: `'Klee One', 'Hiragino Mincho ProN', serif`,
     color: '#f0e8d8',
     background: 'rgba(20, 16, 26, 0.4)',
-    border: '1px solid rgba(212, 175, 120, 0.5)',
+    border: `1px solid ${hexToRgba(CONCEPT_ACCENT, 0.5)}`,
     borderRadius: '999px',
     backdropFilter: 'blur(6px)',
     opacity: '0',
@@ -1491,6 +1607,83 @@ function updateWriteButton() {
     conceptReadButtonEl.style.pointerEvents = 'none';
   }
   conceptReadButtonEl.addEventListener('click', showConceptOverlay);
+
+  // ====================================================================
+  // 閉じた後のガイドカード（操作説明）＋「？」再表示アイコン
+  // ------------------------------------------------------
+  // コンセプト画面には操作説明を出さない代わりに、閉じた直後だけ
+  // 右上にそっと表示し、数秒後に「？」アイコンへ収納する。
+  // ====================================================================
+  const guideCardEl = document.createElement('div');
+  Object.assign(guideCardEl.style, {
+    position: 'fixed',
+    top: '20px',
+    right: '20px',
+    width: 'min(78vw, 260px)',
+    padding: '18px 20px',
+    borderRadius: '4px',
+    background: 'rgba(20, 16, 26, 0.5)',
+    border: `1px solid ${hexToRgba(CONCEPT_ACCENT, 0.25)}`,
+    boxShadow: '0 8px 30px rgba(0,0,0,0.4)',
+    color: '#f0e8d8',
+    fontFamily: `'Klee One', 'Hiragino Mincho ProN', serif`,
+    fontSize: '12px',
+    lineHeight: '1.9',
+    letterSpacing: '0.03em',
+    opacity: '0',
+    pointerEvents: 'none',
+    transition: 'opacity 0.8s ease',
+    zIndex: '18',
+  });
+  guideCardEl.innerHTML = `
+    <div style="opacity:0.85; margin-bottom:8px; letter-spacing:0.15em; font-size:11px;">展示の楽しみ方</div>
+    <div style="opacity:0.7;">
+      ・スワイプで視点移動<br>
+      ・写真をタップして拡大<br>
+      ・空の紙飛行機と<br>
+      　シャボン玉にも触れます
+    </div>
+  `;
+  document.body.appendChild(guideCardEl);
+
+  const guideHintButtonEl = document.createElement('button');
+  guideHintButtonEl.textContent = '？';
+  Object.assign(guideHintButtonEl.style, {
+    position: 'fixed',
+    top: '20px',
+    right: '20px',
+    width: '32px',
+    height: '32px',
+    borderRadius: '50%',
+    border: `1px solid ${hexToRgba(CONCEPT_ACCENT, 0.4)}`,
+    background: 'rgba(20, 16, 26, 0.4)',
+    color: 'rgba(240,232,216,0.7)',
+    fontFamily: `'Cormorant Garamond', serif`,
+    fontSize: '14px',
+    cursor: 'pointer',
+    opacity: '0',
+    pointerEvents: 'none',
+    transition: 'opacity 0.4s ease',
+    zIndex: '18',
+  });
+  document.body.appendChild(guideHintButtonEl);
+
+  let guideCardTimer = null;
+  function showGuideCard() {
+    guideCardEl.style.opacity = '1';
+    guideCardEl.style.pointerEvents = 'auto';
+    guideHintButtonEl.style.opacity = '0';
+    guideHintButtonEl.style.pointerEvents = 'none';
+
+    clearTimeout(guideCardTimer);
+    guideCardTimer = setTimeout(() => {
+      guideCardEl.style.opacity = '0';
+      guideCardEl.style.pointerEvents = 'none';
+      guideHintButtonEl.style.opacity = '1';
+      guideHintButtonEl.style.pointerEvents = 'auto';
+    }, 5000); // 数秒後に半透明化（5秒。調整可）
+  }
+  guideHintButtonEl.addEventListener('click', showGuideCard);
 
   function updateConceptIntro(dt) {
     if (introPhase === 'idle') return; // ★変更：activateIntro()が呼ばれるまで何もしない
