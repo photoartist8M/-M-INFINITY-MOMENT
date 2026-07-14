@@ -558,7 +558,7 @@ export function startExhibitionSpace(renderer, camera) {
 
   function applyLetterStyle() {
     Object.assign(formPanelEl.style, {
-      background: 'repeating-linear-gradient(#fbf3e0 0px, #fbf3e0 27px, #e8dcc0 28px)',
+      background: 'repeating-linear-gradient(#ffffff 0px, #ffffff 27px, #ececec 28px)', // ★変更：黄色みのあるクリーム色→白に
       border: '1px solid rgba(120,100,70,0.35)',
       borderRadius: '4px',
       boxShadow: '0 10px 40px rgba(0,0,0,0.5)',
@@ -668,12 +668,28 @@ export function startExhibitionSpace(renderer, camera) {
       }
 
       if (trackedPosition) {
+        // ★修正：写真のフレームサイズ(calcFitDistance)を基準にすると、
+        // 写真ごとの大きさに引きずられて距離が安定しなかった。
+        // 紙飛行機/シャボン玉自体のスケールを基準にした、程よく近い距離に変更する。
+        const dir = submittedItem.position.clone();
+        dir.y = 0;
+        dir.normalize();
+
+        const spawnedScale = (submittedItem.type === 'letter')
+          ? letterPlanes[letterPlanes.length - 1].sprite.scale.x
+          : bubbles[bubbles.length - 1].sprite.scale.x || 2.0;
+        const seeOffDistance = Math.max(6, spawnedScale * 2.6); // ★変更：紙飛行機自体のサイズ基準の距離(写真に寄りすぎない下限も設定)
+
+        cameraApproachPos = submittedItem.position.clone().sub(dir.multiplyScalar(seeOffDistance));
+        cameraApproachPos.y = submittedItem.position.y - 1; // 少し低い位置から見上げる構図
+
         viewingItem = { position: trackedPosition };
-        approachTarget = 0.45;
+        approachProgress = Math.min(approachProgress, 0.6);
+        approachTarget = 0.55; // ★変更(0.35→0.55)：もう少し寄って紙飛行機をはっきり見せる
         setTimeout(() => {
           viewingItem = null;
           approachTarget = 0;
-        }, 4000);
+        }, 5000);
       }
     } catch (err) {
       if (err && err.message === 'NG_WORD_DETECTED') {
@@ -700,7 +716,7 @@ export function startExhibitionSpace(renderer, camera) {
   Object.assign(messageTooltipEl.style, {
     position: 'fixed',
     left: '50%',
-    top: '50%',
+    top: '20%', // ★変更(50%→20%)：表示位置を30%ほど上に
     transform: 'translate(-50%, -50%) scale(0.96)',
     maxWidth: 'min(86vw, 380px)',
     padding: '22px 26px',
@@ -736,13 +752,22 @@ export function startExhibitionSpace(renderer, camera) {
   document.body.appendChild(messageTooltipEl);
 
   let messageTooltipTimer = null;
-  function showMessageTooltip(data) {
+  function showMessageTooltip(data, planeColor) {
     if (!data) return;
     const message = (data.message || '').trim();
     if (!message) return; // メッセージが無いものはタップしても何も出さない
 
     messageTooltipNameEl.textContent = data.name ? data.name : '匿名';
     messageTooltipBodyEl.textContent = message;
+
+    // ★追加：紙飛行機の色があれば、枠と淡い発光をその色に合わせる
+    if (planeColor) {
+      messageTooltipEl.style.border = `1px solid ${hexToRgba(planeColor, 0.5)}`;
+      messageTooltipEl.style.boxShadow = `0 12px 40px rgba(0,0,0,0.3), 0 0 24px ${hexToRgba(planeColor, 0.25)}`;
+    } else {
+      messageTooltipEl.style.border = '1px solid rgba(255,255,255,0.12)';
+      messageTooltipEl.style.boxShadow = '0 12px 40px rgba(0,0,0,0.3)';
+    }
 
     messageTooltipEl.style.opacity = '1';
     messageTooltipEl.style.transform = 'translate(-50%, -50%) scale(1)';
@@ -784,9 +809,10 @@ function updateWriteButton() {
   // [SECTION: flyingMessages] 紙飛行機・シャボン玉の生成と浮遊演出
   // ====================================================================
   const PLANE_COLORS = ['#3d8fd6', '#4fa84f', '#e8822a', '#e8508f', '#8a4fd6', '#e8b800'];
+  const BUBBLE_GLOW_COLORS = ['#ffb4dc', '#b4d0ff', '#b4ffd8', '#fff0b0', '#d8b4ff', '#ffffff']; // ★追加：シャボン玉のハロー色バリエーション
 
   function createPaperPlaneTexture(baseColor) {
-    const size = 220;
+    const size = 180;
     const cnv = document.createElement('canvas');
     cnv.width = size; cnv.height = size;
     const ctx = cnv.getContext('2d');
@@ -928,11 +954,30 @@ function updateWriteButton() {
       map: createPaperPlaneTexture(color),
       transparent: true,
       depthWrite: false,
+      depthTest: false, // ★追加：写真フレームの裏に隠れて見えなくなっていたため、常に手前に描画する
       opacity: 0.95,
+      fog: false, // ★追加：霧で色が白く薄まり見えなくなっていたため除外
     });
     const sprite = new THREE.Sprite(mat);
+    sprite.renderOrder = 10; // ★追加：確実に他オブジェクトより後(手前)に描画されるように
     const scaleV = 4.6 + Math.random() * 1.3;
     sprite.scale.set(scaleV, scaleV, 1);
+
+    // ★追加：機体色で光る加算合成のハロー。単体だと空に溶け込みがちなため、
+    // 背後にほのかな発光を添えて視認性を上げる。
+    const glowMat = new THREE.SpriteMaterial({
+      map: sparkleTexture,
+      color: new THREE.Color(color),
+      transparent: true,
+      opacity: 0.2, // ★変更(0.55→0.2)：強すぎたため弱める
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      depthTest: false, // ★追加：同上
+      fog: false, // ★追加：霧の影響を除外
+    });
+    const glowSprite = new THREE.Sprite(glowMat);
+    glowSprite.renderOrder = 9; // ★追加：本体(10)より奥、他より手前
+    glowSprite.scale.set(scaleV * 1.05, scaleV * 1.05, 1); // ★変更(1.12→1.05)：さらに本体サイズに近づける
 
     const startHeight = fromPosition ? fromPosition.y : (15 + Math.random() * 6);
     const startPos = fromPosition
@@ -943,16 +988,21 @@ function updateWriteButton() {
           (Math.random() - 0.5) * GALLERY_RADIUS * 1.6
         );
     sprite.position.copy(startPos);
+    glowSprite.position.copy(startPos);
     sprite.material.rotation = Math.random() * Math.PI * 2;
     sprite.userData.messageData = data;
+    sprite.userData.planeColor = color; // ★追加：ツールチップの色合わせに使用
     scene.add(sprite);
+    scene.add(glowSprite);
 
     const heading = Math.random() * Math.PI * 2;
     const speed = 0.5 + Math.random() * 0.7;
 
     letterPlanes.push({
       sprite,
+      glowSprite, // ★追加
       data,
+      color, // ★追加
       velocity: new THREE.Vector3(Math.cos(heading) * speed, (Math.random() - 0.5) * 0.15, Math.sin(heading) * speed),
       height: startHeight,
       targetHeight: 24 + Math.random() * 10, // ★変更(12〜18→24〜34)：もっと高く上がる
@@ -973,7 +1023,7 @@ function updateWriteButton() {
     const s = 1.6 + Math.random() * 0.8;
     sprite.scale.set(0.01, 0.01, 1);
 
-    const restingY = 44 + Math.random() * 20; // ★変更(32〜46→44〜64)：さらに高い位置で漂うように
+    const restingY = 25 + Math.random() * 12; // ★変更(44〜64→30〜42)：見上げ角度の範囲内に収まる高さに調整
     const startY = fromPosition ? fromPosition.y : restingY;
 
     const startPos = fromPosition
@@ -987,8 +1037,25 @@ function updateWriteButton() {
     sprite.userData.messageData = data;
     scene.add(sprite);
 
+    // ★追加：シャボン玉本体とほぼ同サイズの、薄い加算合成ハロー(色はランダム)
+    const bubbleGlowColor = BUBBLE_GLOW_COLORS[Math.floor(Math.random() * BUBBLE_GLOW_COLORS.length)];
+    const glowMat = new THREE.SpriteMaterial({
+      map: sparkleTexture,
+      color: new THREE.Color(bubbleGlowColor),
+      transparent: true,
+      opacity: 0.2,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      fog: false, // ★追加：霧の影響を除外
+    });
+    const glowSprite = new THREE.Sprite(glowMat);
+    glowSprite.scale.set(0.01, 0.01, 1);
+    glowSprite.position.copy(startPos);
+    scene.add(glowSprite);
+
     bubbles.push({
       sprite,
+      glowSprite, // ★追加
       data,
       angle: Math.random() * Math.PI * 2,
       radius: 4 + Math.random() * (GALLERY_RADIUS * 0.7),
@@ -1004,20 +1071,18 @@ function updateWriteButton() {
       const removed = bubbles.shift();
       scene.remove(removed.sprite);
       removed.sprite.material.dispose();
+      if (removed.glowSprite) {
+        scene.remove(removed.glowSprite);
+        removed.glowSprite.material.dispose();
+      }
     }
   }
 
-  // ★変更：起動時は「過去に送信された本物のメッセージ」を復元して表示する。
-  // 取得できなかった／件数が少ない場合のみ、環境演出として空メッセージの
-  // 紙飛行機・シャボン玉で補う。
-  const TARGET_LETTER_COUNT = 8;
+  // ★変更：紙飛行機は「過去に送信された本物のメッセージ」のみ復元する。
+  // 環境演出用の空メッセージ紙飛行機は、目の前にないと視認しづらく紛らわしいため廃止。
+  // シャボン玉は従来通り、不足分を環境演出で補う。
   const TARGET_BUBBLE_COUNT = 14;
 
-  function fillAmbientLetters(existingCount) {
-    for (let i = existingCount; i < TARGET_LETTER_COUNT; i++) {
-      spawnLetterPlane({ name: null, message: '' });
-    }
-  }
   function fillAmbientBubbles(existingCount) {
     for (let i = existingCount; i < TARGET_BUBBLE_COUNT; i++) {
       spawnBubble({ name: null, message: '' });
@@ -1031,10 +1096,8 @@ function updateWriteButton() {
       list.forEach((msg) => {
         spawnLetterPlane({ name: msg.name ?? null, message: msg.message ?? '' });
       });
-      fillAmbientLetters(list.length);
     } catch (err) {
       console.warn('紙飛行機メッセージの復元に失敗しました:', err);
-      fillAmbientLetters(0);
     }
   })();
 
@@ -1072,13 +1135,17 @@ function updateWriteButton() {
         e.velocity.x *= -1;
         e.velocity.z *= -1;
       }
-      if (e.sprite.position.y < 10) { e.sprite.position.y = 10; e.velocity.y = Math.abs(e.velocity.y); }
-      if (e.sprite.position.y > 34) {
-    e.sprite.position.y = 34;
+      if (e.sprite.position.y < 25) { e.sprite.position.y = 25; e.velocity.y = Math.abs(e.velocity.y); }
+      if (e.sprite.position.y > 50) {
+    e.sprite.position.y = 50;
     e.velocity.y = -Math.abs(e.velocity.y);
 }
 
       e.sprite.material.rotation += Math.sin(t + e.phase) * 0.004;
+
+      if (e.glowSprite) {
+        e.glowSprite.position.copy(e.sprite.position); // ★追加：ハローを本体に追従
+      }
 
     });
 
@@ -1089,6 +1156,7 @@ function updateWriteButton() {
         const eased = 1 - Math.pow(1 - e.popProgress, 3);
         const s = e.targetScale * eased;
         e.sprite.scale.set(s, s, 1);
+        if (e.glowSprite) e.glowSprite.scale.set(s * 1.1, s * 1.1, 1); // ★追加：ハローも本体と同じ勢いで拡大
       }
 
       if (e.currentY < e.baseY) {
@@ -1101,6 +1169,7 @@ function updateWriteButton() {
         e.currentY + Math.sin(bt * 1.3 + e.phase) * 0.6,
         Math.sin(e.angle) * e.radius
       );
+      if (e.glowSprite) e.glowSprite.position.copy(e.sprite.position); // ★追加：ハローを本体に追従
 
     });
   }
@@ -1347,7 +1416,8 @@ function updateWriteButton() {
       ];
       const flyingHits = raycaster.intersectObjects(flyingSprites);
       if (flyingHits.length > 0) {
-        showMessageTooltip(flyingHits[0].object.userData.messageData);
+        const hitSprite = flyingHits[0].object;
+        showMessageTooltip(hitSprite.userData.messageData, hitSprite.userData.planeColor);
         return;
       }
     }
@@ -1644,12 +1714,12 @@ function updateWriteButton() {
         conceptPanelEl.style.opacity = '1';
         conceptPanelEl.style.transform = 'translateY(0)';
       }, 50),
-      setTimeout(() => show(conceptRememberEl, true), 500),
-      setTimeout(() => show(conceptParagraphEls[0], true), 1300),
-      setTimeout(() => show(conceptParagraphEls[1], true), 2700),
-      setTimeout(() => show(conceptParagraphEls[2], true), 4100),
-      setTimeout(() => { conceptSignatureEl.style.opacity = '0.85'; }, 5100),
-      setTimeout(() => { conceptCloseButtonEl.style.opacity = '1'; }, 5700),
+      setTimeout(() => show(conceptRememberEl, true), 600),
+      setTimeout(() => show(conceptParagraphEls[0], true), 1400),
+      setTimeout(() => show(conceptParagraphEls[1], true), 2800),
+      setTimeout(() => show(conceptParagraphEls[2], true), 4200),
+      setTimeout(() => { conceptSignatureEl.style.opacity = '0.85'; }, 5200),
+      setTimeout(() => { conceptCloseButtonEl.style.opacity = '1'; }, 5800),
     );
   }
 
