@@ -1,6 +1,7 @@
 import { canvas, ctx, drawLogo, stopLogoAnimation } from "./logoCanvas.js";
 import { disposeFlareBackground } from "./flareBackground.js";
 import { disposeClockButton, triggerTouchAnimation } from "./clockButton.js";
+import { playScene, toggleBGM } from "../audio.js"; 
 
 // ======================================================
 // 画面全体を覆う爆発用オーバーレイcanvas
@@ -233,16 +234,26 @@ document.getElementById("startButton").addEventListener("click", () => {
     }
     triggerTouchAnimation();
     explodeLogo();
+     playScene('main');
 });
 
 // ======================================================
 // BGM ボタン(トグル)
 // ======================================================
 const bgmButton = document.getElementById("bgmButton");
-let bgmOn = true;
+let bgmStarted = false; // ★追加：まだ一度も再生していないかどうか
+
 bgmButton.addEventListener("click", () => {
-    bgmOn = !bgmOn;
-    bgmButton.textContent = bgmOn ? "♪ BGM ON" : "♪ BGM OFF";
+    if (!bgmStarted) {
+        // 初回クリック時はここでopeningを鳴らし始める(ユーザー操作直後なのでブロックされにくい)
+        bgmStarted = true;
+        playScene('opening');
+        bgmButton.textContent = "♪ BGM ON";
+        return;
+    }
+
+    const nowEnabled = toggleBGM();
+    bgmButton.textContent = nowEnabled ? "♪ BGM ON" : "♪ BGM OFF";
 });
 
 // ======================================================

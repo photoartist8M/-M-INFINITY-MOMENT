@@ -4,11 +4,21 @@
 
 export let bgmEnabled = true;
 
-export const space2BGM = new Audio("./assets/bgm/space2.mp3");
+// ------------------------------------------------------
+// シーンごとのBGM(3曲)
+// ------------------------------------------------------
+export const openingBGM = new Audio("./assets/bgm/opening.mp3"); // ①UI用(桜の記憶)
+export const mainBGM    = new Audio("./assets/bgm/main.mp3");    // ②裂け目/メイン空間用(淡い記憶)
+export const space2BGM  = new Audio("./assets/bgm/space2.mp3");  // ③展示空間用(宇宙でうたたね)
 
-space2BGM.preload = "auto";
-space2BGM.loop = false;
-space2BGM.volume = 0;
+[openingBGM, mainBGM, space2BGM].forEach(audio => {
+  audio.preload = "auto";
+  audio.loop = true; // ★追加：どのシーンも滞在中はループ再生
+  audio.volume = 0;
+});
+
+// 現在再生中のBGMを覚えておく(クロスフェード時に使う)
+let currentBGM = null;
 
 export function toggleBGM() {
 
@@ -16,12 +26,12 @@ export function toggleBGM() {
 
     if (!bgmEnabled) {
 
-        space2BGM.pause();
+        [openingBGM, mainBGM, space2BGM].forEach(a => a.pause());
 
     } else {
 
-        if (space2BGM.currentTime > 0) {
-            space2BGM.play().catch(()=>{});
+        if (currentBGM && currentBGM.currentTime > 0) {
+            currentBGM.play().catch(()=>{});
         }
 
     }
@@ -81,4 +91,37 @@ export function fadeOut(audio,duration=5000){
 
     requestAnimationFrame(update);
 
+}
+
+// ------------------------------------------------------
+// ★追加：シーン切り替え用のクロスフェード関数
+// ------------------------------------------------------
+// name: 'opening' | 'main' | 'space2'
+// 呼ぶだけで「今流れている曲をフェードアウトしつつ、
+// 指定したシーンの曲をフェードインする」処理をまとめて行う。
+// ------------------------------------------------------
+const SCENE_TRACKS = {
+  opening: openingBGM,
+  main: mainBGM,
+  space2: space2BGM,
+};
+
+export function playScene(name, { target = 0.4, fadeInDuration = 4000, fadeOutDuration = 3000 } = {}) {
+  const nextBGM = SCENE_TRACKS[name];
+  if (!nextBGM) {
+    console.warn(`playScene: 不明なシーン名です: ${name}`);
+    return;
+  }
+
+  if (currentBGM === nextBGM) return; // 既に同じ曲が流れていれば何もしない
+
+  if (currentBGM) {
+    fadeOut(currentBGM, fadeOutDuration);
+  }
+
+  currentBGM = nextBGM;
+
+  if (bgmEnabled) {
+    fadeIn(nextBGM, target, fadeInDuration);
+  }
 }
