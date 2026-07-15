@@ -960,7 +960,7 @@ function updateWriteButton() {
     });
     const sprite = new THREE.Sprite(mat);
     sprite.renderOrder = 10; // ★追加：確実に他オブジェクトより後(手前)に描画されるように
-    const scaleV = 4.6 + Math.random() * 1.3;
+    const scaleV = 11 + Math.random() * 3;
     sprite.scale.set(scaleV, scaleV, 1);
 
     // ★追加：機体色で光る加算合成のハロー。単体だと空に溶け込みがちなため、
@@ -981,7 +981,9 @@ function updateWriteButton() {
 
     const startHeight = fromPosition ? fromPosition.y : (15 + Math.random() * 6);
     const startPos = fromPosition
-      ? fromPosition.clone()
+        ? camera.position.clone()
+        .add(camera.getWorldDirection(new THREE.Vector3()).multiplyScalar(3.5))
+        .add(new THREE.Vector3(0, -0.8, 0))
       : new THREE.Vector3(
           (Math.random() - 0.5) * GALLERY_RADIUS * 1.6,
           startHeight,
@@ -1003,9 +1005,13 @@ function updateWriteButton() {
       glowSprite, // ★追加
       data,
       color, // ★追加
-      velocity: new THREE.Vector3(Math.cos(heading) * speed, (Math.random() - 0.5) * 0.15, Math.sin(heading) * speed),
+      velocity: new THREE.Vector3(
+    Math.cos(heading) * 4.0,
+    8.0,
+    Math.sin(heading) * 4.0
+),
       height: startHeight,
-      targetHeight: 24 + Math.random() * 10, // ★変更(12〜18→24〜34)：もっと高く上がる
+      targetHeight: 42 + Math.random() * 18, // ★変更(12〜18→24〜34)：もっと高く上がる
       rising: !!fromPosition,
       risingSpeed: 0.6, // ★追加：上昇スピードを緩めて、長くゆっくり上がる演出にする
       phase: Math.random() * Math.PI * 2,
@@ -1020,14 +1026,16 @@ function updateWriteButton() {
       blending: THREE.NormalBlending,
     });
     const sprite = new THREE.Sprite(mat);
-    const s = 1.6 + Math.random() * 0.8;
+    const s = 5 + Math.random() * 1.5;
     sprite.scale.set(0.01, 0.01, 1);
 
     const restingY = 25 + Math.random() * 12; // ★変更(44〜64→30〜42)：見上げ角度の範囲内に収まる高さに調整
     const startY = fromPosition ? fromPosition.y : restingY;
 
     const startPos = fromPosition
-      ? fromPosition.clone()
+        ? camera.position.clone()
+        .add(camera.getWorldDirection(new THREE.Vector3()).multiplyScalar(3.5))
+        .add(new THREE.Vector3(0, -0.8, 0))
       : new THREE.Vector3(
           (Math.random() - 0.5) * GALLERY_RADIUS * 1.5,
           startY,
@@ -1108,10 +1116,10 @@ function updateWriteButton() {
       list.forEach((msg) => {
         spawnBubble({ name: msg.name ?? null, message: msg.message ?? '' });
       });
-      fillAmbientBubbles(list.length);
+      //fillAmbientBubbles(list.length);  環境用シャボン
     } catch (err) {
       console.warn('シャボン玉メッセージの復元に失敗しました:', err);
-      fillAmbientBubbles(0);
+      //fillAmbientBubbles(0); 環境用シャボン
     }
   })();
 
@@ -1120,15 +1128,30 @@ function updateWriteButton() {
     const t = performance.now() * 0.0004;
 
     letterPlanes.forEach(e => {
-      if (e.rising && e.sprite.position.y < e.targetHeight) {
-        e.sprite.position.y += dt * 1.4;
-      } else {
-        e.rising = false;
-      }
+if (e.rising) {
 
-      e.sprite.position.x += e.velocity.x * dt;
-      e.sprite.position.z += e.velocity.z * dt;
-      if (!e.rising) e.sprite.position.y += e.velocity.y * dt;
+    // 斜め上へ一気に飛ばす
+    e.sprite.position.addScaledVector(e.velocity, dt * 3.0);
+
+    // 徐々に小さくして遠くへ飛んでいく印象にする
+    const s = Math.max(0.25, e.sprite.scale.x * 0.996);
+    e.sprite.scale.set(s, s, 1);
+
+    if (e.glowSprite) {
+        e.glowSprite.scale.set(s * 1.05, s * 1.05, 1);
+    }
+
+    // 十分高くなったら通常飛行へ
+    if (e.sprite.position.y >= e.targetHeight) {
+        e.rising = false;
+    }
+
+} else {
+
+  e.sprite.position.x += e.velocity.x * dt;
+e.sprite.position.z += e.velocity.z * dt;
+
+}
 
       const distXZ = Math.hypot(e.sprite.position.x, e.sprite.position.z);
       if (distXZ > maxR) {
@@ -1160,7 +1183,7 @@ function updateWriteButton() {
       }
 
       if (e.currentY < e.baseY) {
-        e.currentY = Math.min(e.baseY, e.currentY + dt * 2.4); // ★変更(1.2→2.4)：上昇速度を速く
+        e.currentY = Math.min(e.baseY, e.currentY + dt * 7.0); // ★変更(1.2→2.4)：上昇速度を速く
       }
 
       e.angle += e.driftSpeed * dt * 0.4; // ★変更(0.2→0.4)：横方向の漂いも少し速く
