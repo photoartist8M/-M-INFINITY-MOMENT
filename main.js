@@ -10,6 +10,7 @@ import {
   getExhibition,
   resizePortal,
 } from './portal.js';
+import { playScene } from './spaces/audio.js';
 
 // ======================================================
 // 基本セットアップ
@@ -2002,13 +2003,13 @@ if (moveForward) {
   updateDoor();
   updatePortal();
 
-  if (doorPhase === 'switched') {
-    completePortalSwitch();
-    disposeMainScene();
-    getExhibition().activateIntro?.(); // ★追加：導入カメラワークをここで初めて起動する
-    return;
-  }
-
+if (doorPhase === 'switched') {
+  completePortalSwitch();
+  disposeMainScene();
+  getExhibition().activateIntro?.();
+  playScene('space2'); // ★追加：展示空間のBGMへクロスフェード
+  return;
+}
   composer.render();
 }
 

@@ -13,11 +13,10 @@ export const space2BGM  = new Audio("./assets/bgm/space2.mp3");  // ③展示空
 
 [openingBGM, mainBGM, space2BGM].forEach(audio => {
   audio.preload = "auto";
-  audio.loop = true; // ★追加：どのシーンも滞在中はループ再生
+  audio.loop = true;
   audio.volume = 0;
 });
 
-// 現在再生中のBGMを覚えておく(クロスフェード時に使う)
 let currentBGM = null;
 
 export function toggleBGM() {
@@ -53,7 +52,7 @@ export function fadeIn(audio, target = 0.4, duration = 4000){
 
         const t = Math.min((now-start)/duration,1);
 
-        audio.volume = target*t;
+        audio.volume = Math.max(0, Math.min(1, target*t));
 
         if(t<1){
             requestAnimationFrame(update);
@@ -74,7 +73,7 @@ export function fadeOut(audio,duration=5000){
 
         const t = Math.min((now-start)/duration,1);
 
-        audio.volume = startVolume*(1-t);
+        audio.volume = Math.max(0, Math.min(1, startVolume*(1-t)));
 
         if(t<1){
 
@@ -94,11 +93,7 @@ export function fadeOut(audio,duration=5000){
 }
 
 // ------------------------------------------------------
-// ★追加：シーン切り替え用のクロスフェード関数
-// ------------------------------------------------------
-// name: 'opening' | 'main' | 'space2'
-// 呼ぶだけで「今流れている曲をフェードアウトしつつ、
-// 指定したシーンの曲をフェードインする」処理をまとめて行う。
+// シーン切り替え用のクロスフェード関数
 // ------------------------------------------------------
 const SCENE_TRACKS = {
   opening: openingBGM,
@@ -113,7 +108,7 @@ export function playScene(name, { target = 0.4, fadeInDuration = 4000, fadeOutDu
     return;
   }
 
-  if (currentBGM === nextBGM) return; // 既に同じ曲が流れていれば何もしない
+  if (currentBGM === nextBGM) return;
 
   if (currentBGM) {
     fadeOut(currentBGM, fadeOutDuration);
