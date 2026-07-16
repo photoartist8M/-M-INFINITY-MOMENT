@@ -1505,8 +1505,8 @@ e.sprite.position.z += e.velocity.z * dt;
   const CONCEPT_REMEMBER = 'Remember.';
   const CONCEPT_PARAGRAPHS = [
     'あの日 見上げた雲は \n手を伸ばせば 届きそうだった',
-    '時は流れても \n記憶は いつも胸の奥で \n静かに 息をしている',
-    'この一瞬が \nあなたの 記憶と未来を \nそっと 繋ぎますように',
+    '時は流れても \n心に残る景色は \n静かに 瞬き続けている',
+    'どうかこの空間が \nあなたの記憶と未来を \nそっと 繋ぎますように',
   ];
   const CONCEPT_SIGNATURE = 'photoartist.M';
 

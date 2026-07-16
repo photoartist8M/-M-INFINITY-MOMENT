@@ -12,37 +12,43 @@
 //   将来のデプスマップ写真・メッセージ機能追加時に、この配列へ
 //   値を足していくだけで対応できるようにするための土台。
 // ------------------------------------------------------
+// ★変更点②：各写真に aspect（width / height の実測値）を追加。
+//   photoConfig.js の角度配置計算で、写真の見た目の横幅を正確に
+//   算出するために使用する。値が不明な場合は下記のように
+//   orientationごとの一般的な目安値を仮置きしている。
+//   正確な値が分かり次第、該当行の aspect だけ書き換えればよい。
+// ------------------------------------------------------
 export const PHOTO_DATA = [
-  { id: 5,  src: 'assets/photo5.jpg', type: 'normal', depth: null, interaction: null, orientation: 'landscape' },
-  { id: 6,  src: 'assets/photo6.JPG', type: 'normal', depth: null, interaction: null, size: 'large', orientation: 'landscape' },
-  { id: 7,  src: 'assets/photo7.JPG', type: 'normal', depth: null, interaction: null, orientation: 'landscape' },
-  { id: 9,  src: 'assets/photo9.jpg', type: 'normal', depth: null, interaction: null, orientation: 'landscape' },
-  { id: 10, src: 'assets/photo10.jpg', type: 'normal', depth: null, interaction: null, orientation: 'landscape' },
-  { id: 11, src: 'assets/photo11.JPG', type: 'normal', depth: null, interaction: null, orientation: 'landscape' },
-  { id: 12, src: 'assets/photo12.jpg', type: 'normal', depth: 0.4, interaction: null, orientation: 'landscape' },
-  { id: 13, src: 'assets/photo13.jpg', type: 'normal', depth: null, interaction: null, orientation: 'portrait' },
-  { id: 14, src: 'assets/photo14.JPEG', type: 'normal', depth: null, interaction: null, orientation: 'landscape' },
-  { id: 15, src: 'assets/photo15.jpg', type: 'normal', depth: null, interaction: null, orientation: 'landscape' },
-  { id: 16, src: 'assets/photo16.jpg', type: 'normal', depth: null, interaction: null, size: 'large', orientation: 'landscape' },
-  { id: 18, src: 'assets/photo18.jpg', type: 'normal', depth: null, interaction: null, orientation: 'portrait' },
-  { id: 19, src: 'assets/photo19.jpg', type: 'normal', depth: null, interaction: null, orientation: 'landscape' },
-  { id: 21, src: 'assets/photo21.jpg', type: 'normal', depth: null, interaction: null, orientation: 'landscape' },
-  { id: 22, src: 'assets/photo22.jpg', type: 'normal', depth: null, interaction: null, orientation: 'landscape' },
+  { id: 5,  src: 'assets/photo5.jpg', type: 'normal', depth: null, interaction: null, orientation: 'landscape', aspect: 1.50, angleOffset: 0 },
+  { id: 6,  src: 'assets/photo6.JPG', type: 'normal', depth: null, interaction: null, size: 'large', orientation: 'landscape', aspect: 1.50, angleOffset: 0 },
+  { id: 7,  src: 'assets/photo7.JPG', type: 'normal', depth: null, interaction: null, orientation: 'landscape', aspect: 1.50, angleOffset: 0 },
+  { id: 9,  src: 'assets/photo9.jpg', type: 'normal', depth: null, interaction: null, orientation: 'landscape', aspect: 1.50 , angleOffset: 0},
+  { id: 10, src: 'assets/photo10.jpg', type: 'normal', depth: null, interaction: null, orientation: 'landscape', aspect: 1.50 , angleOffset: 0},
+  { id: 11, src: 'assets/photo11.JPG', type: 'normal', depth: null, interaction: null, orientation: 'landscape', aspect: 1.50 , angleOffset: 0},
+  { id: 12, src: 'assets/photo12.jpg', type: 'normal', depth: 0.4, interaction: null, orientation: 'landscape', aspect: 1.50 , angleOffset: 0},
+  { id: 13, src: 'assets/photo13.jpg', type: 'normal', depth: null, interaction: null, orientation: 'portrait', aspect: 0.67 , angleOffset: 0},
+  { id: 14, src: 'assets/photo14.JPEG', type: 'normal', depth: null, interaction: null, orientation: 'landscape', aspect: 1.50 , angleOffset: 0},
+  { id: 15, src: 'assets/photo15.jpg', type: 'normal', depth: null, interaction: null, orientation: 'landscape', aspect: 1.50 , angleOffset: 0},
+  { id: 16, src: 'assets/photo16.jpg', type: 'normal', depth: null, interaction: null, size: 'large', orientation: 'landscape', aspect: 1.50 },
+  { id: 18, src: 'assets/photo18.jpg', type: 'normal', depth: null, interaction: null, orientation: 'portrait', aspect: 0.67 , angleOffset: 0},
+  { id: 19, src: 'assets/photo19.jpg', type: 'normal', depth: null, interaction: null, orientation: 'landscape', aspect: 1.50 , angleOffset: 0},
+  { id: 21, src: 'assets/photo21.jpg', type: 'normal', depth: null, interaction: null, orientation: 'landscape', aspect: 1.50 , angleOffset: 0},
+  { id: 22, src: 'assets/photo22.jpg', type: 'normal', depth: null, interaction: null, orientation: 'landscape', aspect: 1.50 , angleOffset: 0},
 
-  { id: 24, src: 'assets/photo24.JPG', type: 'normal', depth: null, interaction: null, orientation: 'landscape' },
-  { id: 25, src: 'assets/photo25.jpg', type: 'normal', depth: null, interaction: null, orientation: 'landscape' },
-  { id: 26, src: 'assets/photo26.jpg', type: 'letter', depth: null, interaction: 'glow', size: 'large', orientation: 'landscape' },
-  { id: 27, src: 'assets/photo27.jpg', type: 'normal', depth: null, interaction: null, orientation: 'landscape' },
-  { id: 28, src: 'assets/photo28.JPG', type: 'normal', depth: 0.3, interaction: null, orientation: 'portrait' },
-  { id: 30, src: 'assets/photo30.JPG', type: 'normal', depth: null, interaction: null, size: 'large', orientation: 'landscape' },
-  { id: 31, src: 'assets/photo31.JPG', type: 'normal', depth: null, interaction: null, orientation: 'portrait' },
-  { id: 32, src: 'assets/photo32.jpg', type: 'normal', depth: null, interaction: null, orientation: 'landscape' },
-  { id: 33, src: 'assets/photo33.jpeg', type: 'normal', depth: null, interaction: null, size: 'large', orientation: 'landscape' },
-  { id: 34, src: 'assets/photo34.JPG', type: 'normal', depth: 0.7, interaction: null, orientation: 'portrait' },
-  { id: 35, src: 'assets/photo35.jpg', type: 'normal', depth: null, interaction: null, size: 'large', orientation: 'landscape' },
-  { id: 36, src: 'assets/photo36.jpg', type: 'normal', depth: null, interaction: null, orientation: 'portrait' },
-  { id: 37, src: 'assets/photo37.JPG', type: 'bubble', depth: null, interaction: 'glow', size: 'large', orientation: 'landscape' },
-  { id: 38, src: 'assets/photo38.JPG', type: 'normal', depth: null, interaction: null, orientation: 'landscape' },
+  { id: 24, src: 'assets/photo24.JPG', type: 'normal', depth: null, interaction: null, orientation: 'landscape', aspect: 1.50 , angleOffset: 0},
+  { id: 25, src: 'assets/photo25.jpg', type: 'normal', depth: null, interaction: null, orientation: 'landscape', aspect: 1.50 , angleOffset: 0},
+  { id: 26, src: 'assets/photo26.jpg', type: 'letter', depth: null, interaction: 'glow', size: 'large', orientation: 'landscape', aspect: 1.50, angleOffset: 0 },
+  { id: 27, src: 'assets/photo27.jpg', type: 'normal', depth: null, interaction: null, orientation: 'landscape', aspect: 1.50 , angleOffset: 0},
+  { id: 28, src: 'assets/photo28.JPG', type: 'normal', depth: 0.3, interaction: null, orientation: 'portrait', aspect: 0.67 , angleOffset: 0},
+  { id: 30, src: 'assets/photo30.JPG', type: 'normal', depth: null, interaction: null, size: 'large', orientation: 'landscape', aspect: 1.50 , angleOffset: 0},
+  { id: 31, src: 'assets/photo31.JPG', type: 'normal', depth: null, interaction: null, orientation: 'portrait', aspect: 0.67 , angleOffset: 0},
+  { id: 32, src: 'assets/photo32.jpg', type: 'normal', depth: null, interaction: null, orientation: 'landscape', aspect: 1.50 , angleOffset: 0},
+  { id: 33, src: 'assets/photo33.jpeg', type: 'normal', depth: null, interaction: null, size: 'large', orientation: 'landscape', aspect: 1.50 , angleOffset: 0},
+  { id: 34, src: 'assets/photo34.JPG', type: 'normal', depth: 0.7, interaction: null, orientation: 'portrait', aspect: 0.67 , angleOffset: 0},
+  { id: 35, src: 'assets/photo35.jpg', type: 'normal', depth: null, interaction: null, size: 'large', orientation: 'landscape', aspect: 1.50 , angleOffset: 0},
+  { id: 36, src: 'assets/photo36.jpg', type: 'normal', depth: null, interaction: null, orientation: 'portrait', aspect: 0.67 , angleOffset: 0},
+  { id: 37, src: 'assets/photo37.JPG', type: 'bubble', depth: null, interaction: 'glow', size: 'large', orientation: 'landscape', aspect: 1.50 , angleOffset: 0},
+  { id: 38, src: 'assets/photo38.JPG', type: 'normal', depth: null, interaction: null, orientation: 'landscape', aspect: 1.50 , angleOffset: 0},
 ];
 
 export const GALLERY_RADIUS = 31;
