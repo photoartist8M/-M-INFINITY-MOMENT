@@ -1316,6 +1316,412 @@ e.sprite.position.z += e.velocity.z * dt;
 
 
   // ====================================================================
+  // [SECTION: ceilingFilmStar] 天井の35mmフィルム星型オブジェ
+  // タップ → 浮遊中の紙飛行機を吸収 → 写真集（購入導線）を表示
+  // ====================================================================
+  const CEILING_STAR = {
+    position: new THREE.Vector3(0, 58, 0), // ★ギャラリーの天井高さに合わせて調整してください
+    ringCount: 5,
+    size: 3.2,
+    tilt: THREE.MathUtils.degToRad(42),
+    twist: 0,
+    filmWidth: 0.55,
+    filmThickness: 0.02,
+    segments: 140,
+    hitRadius: 4.2, // タップ判定用の当たり半径（見た目より少し大きめ）
+  };
+
+  // 断面が一定のまま円軌道を描く曲線（Frenetフレームで押し出す土台）
+  class CircleCurve3 extends THREE.Curve {
+    constructor(radius) { super(); this.radius = radius; }
+    getPoint(t, target) {
+      const angle = t * Math.PI * 2;
+      target = target || new THREE.Vector3();
+      return target.set(Math.cos(angle) * this.radius, Math.sin(angle) * this.radius, 0);
+    }
+  }
+
+  // カーブに沿って「幅・厚みが常に一定の帯」の片面を生成する
+  function buildFilmStripFace(curve, segments, frenet, edgeAFn, edgeBFn, uLen, flip) {
+    const positions = [], uvs = [], normalsArr = [], indices = [];
+    for (let i = 0; i <= segments; i++) {
+      const u = i / segments;
+      const p = curve.getPointAt(u);
+      const N = frenet.normals[i];
+      const B = frenet.binormals[i];
+      const T = frenet.tangents[i];
+      const a = p.clone().add(edgeAFn(N, B));
+      const b = p.clone().add(edgeBFn(N, B));
+      positions.push(a.x, a.y, a.z, b.x, b.y, b.z);
+      uvs.push(u * uLen, 0, u * uLen, 1);
+      let norm = new THREE.Vector3().crossVectors(b.clone().sub(a).normalize(), T).normalize();
+      if (flip) norm.negate();
+      normalsArr.push(norm.x, norm.y, norm.z, norm.x, norm.y, norm.z);
+    }
+    for (let i = 0; i < segments; i++) {
+      const i0 = i * 2, i1 = i * 2 + 1, i2 = (i + 1) * 2, i3 = (i + 1) * 2 + 1;
+      if (!flip) indices.push(i0, i2, i1, i1, i2, i3);
+      else indices.push(i0, i1, i2, i1, i3, i2);
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+    geo.setAttribute('normal', new THREE.Float32BufferAttribute(normalsArr, 3));
+    geo.setIndex(indices);
+    return geo;
+  }
+
+  function mergeTwoGeometries(geos) {
+    let posLen = 0, uvLen = 0, idxLen = 0;
+    geos.forEach(g => { posLen += g.attributes.position.count * 3; uvLen += g.attributes.uv.count * 2; idxLen += g.index.count; });
+    const positions = new Float32Array(posLen);
+    const normalsArr = new Float32Array(posLen);
+    const uvs = new Float32Array(uvLen);
+    const indices = new Uint32Array(idxLen);
+    let pOff = 0, uOff = 0, iOff = 0, vOff = 0;
+    geos.forEach(g => {
+      positions.set(g.attributes.position.array, pOff);
+      normalsArr.set(g.attributes.normal.array, pOff);
+      uvs.set(g.attributes.uv.array, uOff);
+      const idxArr = g.index.array;
+      for (let k = 0; k < idxArr.length; k++) indices[iOff + k] = idxArr[k] + vOff;
+      pOff += g.attributes.position.array.length;
+      uOff += g.attributes.uv.array.length;
+      iOff += idxArr.length;
+      vOff += g.attributes.position.count;
+    });
+    const merged = new THREE.BufferGeometry();
+    merged.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    merged.setAttribute('normal', new THREE.Float32BufferAttribute(normalsArr, 3));
+    merged.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+    merged.setIndex(new THREE.Uint32BufferAttribute(indices, 1));
+    return merged;
+  }
+
+  const FILM_VERTEX_SHADER = `
+    varying vec3 vNormal;
+    varying vec3 vViewDir;
+    varying vec2 vUv;
+    void main() {
+      vec4 wp = modelMatrix * vec4(position, 1.0);
+      vNormal = normalize(mat3(modelMatrix) * normal);
+      vViewDir = normalize(cameraPosition - wp.xyz);
+      vUv = uv;
+      gl_Position = projectionMatrix * viewMatrix * wp;
+    }
+  `;
+  const FILM_FRAGMENT_SHADER = `
+    uniform sampler2D uTex;
+    uniform float uOpacity;
+    uniform float uFresnelPower;
+    uniform float uGlow;
+    uniform vec3 uGlowColor;
+    varying vec3 vNormal;
+    varying vec3 vViewDir;
+    varying vec2 vUv;
+    void main() {
+      vec3 N = normalize(vNormal);
+      vec3 V = normalize(vViewDir);
+      float fres = pow(1.0 - abs(dot(N, V)), uFresnelPower);
+      vec4 tex = texture2D(uTex, vUv);
+      vec3 col = tex.rgb + fres * uGlow * uGlowColor;
+      float alpha = clamp(tex.a * uOpacity + fres * uGlow * 0.5, 0.0, 1.0);
+      gl_FragColor = vec4(col, alpha);
+    }
+  `;
+
+  // フィルムのコマ絵：既にロード済みの展示写真があればそれを使い、無ければ簡易パターンで代用
+  function makeCeilingFilmTexture() {
+    const framesPerTile = 4;
+    const tileW = 320 * framesPerTile, tileH = 220;
+    const cnv = document.createElement('canvas');
+    cnv.width = tileW; cnv.height = tileH;
+    const ctx = cnv.getContext('2d');
+
+    ctx.fillStyle = 'rgba(10,10,11,0.95)';
+    ctx.fillRect(0, 0, tileW, tileH);
+
+    const frameW = tileW / framesPerTile;
+    const margin = frameW * 0.09;
+    const winW = frameW - margin * 2;
+    const winY = tileH * 0.19;
+    const winH = tileH * 0.62;
+
+    const loadedPhotos = photoItems.filter(it => it.loaded && it.mesh && it.mesh.material.map && it.mesh.material.map.image);
+
+    for (let i = 0; i < framesPerTile; i++) {
+      const x = i * frameW + margin;
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(x, winY, winW, winH);
+      ctx.clip();
+
+      const src = loadedPhotos.length ? loadedPhotos[i % loadedPhotos.length].mesh.material.map.image : null;
+      if (src) {
+        const ir = src.width / src.height;
+        const wr = winW / winH;
+        let dw, dh, dx, dy;
+        if (ir > wr) { dh = winH; dw = winH * ir; dx = x - (dw - winW) / 2; dy = winY; }
+        else { dw = winW; dh = winW / ir; dx = x; dy = winY - (dh - winH) / 2; }
+        ctx.drawImage(src, dx, dy, dw, dh);
+      } else {
+        ctx.fillStyle = '#3a3230';
+        ctx.fillRect(x, winY, winW, winH);
+      }
+
+      const vig = ctx.createRadialGradient(x + winW / 2, winY + winH / 2, winH * 0.3, x + winW / 2, winY + winH / 2, winH * 0.8);
+      vig.addColorStop(0, 'rgba(0,0,0,0)');
+      vig.addColorStop(1, 'rgba(0,0,0,0.5)');
+      ctx.fillStyle = vig;
+      ctx.fillRect(x, winY, winW, winH);
+
+      ctx.restore();
+      ctx.strokeStyle = 'rgba(240,240,232,0.6)';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(x, winY, winW, winH);
+    }
+
+    ctx.fillStyle = 'rgba(120,70,20,0.35)';
+    ctx.fillRect(0, tileH * 0.115, tileW, tileH * 0.03);
+    ctx.fillRect(0, tileH * 0.855, tileW, tileH * 0.03);
+
+    // 粒子
+    for (let i = 0; i < 700; i++) {
+      const gx = Math.random() * tileW, gy = Math.random() * tileH;
+      const b = Math.random() > 0.5 ? 255 : 0;
+      ctx.fillStyle = `rgba(${b},${b},${b},${(0.06 + Math.random() * 0.1).toFixed(3)})`;
+      ctx.fillRect(gx, gy, 1, 1);
+    }
+
+    // パーフォレーション（穴は本当に透明にくり抜く）
+    ctx.globalCompositeOperation = 'destination-out';
+    const holeCols = framesPerTile * 8;
+    const holeW = (tileW / holeCols) * 0.5;
+    const holeH = tileH * 0.075;
+    for (let i = 0; i < holeCols; i++) {
+      const cx = i * (tileW / holeCols) + (tileW / holeCols - holeW) / 2;
+      ctx.fillStyle = 'rgba(0,0,0,1)';
+      ctx.beginPath();
+      ctx.roundRect ? ctx.roundRect(cx, tileH * 0.03, holeW, holeH, 3) : ctx.rect(cx, tileH * 0.03, holeW, holeH);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.roundRect ? ctx.roundRect(cx, tileH * 0.895, holeW, holeH, 3) : ctx.rect(cx, tileH * 0.895, holeW, holeH);
+      ctx.fill();
+    }
+    ctx.globalCompositeOperation = 'source-over';
+
+    const tex = new THREE.CanvasTexture(cnv);
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.ClampToEdgeWrapping;
+    tex.needsUpdate = true;
+    return tex;
+  }
+
+  let ceilingStarGroup = null;
+  let ceilingRingMeshes = [];
+  let ceilingHitMesh = null;
+  let ceilingFilmTexture = null;
+
+  function buildCeilingFilmStar() {
+    ceilingFilmTexture = makeCeilingFilmTexture();
+    ceilingStarGroup = new THREE.Group();
+    ceilingStarGroup.position.copy(CEILING_STAR.position);
+
+    const curve = new CircleCurve3(CEILING_STAR.size);
+    const frenet = curve.computeFrenetFrames(CEILING_STAR.segments, true);
+    const hw = CEILING_STAR.filmWidth / 2, ht = CEILING_STAR.filmThickness / 2;
+
+    for (let i = 0; i < CEILING_STAR.ringCount; i++) {
+      const pivot = new THREE.Object3D();
+      const angleY = (i / CEILING_STAR.ringCount) * Math.PI * 2 + CEILING_STAR.twist;
+      pivot.rotation.order = 'YXZ';
+      pivot.rotation.y = angleY;
+      pivot.rotation.x = CEILING_STAR.tilt;
+
+      const topGeo = buildFilmStripFace(curve, CEILING_STAR.segments, frenet,
+        (N, B) => N.clone().multiplyScalar(-hw).add(B.clone().multiplyScalar(ht)),
+        (N, B) => N.clone().multiplyScalar(hw).add(B.clone().multiplyScalar(ht)), 3, false);
+      const botGeo = buildFilmStripFace(curve, CEILING_STAR.segments, frenet,
+        (N, B) => N.clone().multiplyScalar(-hw).add(B.clone().multiplyScalar(-ht)),
+        (N, B) => N.clone().multiplyScalar(hw).add(B.clone().multiplyScalar(-ht)), 3, true);
+      const imageGeo = mergeTwoGeometries([topGeo, botGeo]);
+
+      const imageMat = new THREE.ShaderMaterial({
+        uniforms: {
+          uTex: { value: ceilingFilmTexture },
+          uOpacity: { value: 0.65 },
+          uFresnelPower: { value: 1.8 },
+          uGlow: { value: 0.5 },
+          uGlowColor: { value: new THREE.Color(0xfff2d8) },
+        },
+        vertexShader: FILM_VERTEX_SHADER,
+        fragmentShader: FILM_FRAGMENT_SHADER,
+        transparent: true,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      });
+      const ringMesh = new THREE.Mesh(imageGeo, imageMat);
+      pivot.add(ringMesh);
+      ceilingRingMeshes.push(ringMesh);
+      ceilingStarGroup.add(pivot);
+    }
+
+    // 見た目より少し大きい、見えない当たり判定用の球
+    const hitGeo = new THREE.SphereGeometry(CEILING_STAR.hitRadius, 12, 12);
+    const hitMat = new THREE.MeshBasicMaterial({ visible: false });
+    ceilingHitMesh = new THREE.Mesh(hitGeo, hitMat);
+    ceilingStarGroup.add(ceilingHitMesh);
+
+    scene.add(ceilingStarGroup);
+  }
+  buildCeilingFilmStar();
+
+  // 展示写真の読み込みが後から揃うこともあるので、しばらくしてから一度だけテクスチャを差し替える
+  setTimeout(() => {
+    if (!ceilingFilmTexture) return;
+    ceilingFilmTexture.dispose();
+    ceilingFilmTexture = makeCeilingFilmTexture();
+    ceilingRingMeshes.forEach(m => { m.material.uniforms.uTex.value = ceilingFilmTexture; });
+  }, 4000);
+
+  let starAbsorbing = false;
+  let albumUnlocked = false;
+
+  function triggerCeilingStarTap() {
+    if (albumUnlocked) { showPhotoAlbumOverlay(); return; }
+    if (starAbsorbing) return;
+    starAbsorbing = true;
+    absorbFlyingPlanesIntoStar();
+  }
+
+  function pulseCeilingStarGlow(intensity) {
+    ceilingRingMeshes.forEach(m => { m.material.uniforms.uGlow.value = intensity; });
+  }
+
+  function absorbFlyingPlanesIntoStar() {
+    pulseCeilingStarGlow(1.4);
+
+    const targets = letterPlanes.slice();
+    if (targets.length === 0) {
+      setTimeout(finishAbsorption, 500);
+      return;
+    }
+
+    let remaining = targets.length;
+    targets.forEach((e, idx) => {
+      const startPos = e.sprite.position.clone();
+      const duration = 900 + idx * 70;
+      const startTime = performance.now() + idx * 40; // 少しずつ時間差で吸い込まれる
+
+      function step(now) {
+        const t = THREE.MathUtils.clamp((now - startTime) / duration, 0, 1);
+        if (t <= 0) { requestAnimationFrame(step); return; }
+        const eased = 1 - Math.pow(1 - t, 3);
+        const pos = startPos.clone().lerp(ceilingStarGroup.position, eased);
+        e.sprite.position.copy(pos);
+        if (e.glowSprite) e.glowSprite.position.copy(pos);
+        const s = Math.max(0.02, e.sprite.scale.x * (1 - eased * 0.08));
+        e.sprite.scale.set(s, s, 1);
+        if (e.glowSprite) e.glowSprite.scale.set(s * 1.05, s * 1.05, 1);
+
+        if (t < 1) {
+          requestAnimationFrame(step);
+        } else {
+          scene.remove(e.sprite);
+          e.sprite.material.dispose();
+          if (e.glowSprite) { scene.remove(e.glowSprite); e.glowSprite.material.dispose(); }
+          const li = letterPlanes.indexOf(e);
+          if (li >= 0) letterPlanes.splice(li, 1);
+          remaining--;
+          if (remaining <= 0) finishAbsorption();
+        }
+      }
+      requestAnimationFrame(step);
+    });
+  }
+
+  function finishAbsorption() {
+    starAbsorbing = false;
+    albumUnlocked = true;
+    pulseCeilingStarGlow(0.5);
+    showPhotoAlbumOverlay();
+  }
+
+  // --- 写真集（購入導線）オーバーレイ ---
+  const albumOverlayEl = document.createElement('div');
+  Object.assign(albumOverlayEl.style, {
+    position: 'fixed', inset: '0',
+    background: 'rgba(10, 8, 15, 0.6)',
+    backdropFilter: 'blur(6px)',
+    display: 'none', alignItems: 'center', justifyContent: 'center',
+    zIndex: '24',
+  });
+  const albumPanelEl = document.createElement('div');
+  Object.assign(albumPanelEl.style, {
+    width: 'min(88vw, 420px)',
+    padding: '32px 28px',
+    borderRadius: '16px',
+    background: 'linear-gradient(160deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02))',
+    border: '1px solid rgba(255,240,220,0.2)',
+    boxShadow: '0 20px 60px rgba(0,0,0,0.55)',
+    color: '#f0e8d8',
+    fontFamily: `'Klee One', 'Hiragino Mincho ProN', serif`,
+    textAlign: 'center',
+  });
+  albumPanelEl.innerHTML = `
+    <div style="font-size:13px; letter-spacing:0.2em; opacity:0.7; margin-bottom:10px;">MEMORIES COLLECTED</div>
+    <div style="font-size:17px; line-height:1.8; margin-bottom:22px;">空を飛んでいた想いが<br>一冊の写真集になりました</div>
+  `;
+  const albumBuyButtonEl = document.createElement('button');
+  albumBuyButtonEl.textContent = 'この物語を手元へ';
+  Object.assign(albumBuyButtonEl.style, {
+    display: 'block', width: '100%', padding: '14px 0', marginBottom: '10px',
+    borderRadius: '999px', border: 'none',
+    background: 'rgba(255, 210, 160, 0.9)', color: '#3a2c20',
+    fontSize: '14px', fontWeight: 'bold', cursor: 'pointer',
+    fontFamily: `'Klee One', 'Hiragino Mincho ProN', serif`,
+  });
+  albumBuyButtonEl.addEventListener('click', () => {
+    window.open('https://cedmove.wixsite.com/photoartistm/', '_blank');
+  });
+  const albumCloseButtonEl = document.createElement('button');
+  albumCloseButtonEl.textContent = 'とじる';
+  Object.assign(albumCloseButtonEl.style, {
+    display: 'block', width: '100%', padding: '10px 0',
+    borderRadius: '999px', border: '1px solid rgba(255,255,255,0.25)',
+    background: 'transparent', color: 'rgba(255,255,255,0.7)',
+    fontSize: '13px', cursor: 'pointer',
+    fontFamily: `'Klee One', 'Hiragino Mincho ProN', serif`,
+  });
+  albumCloseButtonEl.addEventListener('click', () => { albumOverlayEl.style.display = 'none'; });
+
+  albumPanelEl.appendChild(albumBuyButtonEl);
+  albumPanelEl.appendChild(albumCloseButtonEl);
+  albumOverlayEl.appendChild(albumPanelEl);
+  document.body.appendChild(albumOverlayEl);
+
+  function showPhotoAlbumOverlay() {
+    albumOverlayEl.style.display = 'flex';
+  }
+
+  function updateCeilingStar(dt) {
+    if (!ceilingStarGroup) return;
+    ceilingStarGroup.rotation.y += dt * 0.15;
+    ceilingStarGroup.rotation.x = Math.sin(performance.now() * 0.0002) * 0.08;
+
+    // 脈動する発光（吸収中/吸収済みでない通常時のみ、静かに呼吸させる）
+    if (!starAbsorbing) {
+      const base = albumUnlocked ? 0.5 : 0.4;
+      const wave = (Math.sin(performance.now() * 0.0012) + 1) / 2;
+      pulseCeilingStarGlow(base * (0.6 + wave * 0.6));
+    }
+  }
+  // ====================================================================
+  // [SECTION: ceilingFilmStar end]
+  // ====================================================================
+
+
+  // ====================================================================
   // [SECTION: controls] 視点操作・クリック処理
   // ====================================================================
   let yaw = 0, pitch = 0, targetYaw = 0, targetPitch = 0;
@@ -1431,6 +1837,14 @@ e.sprite.position.z += e.velocity.z * dt;
     pointer.x = (clientX / window.innerWidth) * 2 - 1;
     pointer.y = -(clientY / window.innerHeight) * 2 + 1;
     raycaster.setFromCamera(pointer, camera);
+
+    if (ceilingHitMesh) {
+      const starHits = raycaster.intersectObject(ceilingHitMesh);
+      if (starHits.length > 0) {
+        triggerCeilingStarTap();
+        return;
+      }
+    }
 
     if (!viewingItem) {
       const flyingSprites = [
@@ -2109,6 +2523,7 @@ e.sprite.position.z += e.velocity.z * dt;
     updateWriteButton();
     updateFlyingMessages(dt);
     updateConceptIntro(dt); // ★追加
+    updateCeilingStar(dt); // ★追加
   }
   // ====================================================================
   // [SECTION: update end]
@@ -2126,6 +2541,7 @@ e.sprite.position.z += e.velocity.z * dt;
     guideHintButtonEl.style.opacity = '0';
     guideHintButtonEl.style.pointerEvents = 'none';
     clearTimeout(guideCardTimer);
+    albumOverlayEl.style.display = 'none'; // ★追加
   }
 
   return { scene, update, hideUI, activateIntro };
