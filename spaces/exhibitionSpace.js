@@ -613,10 +613,10 @@ export function startExhibitionSpace(renderer, camera) {
     messageInputEl.value = '';
 
     if (item.type === 'letter') {
-      formTitleEl.textContent = '紙飛行機にメッセージをのせて送りましょう';
+      formTitleEl.textContent = 'この空間で感じた想いを紙飛行機にのせて';
       applyLetterStyle();
     } else {
-      formTitleEl.textContent = 'シャボン玉にメッセージをのせて送りましょう';
+      formTitleEl.textContent = 'ふっと生まれた想いをシャボン玉にそっと浮かべて';
       applyBubbleStyle();
     }
 
@@ -960,7 +960,7 @@ function updateWriteButton() {
     });
     const sprite = new THREE.Sprite(mat);
     sprite.renderOrder = 10; // ★追加：確実に他オブジェクトより後(手前)に描画されるように
-    const scaleV = 11 + Math.random() * 3;
+    const scaleV = 7 + Math.random() * 2;
     sprite.scale.set(scaleV, scaleV, 1);
 
     // ★追加：機体色で光る加算合成のハロー。単体だと空に溶け込みがちなため、
@@ -997,8 +997,18 @@ function updateWriteButton() {
     scene.add(sprite);
     scene.add(glowSprite);
 
-    const heading = Math.random() * Math.PI * 2;
-    const speed = 0.5 + Math.random() * 0.7;
+const heading = Math.random() * Math.PI * 2;
+
+    // ★変更：ふわふわ上下に漂いながら上昇するのではなく、投げた瞬間に
+    // スーッと勢いよく斜め上へ飛んでいく「swoosh」な動きにする。
+    // 速度を積み上げるのではなく、開始地点→目標地点を時間で直接補間する。
+    const riseDuration = 1100 + Math.random() * 200; // 1.1〜1.3秒でスッと上がりきる
+    const riseDistance = 16 + Math.random() * 6;
+    const riseTargetPos = new THREE.Vector3(
+      startPos.x + Math.cos(heading) * riseDistance,
+      45 + Math.random() * 8,
+      startPos.z + Math.sin(heading) * riseDistance
+    );
 
     letterPlanes.push({
       sprite,
@@ -1006,14 +1016,18 @@ function updateWriteButton() {
       data,
       color, // ★追加
       velocity: new THREE.Vector3(
-    Math.cos(heading) * 4.0,
-    8.0,
-    Math.sin(heading) * 4.0
-),
+        Math.cos(heading) * 4.0,
+        0,
+        Math.sin(heading) * 4.0
+      ),
       height: startHeight,
-      targetHeight: 45 + Math.random() * 8, // ★変更：紙飛行機はさらに高く漂う
+      targetHeight: riseTargetPos.y,
       rising: !!fromPosition,
-      risingSpeed: 0.6, // ★追加：上昇スピードを緩めて、長くゆっくり上がる演出にする
+      riseStart: performance.now(),
+      riseDuration,
+      riseStartPos: startPos.clone(),
+      riseTargetPos,
+      riseInitialScale: scaleV,
       phase: Math.random() * Math.PI * 2,
     });
   }
@@ -1026,7 +1040,7 @@ function updateWriteButton() {
       blending: THREE.NormalBlending,
     });
     const sprite = new THREE.Sprite(mat);
-    const s = 5 + Math.random() * 1.5;
+    const s = 2 + Math.random() * 1;
     sprite.scale.set(0.01, 0.01, 1);
 
     const restingY = 27 + Math.random() * 8; // ★変更：シャボン玉はもう少し低い位置を漂う
@@ -1097,10 +1111,14 @@ function updateWriteButton() {
     }
   }
 
-  (async () => {
+(async () => {
     try {
       const pastLetters = await fetchLetterMessages();
-      const list = Array.isArray(pastLetters) ? pastLetters : [];
+      const MAX_LETTER_PLANES = 15; // ★ここで表示する紙飛行機の最大数を調整
+      const fullList = Array.isArray(pastLetters) ? pastLetters : [];
+      // 配列の末尾＝一番新しいメッセージという前提。もし逆順で返ってくる場合は
+      // list.slice(0, MAX_LETTER_PLANES) に変えてください。
+      const list = fullList.slice(-MAX_LETTER_PLANES);
       list.forEach((msg) => {
         spawnLetterPlane({ name: msg.name ?? null, message: msg.message ?? '' });
       });
@@ -1130,23 +1148,29 @@ function updateWriteButton() {
     letterPlanes.forEach(e => {
 if (e.rising) {
 
-    // 斜め上へ一気に飛ばす
-    e.sprite.position.addScaledVector(e.velocity, dt * 3.0);
+// ★変更：スーッと勢いよく、まっすぐ目標地点まで飛ぶ（イーズアウト）
+        const t = Math.min(1, (performance.now() - e.riseStart) / e.riseDuration);
+        const eased = 1 - Math.pow(1 - t, 3);
+        e.sprite.position.lerpVectors(e.riseStartPos, e.riseTargetPos, eased);
 
-    // 徐々に小さくして遠くへ飛んでいく印象にする
-    const s = Math.max(0.25, e.sprite.scale.x * 0.996);
-    e.sprite.scale.set(s, s, 1);
+        const s = Math.max(e.riseInitialScale * 0.4, e.riseInitialScale * (1 - eased * 0.6));
+        e.sprite.scale.set(s, s, 1);
+        if (e.glowSprite) {
+          e.glowSprite.position.copy(e.sprite.position);
+          e.glowSprite.scale.set(s * 1.05, s * 1.05, 1);
+        }
 
-    if (e.glowSprite) {
-        e.glowSprite.scale.set(s * 1.05, s * 1.05, 1);
-    }
+        // 飛んでいく方向へ機体を傾ける（swoosh感）
+        e.sprite.material.rotation = Math.atan2(
+          e.riseTargetPos.y - e.riseStartPos.y,
+          Math.hypot(e.riseTargetPos.x - e.riseStartPos.x, e.riseTargetPos.z - e.riseStartPos.z)
+        ) * -0.6;
 
-    // 十分高くなったら通常飛行へ
-    if (e.sprite.position.y >= e.targetHeight) {
-        e.rising = false;
-    }
+        if (t >= 1) {
+          e.rising = false;
+        }
 
-} else {
+      } else {
 
   e.sprite.position.x += e.velocity.x * dt;
 e.sprite.position.z += e.velocity.z * dt;
@@ -1299,6 +1323,7 @@ e.sprite.position.z += e.velocity.z * dt;
         item.pastelColors = extractPastelColors(img);
         item.loaded = true;
         registerPhotoColorsToSparkles(item.pastelColors);
+        notifyPhotoLoadedForCeilingStar(); // ★追加：展示写真が読み込まれるたび、天井オブジェのフィルム絵を実際の写真で更新する
       },
     });
 
@@ -1335,7 +1360,7 @@ e.sprite.position.z += e.velocity.z * dt;
     density: 1.00,    // コマの濃さ
     opacity: 0.49,    // 透明感
     fresnelPower: 3.15, // フレネル光
-    glow: 1.00,       // ふちの発光
+    glow: 1.6,        // ふちの発光（★強化）
     pulse: 0.6,       // 発光の脈動
     speed: 0.5,       // 回転速度
   };
@@ -1343,10 +1368,10 @@ e.sprite.position.z += e.velocity.z * dt;
   const CEILING_STAR = {
     // ★変更：ワールド固定座標ではなく、毎フレーム「現在のカメラの向き(yaw)」に
     // 追従させることで、どの方向を向いていても見上げれば必ず中心に見えるようにする。
-    elevation: 0.9, // 見上げ角(rad)。カメラの最大仰角(1.0rad)に対して余裕を持たせる
+    elevation: 1.4, // 見上げ角(rad)。画面のより上のほうに来るよう引き上げ
     distance: 35,
     ringCount: FILM_PARAMS.count,
-    size: 4,
+    size: 5,
     tilt: THREE.MathUtils.degToRad(FILM_PARAMS.tiltDeg),
     twist: THREE.MathUtils.degToRad(FILM_PARAMS.twistDeg),
     segments: 140,
@@ -1670,26 +1695,27 @@ e.sprite.position.z += e.velocity.z * dt;
     ceilingHitMesh = new THREE.Mesh(hitGeo, hitMat);
     ceilingStarGroup.add(ceilingHitMesh);
 
-    // ★診断用：フィルムの複雑なジオメトリ/シェーダーとは無関係に、
-    // 必ず見えるはずの単純な蛍光色の球。これが見えるかどうかで
-    // 「位置」の問題か「星のジオメトリ/シェーダー」の問題かを切り分けられる。
-    // 動作確認できたら削除してOK。
-    const debugMarkerGeo = new THREE.SphereGeometry(1.5, 16, 16);
-    const debugMarkerMat = new THREE.MeshBasicMaterial({ color: 0x39ff14, fog: false });
-    const debugMarker = new THREE.Mesh(debugMarkerGeo, debugMarkerMat);
-    ceilingStarGroup.add(debugMarker);
-
     scene.add(ceilingStarGroup);
   }
   buildCeilingFilmStar();
 
-  // 展示写真の読み込みが後から揃うこともあるので、しばらくしてから一度だけテクスチャを差し替える
-  setTimeout(() => {
+  // ★変更：4秒待つだけの決め打ちではなく、実際に展示写真が読み込まれるたびに
+  // （notifyPhotoLoadedForCeilingStarから呼ばれる）差し替える。連続で何枚も
+  // 読み込まれる場合に備えて少しデバウンスする。
+  let ceilingTextureRefreshTimer = null;
+  let ceilingTextureRefreshCount = 0;
+  const CEILING_TEXTURE_MAX_REFRESH = 8; // 十分な枚数が揃ったら以降は再生成しない
+  function notifyPhotoLoadedForCeilingStar() {
     if (!ceilingFilmTexture) return;
-    ceilingFilmTexture.dispose();
-    ceilingFilmTexture = makeCeilingFilmTexture();
-    ceilingRingMeshes.forEach(m => { m.material.uniforms.uTex.value = ceilingFilmTexture; });
-  }, 4000);
+    if (ceilingTextureRefreshCount >= CEILING_TEXTURE_MAX_REFRESH) return;
+    clearTimeout(ceilingTextureRefreshTimer);
+    ceilingTextureRefreshTimer = setTimeout(() => {
+      ceilingFilmTexture.dispose();
+      ceilingFilmTexture = makeCeilingFilmTexture();
+      ceilingRingMeshes.forEach(m => { m.material.uniforms.uTex.value = ceilingFilmTexture; });
+      ceilingTextureRefreshCount++;
+    }, 400);
+  }
 
   let starAbsorbing = false;
   let albumUnlocked = false;
@@ -1838,11 +1864,37 @@ e.sprite.position.z += e.velocity.z * dt;
     if (!starAbsorbing) {
       const pulseSpeed = 0.0007 + FILM_PARAMS.pulse * 0.0015;
       const wave = (Math.sin(performance.now() * pulseSpeed) + 1) / 2;
+      ceilingStarPulseWave = wave; // ★追加：写真の照らし演出でも同じ脈動を使う
       const glowBase = albumUnlocked ? FILM_PARAMS.glow * 0.85 : FILM_PARAMS.glow;
-      const low = glowBase * (1 - FILM_PARAMS.pulse * 0.85);
-      const high = glowBase * (1 + FILM_PARAMS.pulse * 0.6);
+      const low = glowBase * (1 - FILM_PARAMS.pulse * 0.95);
+      const high = glowBase * (1 + FILM_PARAMS.pulse * 1.1);
       pulseCeilingStarGlow(low + (high - low) * wave);
     }
+
+    updateStarLightOnPhotos();
+  }
+
+  // ★追加：星から届く光が近くの写真を照らして浮かび上がらせる演出。
+  // 写真本体はMeshBasicMaterialで実際の光源には反応しないため、
+  // 既存の「aura」（選択時などに白く光らせるオーバーレイ）の不透明度を
+  // 星との距離と発光の脈動に応じてかさ上げすることで疑似的に表現する。
+  let ceilingStarPulseWave = 0.5;
+  const STAR_LIGHT_RADIUS = 26;
+  const STAR_LIGHT_STRENGTH = 0.65;
+  function updateStarLightOnPhotos() {
+    if (!ceilingStarGroup) return;
+    const starPos = ceilingStarGroup.position;
+    const pulseFactor = 0.4 + 0.6 * ceilingStarPulseWave; // 脈動の谷でも完全には消えないように下駄を履かせる
+    photoItems.forEach(item => {
+      if (!item.mesh || !item.aura) return;
+      const d = item.position.distanceTo(starPos);
+      if (d > STAR_LIGHT_RADIUS) return;
+      const falloff = 1 - d / STAR_LIGHT_RADIUS;
+      const boost = falloff * falloff * STAR_LIGHT_STRENGTH * pulseFactor;
+      if (boost > item.aura.material.opacity) {
+        item.aura.material.opacity = boost;
+      }
+    });
   }
   // ====================================================================
   // [SECTION: ceilingFilmStar end]
