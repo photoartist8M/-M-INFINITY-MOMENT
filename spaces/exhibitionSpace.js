@@ -1011,7 +1011,7 @@ function updateWriteButton() {
     Math.sin(heading) * 4.0
 ),
       height: startHeight,
-      targetHeight: 42 + Math.random() * 18, // ★変更(12〜18→24〜34)：もっと高く上がる
+      targetHeight: 45 + Math.random() * 8, // ★変更：紙飛行機はさらに高く漂う
       rising: !!fromPosition,
       risingSpeed: 0.6, // ★追加：上昇スピードを緩めて、長くゆっくり上がる演出にする
       phase: Math.random() * Math.PI * 2,
@@ -1029,7 +1029,7 @@ function updateWriteButton() {
     const s = 5 + Math.random() * 1.5;
     sprite.scale.set(0.01, 0.01, 1);
 
-    const restingY = 25 + Math.random() * 12; // ★変更(44〜64→30〜42)：見上げ角度の範囲内に収まる高さに調整
+    const restingY = 27 + Math.random() * 8; // ★変更：シャボン玉はもう少し低い位置を漂う
     const startY = fromPosition ? fromPosition.y : restingY;
 
     const startPos = fromPosition
@@ -1158,7 +1158,7 @@ e.sprite.position.z += e.velocity.z * dt;
         e.velocity.x *= -1;
         e.velocity.z *= -1;
       }
-      if (e.sprite.position.y < 25) { e.sprite.position.y = 25; e.velocity.y = Math.abs(e.velocity.y); }
+      if (e.sprite.position.y < 40) { e.sprite.position.y = 40; e.velocity.y = Math.abs(e.velocity.y); }
       if (e.sprite.position.y > 50) {
     e.sprite.position.y = 50;
     e.velocity.y = -Math.abs(e.velocity.y);
@@ -1319,17 +1319,41 @@ e.sprite.position.z += e.velocity.z * dt;
   // [SECTION: ceilingFilmStar] 天井の35mmフィルム星型オブジェ
   // タップ → 浮遊中の紙飛行機を吸収 → 写真集（購入導線）を表示
   // ====================================================================
-  const CEILING_STAR = {
-    position: new THREE.Vector3(0, 58, 0), // ★ギャラリーの天井高さに合わせて調整してください
-    ringCount: 5,
-    size: 3.2,
-    tilt: THREE.MathUtils.degToRad(42),
-    twist: 0,
-    filmWidth: 0.55,
-    filmThickness: 0.02,
-    segments: 140,
-    hitRadius: 4.2, // タップ判定用の当たり半径（見た目より少し大きめ）
+
+  // ★デモで調整した値をそのまま反映（本数・大きさ・星の尖り・ねじれ・フィルム断面・
+  // フィルムの質感・光と透明感・回転速度・発光の脈動）
+  const FILM_PARAMS = {
+    count: 4,
+    tiltDeg: 35,      // 星の尖り
+    twistDeg: 86,     // ねじれ
+    sizeRatioWidth: 0.220 / 0.60,   // デモでのフィルム幅/大きさ の比率をそのまま維持
+    sizeRatioThickness: 0.030 / 0.60, // デモでの厚み/大きさ の比率をそのまま維持
+    frames: 3,        // くり返し
+    warmth: 5,        // 色温度
+    leak: 100,        // 光漏れ
+    grain: 100,        // 粒子/傷
+    density: 1.00,    // コマの濃さ
+    opacity: 0.49,    // 透明感
+    fresnelPower: 3.15, // フレネル光
+    glow: 1.00,       // ふちの発光
+    pulse: 0.6,       // 発光の脈動
+    speed: 0.5,       // 回転速度
   };
+
+  const CEILING_STAR = {
+    // ★変更：ワールド固定座標ではなく、毎フレーム「現在のカメラの向き(yaw)」に
+    // 追従させることで、どの方向を向いていても見上げれば必ず中心に見えるようにする。
+    elevation: 0.9, // 見上げ角(rad)。カメラの最大仰角(1.0rad)に対して余裕を持たせる
+    distance: 35,
+    ringCount: FILM_PARAMS.count,
+    size: 4,
+    tilt: THREE.MathUtils.degToRad(FILM_PARAMS.tiltDeg),
+    twist: THREE.MathUtils.degToRad(FILM_PARAMS.twistDeg),
+    segments: 140,
+    hitRadius: 5.5, // タップ判定用の当たり半径（見た目より少し大きめ）
+  };
+  CEILING_STAR.filmWidth = CEILING_STAR.size * FILM_PARAMS.sizeRatioWidth;
+  CEILING_STAR.filmThickness = CEILING_STAR.size * FILM_PARAMS.sizeRatioThickness;
 
   // 断面が一定のまま円軌道を描く曲線（Frenetフレームで押し出す土台）
   class CircleCurve3 extends THREE.Curve {
@@ -1430,6 +1454,17 @@ e.sprite.position.z += e.velocity.z * dt;
     }
   `;
 
+  function warmthTint(warmth) {
+    const t = warmth / 100;
+    let r, g, b;
+    if (t >= 0) { r = 255; g = Math.round(210 - t * 20); b = Math.round(150 - t * 90); }
+    else { r = Math.round(170 + t * 40); g = Math.round(200 + t * 10); b = 255; }
+    r = Math.max(0, Math.min(255, r));
+    g = Math.max(0, Math.min(255, g));
+    b = Math.max(0, Math.min(255, b));
+    return `rgba(${r},${g},${b},`;
+  }
+
   // フィルムのコマ絵：既にロード済みの展示写真があればそれを使い、無ければ簡易パターンで代用
   function makeCeilingFilmTexture() {
     const framesPerTile = 4;
@@ -1446,6 +1481,7 @@ e.sprite.position.z += e.velocity.z * dt;
     const winW = frameW - margin * 2;
     const winY = tileH * 0.19;
     const winH = tileH * 0.62;
+    const tint = warmthTint(FILM_PARAMS.warmth);
 
     const loadedPhotos = photoItems.filter(it => it.loaded && it.mesh && it.mesh.material.map && it.mesh.material.map.image);
 
@@ -1463,12 +1499,32 @@ e.sprite.position.z += e.velocity.z * dt;
         let dw, dh, dx, dy;
         if (ir > wr) { dh = winH; dw = winH * ir; dx = x - (dw - winW) / 2; dy = winY; }
         else { dw = winW; dh = winW / ir; dx = x; dy = winY - (dh - winH) / 2; }
+        ctx.globalAlpha = FILM_PARAMS.density;
         ctx.drawImage(src, dx, dy, dw, dh);
+        ctx.globalAlpha = 1;
       } else {
         ctx.fillStyle = '#3a3230';
         ctx.fillRect(x, winY, winW, winH);
       }
 
+      // 色温度のティント
+      ctx.globalAlpha = 0.30;
+      ctx.fillStyle = tint + '1)';
+      ctx.globalCompositeOperation = 'overlay';
+      ctx.fillRect(x, winY, winW, winH);
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = 1;
+
+      // ハレーション（光の滲み）
+      const gx = x + winW * (0.3 + 0.4 * Math.sin(i * 1.7));
+      const gy = winY + winH * 0.3;
+      const sun = ctx.createRadialGradient(gx, gy, 0, gx, gy, winW * 0.35);
+      sun.addColorStop(0, 'rgba(255,250,235,0.35)');
+      sun.addColorStop(1, 'rgba(255,250,235,0)');
+      ctx.fillStyle = sun;
+      ctx.fillRect(x, winY, winW, winH);
+
+      // ビネット
       const vig = ctx.createRadialGradient(x + winW / 2, winY + winH / 2, winH * 0.3, x + winW / 2, winY + winH / 2, winH * 0.8);
       vig.addColorStop(0, 'rgba(0,0,0,0)');
       vig.addColorStop(1, 'rgba(0,0,0,0.5)');
@@ -1481,16 +1537,56 @@ e.sprite.position.z += e.velocity.z * dt;
       ctx.strokeRect(x, winY, winW, winH);
     }
 
+    // ネガの縁のオレンジ帯
     ctx.fillStyle = 'rgba(120,70,20,0.35)';
     ctx.fillRect(0, tileH * 0.115, tileW, tileH * 0.03);
     ctx.fillRect(0, tileH * 0.855, tileW, tileH * 0.03);
 
-    // 粒子
-    for (let i = 0; i < 700; i++) {
-      const gx = Math.random() * tileW, gy = Math.random() * tileH;
-      const b = Math.random() > 0.5 ? 255 : 0;
-      ctx.fillStyle = `rgba(${b},${b},${b},${(0.06 + Math.random() * 0.1).toFixed(3)})`;
-      ctx.fillRect(gx, gy, 1, 1);
+    // 光漏れ（オレンジ〜ピンクのにじみ）
+    const leakStrength = FILM_PARAMS.leak / 100;
+    if (leakStrength > 0) {
+      const leakColors = ['rgba(255,140,80,ALPHA)', 'rgba(255,90,140,ALPHA)', 'rgba(255,210,90,ALPHA)'];
+      for (let i = 0; i < 3; i++) {
+        const cx = Math.random() * tileW;
+        const cy = tileH * (0.2 + Math.random() * 0.6);
+        const r = tileW * (0.12 + Math.random() * 0.15);
+        const a = (0.18 + Math.random() * 0.22) * leakStrength;
+        const col = leakColors[i % leakColors.length].replace('ALPHA', a.toFixed(3));
+        const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+        g.addColorStop(0, col);
+        g.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, tileW, tileH);
+      }
+    }
+
+    // 粒子・傷
+    const grainAmt = FILM_PARAMS.grain / 100;
+    if (grainAmt > 0) {
+      const dots = Math.floor(tileW * tileH * 0.02 * grainAmt);
+      for (let i = 0; i < dots; i++) {
+        const gx = Math.random() * tileW, gy = Math.random() * tileH;
+        const b = Math.random() > 0.5 ? 255 : 0;
+        ctx.fillStyle = `rgba(${b},${b},${b},${(0.08 + Math.random() * 0.14).toFixed(3)})`;
+        ctx.fillRect(gx, gy, 1, 1);
+      }
+      const dust = Math.floor(14 * grainAmt);
+      for (let i = 0; i < dust; i++) {
+        const gx = Math.random() * tileW, gy = Math.random() * tileH;
+        const s = 1 + Math.random() * 1.5;
+        ctx.fillStyle = `rgba(255,255,255,${(0.15 + Math.random() * 0.2).toFixed(3)})`;
+        ctx.fillRect(gx, gy, s, s);
+      }
+      const scratches = Math.floor(5 * grainAmt) + 1;
+      ctx.lineWidth = 1;
+      for (let i = 0; i < scratches; i++) {
+        const sx = Math.random() * tileW;
+        ctx.strokeStyle = `rgba(255,255,255,${(0.1 + Math.random() * 0.14).toFixed(3)})`;
+        ctx.beginPath();
+        ctx.moveTo(sx, 0);
+        ctx.lineTo(sx + (Math.random() * 14 - 7), tileH);
+        ctx.stroke();
+      }
     }
 
     // パーフォレーション（穴は本当に透明にくり抜く）
@@ -1525,7 +1621,8 @@ e.sprite.position.z += e.velocity.z * dt;
   function buildCeilingFilmStar() {
     ceilingFilmTexture = makeCeilingFilmTexture();
     ceilingStarGroup = new THREE.Group();
-    ceilingStarGroup.position.copy(CEILING_STAR.position);
+    ceilingStarGroup.position.set(0, CEILING_STAR.distance * Math.sin(CEILING_STAR.elevation), -CEILING_STAR.distance * Math.cos(CEILING_STAR.elevation));
+    ceilingStarGroup.renderOrder = 5; // ★追加：他の半透明オブジェクトより手前に描画されやすくする
 
     const curve = new CircleCurve3(CEILING_STAR.size);
     const frenet = curve.computeFrenetFrames(CEILING_STAR.segments, true);
@@ -1540,18 +1637,18 @@ e.sprite.position.z += e.velocity.z * dt;
 
       const topGeo = buildFilmStripFace(curve, CEILING_STAR.segments, frenet,
         (N, B) => N.clone().multiplyScalar(-hw).add(B.clone().multiplyScalar(ht)),
-        (N, B) => N.clone().multiplyScalar(hw).add(B.clone().multiplyScalar(ht)), 3, false);
+        (N, B) => N.clone().multiplyScalar(hw).add(B.clone().multiplyScalar(ht)), FILM_PARAMS.frames, false);
       const botGeo = buildFilmStripFace(curve, CEILING_STAR.segments, frenet,
         (N, B) => N.clone().multiplyScalar(-hw).add(B.clone().multiplyScalar(-ht)),
-        (N, B) => N.clone().multiplyScalar(hw).add(B.clone().multiplyScalar(-ht)), 3, true);
+        (N, B) => N.clone().multiplyScalar(hw).add(B.clone().multiplyScalar(-ht)), FILM_PARAMS.frames, true);
       const imageGeo = mergeTwoGeometries([topGeo, botGeo]);
 
       const imageMat = new THREE.ShaderMaterial({
         uniforms: {
           uTex: { value: ceilingFilmTexture },
-          uOpacity: { value: 0.65 },
-          uFresnelPower: { value: 1.8 },
-          uGlow: { value: 0.5 },
+          uOpacity: { value: FILM_PARAMS.opacity },
+          uFresnelPower: { value: FILM_PARAMS.fresnelPower },
+          uGlow: { value: FILM_PARAMS.glow },
           uGlowColor: { value: new THREE.Color(0xfff2d8) },
         },
         vertexShader: FILM_VERTEX_SHADER,
@@ -1561,6 +1658,7 @@ e.sprite.position.z += e.velocity.z * dt;
         side: THREE.DoubleSide,
       });
       const ringMesh = new THREE.Mesh(imageGeo, imageMat);
+      ringMesh.renderOrder = 5;
       pivot.add(ringMesh);
       ceilingRingMeshes.push(ringMesh);
       ceilingStarGroup.add(pivot);
@@ -1571,6 +1669,15 @@ e.sprite.position.z += e.velocity.z * dt;
     const hitMat = new THREE.MeshBasicMaterial({ visible: false });
     ceilingHitMesh = new THREE.Mesh(hitGeo, hitMat);
     ceilingStarGroup.add(ceilingHitMesh);
+
+    // ★診断用：フィルムの複雑なジオメトリ/シェーダーとは無関係に、
+    // 必ず見えるはずの単純な蛍光色の球。これが見えるかどうかで
+    // 「位置」の問題か「星のジオメトリ/シェーダー」の問題かを切り分けられる。
+    // 動作確認できたら削除してOK。
+    const debugMarkerGeo = new THREE.SphereGeometry(1.5, 16, 16);
+    const debugMarkerMat = new THREE.MeshBasicMaterial({ color: 0x39ff14, fog: false });
+    const debugMarker = new THREE.Mesh(debugMarkerGeo, debugMarkerMat);
+    ceilingStarGroup.add(debugMarker);
 
     scene.add(ceilingStarGroup);
   }
@@ -1704,16 +1811,37 @@ e.sprite.position.z += e.velocity.z * dt;
     albumOverlayEl.style.display = 'flex';
   }
 
+  const ceilingStarLocalOffset = new THREE.Vector3(
+    0,
+    CEILING_STAR.distance * Math.sin(CEILING_STAR.elevation),
+    -CEILING_STAR.distance * Math.cos(CEILING_STAR.elevation)
+  );
+  const ceilingStarWorldOffset = new THREE.Vector3();
+  const ceilingStarYawQuat = new THREE.Quaternion();
+  const ceilingStarUpAxis = new THREE.Vector3(0, 1, 0);
+
   function updateCeilingStar(dt) {
     if (!ceilingStarGroup) return;
-    ceilingStarGroup.rotation.y += dt * 0.15;
+
+    // ★重要な修正：camera.quaternion をそのまま使うと「上下(pitch)」も含めて
+    // 追従してしまい、常に画面の同じ位置に貼り付いたようになってしまっていた。
+    // 「左右(yaw)だけ」に追従させ、高さはワールド空間で固定することで、
+    // 正面を向くと見えず、天井を見上げると中央に来るようにする。
+    ceilingStarYawQuat.setFromAxisAngle(ceilingStarUpAxis, yaw);
+    ceilingStarWorldOffset.copy(ceilingStarLocalOffset).applyQuaternion(ceilingStarYawQuat);
+    ceilingStarGroup.position.copy(camera.position).add(ceilingStarWorldOffset);
+
+    ceilingStarGroup.rotation.y += dt * FILM_PARAMS.speed;
     ceilingStarGroup.rotation.x = Math.sin(performance.now() * 0.0002) * 0.08;
 
-    // 脈動する発光（吸収中/吸収済みでない通常時のみ、静かに呼吸させる）
+    // 発光の脈動：フレネル光が下限〜上限を呼吸するように繰り返す
     if (!starAbsorbing) {
-      const base = albumUnlocked ? 0.5 : 0.4;
-      const wave = (Math.sin(performance.now() * 0.0012) + 1) / 2;
-      pulseCeilingStarGlow(base * (0.6 + wave * 0.6));
+      const pulseSpeed = 0.0007 + FILM_PARAMS.pulse * 0.0015;
+      const wave = (Math.sin(performance.now() * pulseSpeed) + 1) / 2;
+      const glowBase = albumUnlocked ? FILM_PARAMS.glow * 0.85 : FILM_PARAMS.glow;
+      const low = glowBase * (1 - FILM_PARAMS.pulse * 0.85);
+      const high = glowBase * (1 + FILM_PARAMS.pulse * 0.6);
+      pulseCeilingStarGlow(low + (high - low) * wave);
     }
   }
   // ====================================================================
