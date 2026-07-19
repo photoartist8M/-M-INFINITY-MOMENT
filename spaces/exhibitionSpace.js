@@ -1146,6 +1146,7 @@ const heading = Math.random() * Math.PI * 2;
     const t = performance.now() * 0.0004;
 
     letterPlanes.forEach(e => {
+      if (e.absorbing) return;
 if (e.rising) {
 
 // ★変更：スーッと勢いよく、まっすぐ目標地点まで飛ぶ（イーズアウト）
@@ -1770,6 +1771,7 @@ e.sprite.position.z += e.velocity.z * dt;
     pulseCeilingStarGlow(1.4);
 
     const targets = letterPlanes.slice();
+    targets.forEach(e => { e.absorbing = true; });
     if (targets.length === 0) {
       setTimeout(finishAbsorption, 500);
       return;
