@@ -19,39 +19,39 @@
 //   正確な値が分かり次第、該当行の aspect だけ書き換えればよい。
 // ------------------------------------------------------
 export const PHOTO_DATA = [
-  { id: 5,  src: 'assets/photo5.jpg', type: 'normal', depth: null, interaction: null, orientation: 'landscape', aspect: 1.50, angleOffset: 0 },
-  { id: 6,  src: 'assets/photo6.JPG', type: 'normal', depth: null, interaction: null, size: 'large', orientation: 'landscape', aspect: 1.50, angleOffset: 0 },
-  { id: 7,  src: 'assets/photo7.JPG', type: 'normal', depth: null, interaction: null, orientation: 'landscape', aspect: 1.50, angleOffset: 0 },
+  { id: 5,  src: 'assets/photo5.jpg', type: 'normal', depth: null, interaction: null, orientation: 'landscape', aspect: 1.50, angleOffset: -3 },
+  { id: 6,  src: 'assets/photo6.JPG', type: 'normal', depth: null, interaction: null, size: 'large', orientation: 'landscape', aspect: 1.50, angleOffset: -2 },
+  { id: 7,  src: 'assets/photo7.JPG', type: 'normal', depth: null, interaction: null, orientation: 'landscape', aspect: 1.50, angleOffset: 20 },
   { id: 9,  src: 'assets/photo9.jpg', type: 'normal', depth: null, interaction: null, orientation: 'landscape', aspect: 1.50 , angleOffset: 0},
   { id: 10, src: 'assets/photo10.jpg', type: 'normal', depth: null, interaction: null, orientation: 'landscape', aspect: 1.50 , angleOffset: 0},
   { id: 11, src: 'assets/photo11.JPG', type: 'normal', depth: null, interaction: null, orientation: 'landscape', aspect: 1.50 , angleOffset: 0},
-  { id: 12, src: 'assets/photo12.jpg', type: 'normal', depth: 0.4, interaction: null, orientation: 'landscape', aspect: 1.50 , angleOffset: 0},
+  { id: 12, src: 'assets/photo12.jpg', type: 'normal', depth: 0.4, interaction: null, orientation: 'landscape', aspect: 1.50 , angleOffset: -2},
   { id: 13, src: 'assets/photo13.jpg', type: 'normal', depth: null, interaction: null, orientation: 'portrait', aspect: 0.67 , angleOffset: 0},
   { id: 14, src: 'assets/photo14.JPEG', type: 'normal', depth: null, interaction: null, orientation: 'landscape', aspect: 1.50 , angleOffset: 0},
   { id: 15, src: 'assets/photo15.jpg', type: 'normal', depth: null, interaction: null, orientation: 'landscape', aspect: 1.50 , angleOffset: 0},
-  { id: 16, src: 'assets/photo16.jpg', type: 'normal', depth: null, interaction: null, size: 'large', orientation: 'landscape', aspect: 1.50 },
+  { id: 16, src: 'assets/photo16.jpg', type: 'normal', depth: null, interaction: null, size: 'large',scaleBoost: 1.5, orientation: 'landscape', aspect: 1.5 , angleOffset: -18,heightOffset: +3},
   { id: 18, src: 'assets/photo18.jpg', type: 'normal', depth: null, interaction: null, orientation: 'portrait', aspect: 0.67 , angleOffset: 0},
-  { id: 19, src: 'assets/photo19.jpg', type: 'normal', depth: null, interaction: null, orientation: 'landscape', aspect: 1.50 , angleOffset: 0},
+  { id: 19, src: 'assets/photo19.jpg', type: 'normal', depth: null, interaction: null, orientation: 'landscape', aspect: 1.5 , angleOffset: 15,heightOffset: -5},
   { id: 21, src: 'assets/photo21.jpg', type: 'normal', depth: null, interaction: null, orientation: 'landscape', aspect: 1.50 , angleOffset: 0},
-  { id: 22, src: 'assets/photo22.jpg', type: 'normal', depth: null, interaction: null, orientation: 'landscape', aspect: 1.50 , angleOffset: 0},
+  { id: 24, src: 'assets/photo22.jpg', type: 'normal', depth: null, interaction: null, orientation: 'landscape', aspect: 1.50 , angleOffset: 0},
 
-  { id: 24, src: 'assets/photo24.JPG', type: 'normal', depth: null, interaction: null, orientation: 'landscape', aspect: 1.50 , angleOffset: 0},
+  { id: 22, src: 'assets/photo24.JPG', type: 'normal', depth: null, interaction: null, orientation: 'landscape', aspect: 1.50 , angleOffset: 0},
   { id: 25, src: 'assets/photo25.jpg', type: 'normal', depth: null, interaction: null, orientation: 'landscape', aspect: 1.50 , angleOffset: 0},
   { id: 26, src: 'assets/photo26.jpg', type: 'letter', depth: null, interaction: 'glow', size: 'large', orientation: 'landscape', aspect: 1.50, angleOffset: 0 },
   { id: 27, src: 'assets/photo27.jpg', type: 'normal', depth: null, interaction: null, orientation: 'landscape', aspect: 1.50 , angleOffset: 0},
-  { id: 28, src: 'assets/photo28.JPG', type: 'normal', depth: 0.3, interaction: null, orientation: 'portrait', aspect: 0.67 , angleOffset: 0},
+  { id: 28, src: 'assets/photo28.JPG', type: 'normal', depth: 0.3, interaction: null, orientation: 'portrait', aspect: 0.67 , angleOffset: 0,heightOffset: +10},
   { id: 30, src: 'assets/photo30.JPG', type: 'normal', depth: null, interaction: null, size: 'large', orientation: 'landscape', aspect: 1.50 , angleOffset: 0},
-  { id: 31, src: 'assets/photo31.JPG', type: 'normal', depth: null, interaction: null, orientation: 'portrait', aspect: 0.67 , angleOffset: 0},
-  { id: 32, src: 'assets/photo32.jpg', type: 'normal', depth: null, interaction: null, orientation: 'landscape', aspect: 1.50 , angleOffset: 0},
-  { id: 33, src: 'assets/photo33.jpeg', type: 'normal', depth: null, interaction: null, size: 'large', orientation: 'landscape', aspect: 1.50 , angleOffset: 0},
+  { id: 31, src: 'assets/photo31.JPG', type: 'normal', depth: null, interaction: null, orientation: 'portrait', aspect: 0.67 , angleOffset: -5,heightOffset: +20},
+  { id: 38, src: 'assets/photo32.jpg', type: 'normal', depth: null, interaction: null, orientation: 'landscape', aspect: 1.50 , angleOffset: 0},
+  { id: 33, src: 'assets/photo33.jpeg', type: 'normal', depth: null, interaction: null, size: 'large', orientation: 'landscape', aspect: 1.50 , angleOffset: +5},
   { id: 34, src: 'assets/photo34.JPG', type: 'normal', depth: 0.7, interaction: null, orientation: 'portrait', aspect: 0.67 , angleOffset: 0},
-  { id: 35, src: 'assets/photo35.jpg', type: 'normal', depth: null, interaction: null, size: 'large', orientation: 'landscape', aspect: 1.50 , angleOffset: 0},
-  { id: 36, src: 'assets/photo36.jpg', type: 'normal', depth: null, interaction: null, orientation: 'portrait', aspect: 0.67 , angleOffset: 0},
-  { id: 37, src: 'assets/photo37.JPG', type: 'bubble', depth: null, interaction: 'glow', size: 'large', orientation: 'landscape', aspect: 1.50 , angleOffset: 0},
-  { id: 38, src: 'assets/photo38.JPG', type: 'normal', depth: null, interaction: null, orientation: 'landscape', aspect: 1.50 , angleOffset: 0},
+  { id: 37, src: 'assets/photo35.jpg', type: 'normal', depth: null, interaction: null, size: 'large', orientation: 'landscape', aspect: 1.50 , angleOffset: +3},
+  { id: 36, src: 'assets/photo36.jpg', type: 'normal', depth: null, interaction: null, orientation: 'portrait', aspect: 0.67 , angleOffset: -15},
+  { id: 35, src: 'assets/photo37.JPG', type: 'bubble', depth: null, interaction: 'glow', size: 'large', orientation: 'landscape', aspect: 1.50 , angleOffset: +3},
+  { id: 32, src: 'assets/photo38.JPG', type: 'normal', depth: null, interaction: null, orientation: 'landscape', aspect: 1.50 , angleOffset: +10},
 ];
 
-export const GALLERY_RADIUS = 31;
+export const GALLERY_RADIUS = 28;
 
 // ------------------------------------------------------
 // モバイル判定・テクスチャサイズ上限

@@ -107,7 +107,7 @@ export async function fetchLetterMessages() {
 // ------------------------------------------------------
 // シャボン玉メッセージ：直近30件のみ取得
 // ------------------------------------------------------
-export async function fetchBubbleMessages(limit = 30) {
+export async function fetchBubbleMessages(limit = 20) {
   const { data, error } = await supabase
     .from('messages')
     .select('*')

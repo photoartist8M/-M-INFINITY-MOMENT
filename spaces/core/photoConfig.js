@@ -30,13 +30,15 @@ function getBaseScale(photo) {
 // 段ごとの写真id構成(6枚 x 4段 + 5枚 x 1段 = 29枚)
 const TIERS = [
   [5, 6, 7, 9, 10, 11],
-  [12, 13, 14, 15, 16, 18],
-  [19, 21, 22, 24, 25, 26],
-  [27, 28, 30, 31, 32, 33],
-  [34, 35, 36, 37, 38],
+  [28, 13, 14, 15, 16, 18],
+  [19, 21, 22, 37, 25, 26],
+  [27, 12, 30, 31, 32, 33],
+  [34, 35, 36, 24, 38],
 ];
 
 const RADIUS = 31; // 基準半径
+const RADIUS_BY_TIER = [26, 28, 30, 32, 34]; // ← 段ごとに少し狭める
+
 
 // ------------------------------------------------------
 // 写真の見た目の横幅を、実際のaspect比(width/height)から算出する。
@@ -64,49 +66,54 @@ const LARGE_RADIUS_BOOST = 2.5;
 function buildFixedLayout(photoById) {
   const layout = {};
 
-  TIERS.forEach((ids, tier) => {
-    // 1. 各写真の基準半径を決定（largeは外側にオフセット）
-    const radii = ids.map(id => {
-      const photo = photoById[id];
-      const isLarge = photo?.size === 'large';
-      return isLarge ? RADIUS + LARGE_RADIUS_BOOST : RADIUS;
-    });
-
-    // 2. 各写真の「見た目の占有角度」を、対応する半径で算出
-    const widthsDeg = ids.map((id, i) => {
-      const photo = photoById[id];
-      const width = estimateFrameWidth(photo);
-      const halfAngleRad = Math.atan((width / 2) / radii[i]);
-      return rad2deg(halfAngleRad) * 2;
-    });
-
-    // 3. gapを含めた合計角度がちょうど360°になるよう正規化スケールを算出
-    const totalWidthDeg = widthsDeg.reduce((a, b) => a + b, 0);
-    const totalGapDeg = MIN_GAP_DEG * ids.length;
-    const scale = (360 - totalGapDeg) / totalWidthDeg;
-
-    // 4. 段ごとに互い違いにするオフセット（最初の写真の半角分ずらす）
-    const firstScaledWidth = widthsDeg[0] * scale;
-    const tierOffset = (tier % 2 === 0) ? 0 : firstScaledWidth / 2;
-
-    // 5. 累積角度で各写真の中心角度を確定
-    let cursor = tierOffset;
-    ids.forEach((id, i) => {
-      const w = widthsDeg[i] * scale;
-      const centerAngle = cursor + w / 2;
-      cursor += w + MIN_GAP_DEG;
-
-      const photo = photoById[id];
-      const manualOffset = photo?.angleOffset ?? 0; // ★追加：手動微調整
-
-      layout[id] = {
-        angle: centerAngle + manualOffset, // ★変更：自動計算 + 手動調整
-        radius: radii[i],
-        height: TIER_HEIGHTS[tier],
-        tiltX: TIER_TILT_X[tier],
-      };
-    });
+TIERS.forEach((ids, tier) => {
+  // 1. 各写真の基準半径を決定（largeは外側にオフセット）
+  const radii = ids.map(id => {
+    const photo = photoById[id];
+    const isLarge = photo?.size === 'large';
+    return isLarge ? RADIUS_BY_TIER[tier] + LARGE_RADIUS_BOOST : RADIUS_BY_TIER[tier];
   });
+
+  // 2. 各写真の「見た目の占有角度」を、対応する半径で算出
+  const widthsDeg = ids.map((id, i) => {
+    const photo = photoById[id];
+    const width = estimateFrameWidth(photo);
+    const halfAngleRad = Math.atan((width / 2) / radii[i]);
+    return rad2deg(halfAngleRad) * 2;
+  });
+
+  // 3. gapを含めた合計角度がちょうど360°になるよう正規化スケールを算出
+  const totalWidthDeg = widthsDeg.reduce((a, b) => a + b, 0);
+  const totalGapDeg = MIN_GAP_DEG * ids.length;
+  const scale = (360 - totalGapDeg) / totalWidthDeg;
+
+  // 4. 段ごとに互い違いにするオフセット（最初の写真の半角分ずらす）
+  const firstScaledWidth = widthsDeg[0] * scale;
+  const tierOffset = (tier % 2 === 0) ? 0 : firstScaledWidth / 2;
+
+  // ★追加：段ごとの高さ補正（写真サイズに応じて）
+  const avgScale = ids.reduce((sum, id) => sum + getBaseScale(photoById[id]), 0) / ids.length;
+  const heightAdjust = (avgScale - 0.85) * 2.5; // largeが多い段は少し高く
+
+  // 5. 累積角度で各写真の中心角度を確定
+  let cursor = tierOffset;
+  ids.forEach((id, i) => {
+    const w = widthsDeg[i] * scale;
+    const centerAngle = cursor + w / 2;
+    cursor += w + MIN_GAP_DEG;
+
+    const photo = photoById[id];
+    const manualOffset = photo?.angleOffset ?? 0;
+
+    layout[id] = {
+      angle: centerAngle + manualOffset,
+      radius: radii[i],
+      height: TIER_HEIGHTS[tier] + heightAdjust + (Math.random() - 0.5) * 2.0, // ★高さ補正＋ゆるいランダム
+      tiltX: TIER_TILT_X[tier],
+    };
+  });
+});
+
 
   return layout;
 }
