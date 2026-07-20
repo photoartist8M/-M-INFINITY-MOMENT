@@ -54,6 +54,14 @@ const LARGE_RADIUS_BOOST = 3.0;
 // ------------------------------------------------------
 function buildFixedLayout(photoById) {
   const layout = {};
+  const HEIGHT_OFFSET = {
+  19: -4,
+  26: -2,
+  35: -1,
+  16: 3,
+  31: 4,
+  28: 3,
+};
 
   TIERS.forEach((ids, tier) => {
     const count = ids.length;
@@ -67,22 +75,62 @@ function buildFixedLayout(photoById) {
         ? RADIUS_BY_TIER[tier] + LARGE_RADIUS_BOOST
         : RADIUS_BY_TIER[tier];
 
-      // 均等配置を基本に、portraitやlargeはわずかに角度補正
-      let angle = tierOffset + i * baseAngleStep;
-      if (photo.orientation === 'portrait') angle += (Math.random() - 0.5) * 3.0;
-      if (photo.size === 'large') angle += (Math.random() - 0.5) * 2.0;
+// 基本配置
+let angle = tierOffset + i * baseAngleStep;
 
-      // ★中央寄せ：photo26とphoto37を中央（180°付近）に固定
-      if (id === 26) angle = 180;
-      if (id === 37) angle = 160;
+// --------------------------------------------------
+// 固定レイアウト（展示デザイン優先）
+// --------------------------------------------------
+const FIXED_ANGLES = {
 
-if (id === 35) angle += 10;  // 右へ少し移動
-if (id === 36) angle -= 10;  // 左へ少し移動
+  // ---------- 最上段 ----------
+   5:   0,
+   6:  60,
+   7: 120,
+   9: 180,
+  10: 240,
+  11: 300,
+
+  // ---------- 上段 ----------
+  28:  30,
+  13:  90,
+  14: 150,
+  15: 210,
+  16: 270,
+  18: 330,
+
+  // ---------- メイン段 ----------
+  19:   0,      // 主役
+  21:  55,
+  22: 110,
+  37: 165,      // 大写真
+  25: 235,
+  26: 300,      // 手紙（photo35と対角）
+
+  // ---------- 下段 ----------
+  27:  25,
+  12:  85,
+  30: 145,
+  31: 205,
+  32: 265,
+  33: 325,
+
+  // ---------- 最下段 ----------
+  34:  55,
+  35: 120,      // シャボン玉（26から約180°）
+  36: 185,
+  24: 255,
+  38: 325,
+};
+
+if (FIXED_ANGLES[id] !== undefined) {
+    angle = FIXED_ANGLES[id];
+}
 
       layout[id] = {
         angle,
         radius,
-        height: TIER_HEIGHTS[tier] + (Math.random() - 0.5) * 1.5,
+        height: TIER_HEIGHTS[tier] + (HEIGHT_OFFSET[id] ?? 0),
         tiltX: TIER_TILT_X[tier],
         scale,
       };
