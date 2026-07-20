@@ -4,6 +4,7 @@ import { PHOTO_CONFIG } from './core/photoConfig.js';
 import { extractPastelColors } from './utils/color.js';
 import { loadImageSafely, getTextureSource } from './utils/image.js';
 import { hasSubmitted, submitMessage, fetchLetterMessages, fetchBubbleMessages } from './core/messaging.js';
+import { BookReveal } from './effects/BookReveal.js';
 
 // ======================================================================
 // exhibitionSpace.js
@@ -1734,6 +1735,21 @@ e.sprite.position.z += e.velocity.z * dt;
   }
   buildCeilingFilmStar();
 
+  // ★追加：BookRevealのインスタンス生成（写真は展示写真を使い回す）
+  let bookReveal = null;
+  function initBookReveal() {
+    const textures = photoItems
+      .filter(it => it.loaded && it.mesh && it.mesh.material.map)
+      .slice(0, 3)
+      .map(it => it.mesh.material.map);
+    if (textures.length === 0) return; // まだ読み込まれていなければ後回し
+    if (bookReveal) return; // 二重生成防止
+    bookReveal = new BookReveal(scene, camera, {
+      photoTextures: textures,
+      tintColors: [0x9fd0ff, 0xffb27a, 0xffe2a6],
+    });
+  }
+  
   // ★変更：4秒待つだけの決め打ちではなく、実際に展示写真が読み込まれるたびに
   // （notifyPhotoLoadedForCeilingStarから呼ばれる）差し替える。連続で何枚も
   // 読み込まれる場合に備えて少しデバウンスする。
@@ -1741,6 +1757,7 @@ e.sprite.position.z += e.velocity.z * dt;
   let ceilingTextureRefreshCount = 0;
   const CEILING_TEXTURE_MAX_REFRESH = 8; // 十分な枚数が揃ったら以降は再生成しない
   function notifyPhotoLoadedForCeilingStar() {
+    initBookReveal();
     if (!ceilingFilmTexture) return;
     if (ceilingTextureRefreshCount >= CEILING_TEXTURE_MAX_REFRESH) return;
     clearTimeout(ceilingTextureRefreshTimer);
@@ -1914,39 +1931,23 @@ e.sprite.position.z += e.velocity.z * dt;
     return new THREE.CanvasTexture(cnv);
   }
 
-  let ceilingBookSprite = null;
+let ceilingBookSprite = null;
   function spawnBookFromStar(position) {
-    if (!ceilingBookSprite) {
-      const tex = makeBookTexture();
-      const mat = new THREE.SpriteMaterial({
-        map: tex, transparent: true, opacity: 0,
-        depthWrite: false, fog: false,
-      });
-      ceilingBookSprite = new THREE.Sprite(mat);
-      scene.add(ceilingBookSprite);
+    initBookReveal(); // まだなければここで試みる
+    if (!bookReveal) {
+      // BookRevealが作れない場合は従来のオーバーレイを直接表示
+      revealAlbumOverlayFromBook();
+      return;
     }
-    ceilingBookSprite.position.copy(position);
-    ceilingBookSprite.scale.set(0.01, 0.01, 1);
-    ceilingBookSprite.material.opacity = 0;
-    ceilingBookSprite.visible = true;
+const bookPos = camera.position.clone();
+bookPos.add(
+  camera.getWorldDirection(new THREE.Vector3()).multiplyScalar(1)
+);
+bookPos.y += 0.3;
 
-    const duration = 900;
-    const startTime = performance.now();
-    const targetScale = CEILING_STAR.size * 1.4;
-
-    function step(now) {
-      const t = Math.min(1, (now - startTime) / duration);
-      const eased = 1 - Math.pow(1 - t, 3);
-      const s = targetScale * eased;
-      ceilingBookSprite.scale.set(s, s, 1);
-      ceilingBookSprite.material.opacity = eased;
-      if (t < 1) {
-        requestAnimationFrame(step);
-      } else {
-        revealAlbumOverlayFromBook();
-      }
-    }
-    requestAnimationFrame(step);
+bookReveal.open(bookPos, () => {
+    revealAlbumOverlayFromBook();
+});
   }
 
   // ★追加：本が現れきったあと、パネルを本からふわっとフェードインさせる
@@ -1963,17 +1964,33 @@ e.sprite.position.z += e.velocity.z * dt;
   }
 
   // ★追加：写真集を閉じたら、星・カメラ操作・本を元の状態に戻す
-  function resetStarAfterFinale() {
+function resetStarAfterFinale() {
+    if (bookReveal) {
+      bookReveal.close(() => {
+        // 本が消えたあとに星を復元する
+        ceilingRingPivots.forEach((pivot, i) => {
+          pivot.position.set(0, 0, 0);
+          const mesh = ceilingRingMeshes[i];
+          if (mesh) mesh.material.uniforms.uOpacity.value = FILM_PARAMS.opacity;
+        });
+        if (ceilingStarCore) ceilingStarCore.material.opacity = 0.6;
+        if (ceilingStarHalo) ceilingStarHalo.material.opacity = 0.3;
+        starFinaleActive = false;
+        unlockCameraForFinale();
+      });
+    } else {
+      // BookReveal未使用の場合は従来通り
+      ceilingRingPivots.forEach((pivot, i) => {
+        pivot.position.set(0, 0, 0);
+        const mesh = ceilingRingMeshes[i];
+        if (mesh) mesh.material.uniforms.uOpacity.value = FILM_PARAMS.opacity;
+      });
+      if (ceilingStarCore) ceilingStarCore.material.opacity = 0.6;
+      if (ceilingStarHalo) ceilingStarHalo.material.opacity = 0.3;
+      starFinaleActive = false;
+      unlockCameraForFinale();
+    }
     if (ceilingBookSprite) ceilingBookSprite.visible = false;
-    ceilingRingPivots.forEach((pivot, i) => {
-      pivot.position.set(0, 0, 0);
-      const mesh = ceilingRingMeshes[i];
-      if (mesh) mesh.material.uniforms.uOpacity.value = FILM_PARAMS.opacity;
-    });
-    if (ceilingStarCore) ceilingStarCore.material.opacity = 0.6;
-    if (ceilingStarHalo) ceilingStarHalo.material.opacity = 0.3;
-    starFinaleActive = false;
-    unlockCameraForFinale();
   }
 
   // --- 写真集（購入導線）オーバーレイ ---
@@ -2874,8 +2891,9 @@ e.sprite.position.z += e.velocity.z * dt;
     updateFocusButton(dt);
     updateWriteButton();
     updateFlyingMessages(dt);
-    updateConceptIntro(dt); // ★追加
-    updateCeilingStar(dt); // ★追加
+    updateConceptIntro(dt); 
+    updateCeilingStar(dt); 
+    if (bookReveal) bookReveal.update(dt);
   }
   // ====================================================================
   // [SECTION: update end]
