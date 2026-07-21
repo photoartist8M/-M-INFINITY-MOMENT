@@ -1323,6 +1323,9 @@ e.sprite.position.z += e.velocity.z * dt;
         scene.add(item.aura);
 
         item.pastelColors = extractPastelColors(img);
+        if (config.interaction === 'glow') {
+        item.isGlowing = true;
+        }
         item.loaded = true;
         registerPhotoColorsToSparkles(item.pastelColors);
         notifyPhotoLoadedForCeilingStar(); // ★追加：展示写真が読み込まれるたび、天井オブジェのフィルム絵を実際の写真で更新する
@@ -2752,6 +2755,7 @@ function resetStarAfterFinale() {
         item.mesh.material.opacity += (targetOpacity - item.mesh.material.opacity) * 0.05;
         if (item.aura) {
           item.aura.material.opacity += ((item === viewingItem ? 0.7 : 0.1) - item.aura.material.opacity) * 0.05;
+         if (item.isGlowing && item !== viewingItem) return;
         }
       });
     } else {
@@ -2777,6 +2781,16 @@ function resetStarAfterFinale() {
         const floatY = Math.sin(t + item.floatPhase) * 0.25;
         item.mesh.position.y = item.position.y + floatY;
         if (item.aura) item.aura.position.y = item.position.y + floatY;
+        if (item.isGlowing && item.aura) {
+          const glowT = performance.now() * 0.0015;
+          const pulse = 0.12 + Math.sin(glowT + item.floatPhase) * 0.08;
+          item.aura.material.opacity = pulse;
+          item.aura.material.color.setHSL(
+            0.08 + Math.sin(glowT * 0.3) * 0.05,
+            0.8,
+            0.7
+          );
+        }
       });
     }
   }
