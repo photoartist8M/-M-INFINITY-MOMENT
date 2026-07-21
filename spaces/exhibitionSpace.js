@@ -2028,7 +2028,7 @@ function resetStarAfterFinale() {
     fontFamily: `'Klee One', 'Hiragino Mincho ProN', serif`,
   });
   albumBuyButtonEl.addEventListener('click', () => {
-    window.open('https://cedmove.wixsite.com/photoartistm/', '_blank');
+    window.open('https://photoartistm.stores.jp', '_blank');
   });
   const albumCloseButtonEl = document.createElement('button');
   albumCloseButtonEl.textContent = 'とじる';

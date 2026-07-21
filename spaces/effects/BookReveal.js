@@ -371,6 +371,7 @@ export class BookReveal {
     if (this.state !== 'idle') return;
     this.group.position.copy(position);
     this.group.visible = true;
+    this.group.lookAt(this.camera.position);
     this.group.scale.setScalar(0.001);
     this.turnedCount = 0;
     this._updateStacks(0);
@@ -400,7 +401,7 @@ export class BookReveal {
   update(dt) {
     this._clock += dt;
     if (this.state === 'idle') return;
-
+    this.group.lookAt(this.camera.position);
     // 出現/収納スケールアニメーション
     if (this.state === 'opening') {
       const t = Math.min(1, (this._clock - this._growStart) / 0.7);
