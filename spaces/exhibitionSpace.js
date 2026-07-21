@@ -1325,6 +1325,10 @@ e.sprite.position.z += e.velocity.z * dt;
         item.pastelColors = extractPastelColors(img);
         if (config.interaction === 'glow') {
         item.isGlowing = true;
+          if (item.aura) {
+    item.aura.material.blending = THREE.AdditiveBlending;
+    item.aura.material.needsUpdate = true;
+      }
         }
         item.loaded = true;
         registerPhotoColorsToSparkles(item.pastelColors);
@@ -1703,28 +1707,32 @@ e.sprite.position.z += e.velocity.z * dt;
     // ★追加：中心の光のフレア核。太陽やダイヤモンドのようなエネルギーの塊のイメージ
     const coreMat = new THREE.SpriteMaterial({
       map: sparkleTexture,
-      color: new THREE.Color(0xfff2c8),
+      color: new THREE.Color(2.5, 2.2, 1.5), 
       transparent: true,
-      opacity: 0.85,
+      opacity: 1.0,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
       fog: false,
     });
     ceilingStarCore = new THREE.Sprite(coreMat);
     ceilingStarCore.scale.set(CEILING_STAR.size * 0.9, CEILING_STAR.size * 0.9, 1);
+    ceilingStarCore.renderOrder = 999;        // ← 追加
+coreMat.depthTest = false;                // ← 追加
     ceilingStarGroup.add(ceilingStarCore);
 
     const haloMat = new THREE.SpriteMaterial({
       map: sparkleTexture,
-      color: new THREE.Color(0xffe6b0),
+      color: new THREE.Color(1.8, 1.4, 0.8),
       transparent: true,
-      opacity: 0.3,
+      opacity: 0.6,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
       fog: false,
     });
     ceilingStarHalo = new THREE.Sprite(haloMat);
     ceilingStarHalo.scale.set(CEILING_STAR.size * 1.8, CEILING_STAR.size * 1.8, 1);
+    ceilingStarHalo.renderOrder = 998;        // ← 追加
+haloMat.depthTest = false;                // ← 追加
     ceilingStarGroup.add(ceilingStarHalo);
 
     // 見た目より少し大きい、見えない当たり判定用の球
@@ -1863,35 +1871,43 @@ e.sprite.position.z += e.velocity.z * dt;
       (Math.random() - 0.5)
     ).normalize());
 
-    function unravelStep(now) {
-      const t = Math.min(1, (now - startTime) / unravelDuration);
-      const eased = 1 - Math.pow(1 - t, 2);
+function unravelStep(now) {
+  const t = Math.min(1, (now - startTime) / unravelDuration);
+  const eased = 1 - Math.pow(1 - t, 2);
 
-      ceilingRingPivots.forEach((pivot, i) => {
-        const dist = eased * (5 + i * 1.2);
-        pivot.position.copy(dirs[i]).multiplyScalar(dist);
-        pivot.rotation.y += 0.06;
-        const mesh = ceilingRingMeshes[i];
-        if (mesh) mesh.material.uniforms.uOpacity.value = FILM_PARAMS.opacity * (1 - eased);
-      });
+ceilingRingPivots.forEach((pivot, i) => {
+  const dist = eased * (5 + i * 1.2);
+  pivot.position.copy(dirs[i]).multiplyScalar(dist);
+  pivot.rotation.y += 0.06;
+  const mesh = ceilingRingMeshes[i];
+  if (mesh) {
+    mesh.material.uniforms.uOpacity.value = FILM_PARAMS.opacity * (1 - eased);
+    mesh.material.uniforms.uGlow.value    = FILM_PARAMS.glow    * (1 - eased); // ← 追加
+  }
+});
 
-      // 発光核はほどける最中に一度フラッシュしてから静かに消える
-      if (ceilingStarCore) {
-        const flash = t < 0.35 ? (t / 0.35) : (1 - (t - 0.35) / 0.65);
-        const s = CEILING_STAR.size * (1 + flash * 1.8);
-        ceilingStarCore.scale.set(s, s, 1);
-        ceilingStarCore.material.opacity = 0.5 + flash * 0.5;
-      }
-      if (ceilingStarHalo) {
-        ceilingStarHalo.material.opacity = 0.4 * (1 - eased * 0.6);
-      }
+  // ── 変更：core/haloも一緒にフェードアウト ──────────────
+  if (ceilingStarCore) {
+    const flash = t < 0.35
+      ? (t / 0.35)
+      : (1 - (t - 0.35) / 0.65);
+    const s = CEILING_STAR.size * 1.4 * (1 + flash * 1.8);
+    ceilingStarCore.scale.set(s, s, 1);
+    ceilingStarCore.material.opacity = (0.8 + flash * 0.5) * (1 - eased); // フェードアウト追加
+  }
+  if (ceilingStarHalo) {
+    const s = CEILING_STAR.size * 2.8 * (1 + eased * 0.5);
+    ceilingStarHalo.scale.set(s, s, 1);
+    ceilingStarHalo.material.opacity = 0.6 * (1 - eased);  // フェードアウト追加
+  }
+  // ──────────────────────────────────────────────────────
 
-      if (t < 1) {
-        requestAnimationFrame(unravelStep);
-      } else {
-        spawnBookFromStar(finalePos);
-      }
-    }
+  if (t < 1) {
+    requestAnimationFrame(unravelStep);
+  } else {
+    spawnBookFromStar(finalePos);
+  }
+}
     requestAnimationFrame(unravelStep);
   }
 
@@ -1944,9 +1960,9 @@ let ceilingBookSprite = null;
     }
 const bookPos = camera.position.clone();
 bookPos.add(
-  camera.getWorldDirection(new THREE.Vector3()).multiplyScalar(1)
+  camera.getWorldDirection(new THREE.Vector3()).multiplyScalar(6)
 );
-bookPos.y += 0.3;
+bookPos.y += 0.25;
 
 bookReveal.open(bookPos, () => {
     revealAlbumOverlayFromBook();
@@ -2783,7 +2799,7 @@ function resetStarAfterFinale() {
         if (item.aura) item.aura.position.y = item.position.y + floatY;
         if (item.isGlowing && item.aura) {
           const glowT = performance.now() * 0.0015;
-          const pulse = 0.12 + Math.sin(glowT + item.floatPhase) * 0.08;
+          const pulse = 0.5 + Math.sin(glowT + item.floatPhase) * 0.3;
           item.aura.material.opacity = pulse;
           item.aura.material.color.setHSL(
             0.08 + Math.sin(glowT * 0.3) * 0.05,
