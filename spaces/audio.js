@@ -5,17 +5,37 @@
 export let bgmEnabled = true;
 
 // ------------------------------------------------------
-// シーンごとのBGM(3曲)
+// シーンごとのBGM(4曲。starもクロスフェード対象のシーントラックとして扱う)
 // ------------------------------------------------------
 export const openingBGM = new Audio("./assets/bgm/opening.mp3"); // ①UI用(桜の記憶)
 export const mainBGM    = new Audio("./assets/bgm/main.mp3");    // ②裂け目/メイン空間用(淡い記憶)
 export const space2BGM  = new Audio("./assets/bgm/space2.mp3");  // ③展示空間用(宇宙でうたたね)
+export const starBGM    = new Audio("./assets/bgm/star.mp3");    // ④カメラロック〜裂け目完成用
 
 [openingBGM, mainBGM, space2BGM].forEach(audio => {
   audio.preload = "auto";
   audio.loop = true;
   audio.volume = 0;
 });
+starBGM.preload = "auto";
+starBGM.loop = false; // ★star.mp3はループさせない
+starBGM.volume = 0;
+
+// ------------------------------------------------------
+// 効果音(BGMのループ/クロスフェードとは別枠で管理)
+// ------------------------------------------------------
+export const sakemeSFX   = new Audio("./assets/bgm/sakeme.mp3");
+export const kirakiraSFX = new Audio("./assets/bgm/kirakira.mp3");
+sakemeSFX.preload = "auto";
+kirakiraSFX.preload = "auto";
+sakemeSFX.volume = 0.85; // ★少し大きめ
+kirakiraSFX.volume = 0.7;
+
+// ★効果音を鳴らすための汎用関数(重複再生時は頭から鳴らし直す)
+export function playSFX(audio) {
+  audio.currentTime = 0;
+  audio.play().catch(()=>{});
+}
 
 let currentBGM = null;
 
@@ -25,7 +45,7 @@ export function toggleBGM() {
 
     if (!bgmEnabled) {
 
-        [openingBGM, mainBGM, space2BGM].forEach(a => a.pause());
+        [openingBGM, mainBGM, space2BGM, starBGM].forEach(a => a.pause());
 
     } else {
 
@@ -99,6 +119,7 @@ const SCENE_TRACKS = {
   opening: openingBGM,
   main: mainBGM,
   space2: space2BGM,
+  star: starBGM,
 };
 
 export function playScene(name, { target = 0.4, fadeInDuration = 4000, fadeOutDuration = 3000 } = {}) {

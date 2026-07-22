@@ -131,5 +131,37 @@
 <script type="module" src="./spaces/ui/logoCanvas.js"></script>
 <script type="module" src="./spaces/ui/clockButton.js"></script>
 <script type="module" src="./spaces/ui/openingUI.js"></script>
+<!-- ====================================================
+     致命的エラー時の表示（真っ暗＋無音バグ対策）
+     ==================================================== -->
+<div id="fatal-error-overlay" style="
+  display:none;
+  position:fixed; inset:0;
+  background:rgba(0,0,0,0.9);
+  color:#fff;
+  z-index:99999;
+  align-items:center;
+  justify-content:center;
+  text-align:center;
+  font-family:sans-serif;
+  padding:20px;
+">
+  <div>
+    <p>エラーが発生しました。</p>
+    <p>時間を置いてもう一度お試しください。</p>
+    <button onclick="location.reload()" style="margin-top:12px;padding:8px 16px;">
+      再読み込み
+    </button>
+  </div>
+</div>
+
+<script>
+  function showFatalError() {
+    const el = document.getElementById('fatal-error-overlay');
+    if (el) el.style.display = 'flex';
+  }
+  window.addEventListener('error', showFatalError);
+  window.addEventListener('unhandledrejection', showFatalError);
+</script>
 </body>
 </html>

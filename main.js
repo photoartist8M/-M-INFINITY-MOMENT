@@ -2,16 +2,8 @@ import * as THREE from 'three';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
-import {
-  initPortal,
-  updatePortal,
-  getPortalState,
-  completePortalSwitch,
-  getExhibition,
-  resizePortal,
-} from './portal.js';
-import { playScene } from './spaces/audio.js';
-
+import {initPortal,updatePortal,getPortalState,completePortalSwitch,getExhibition,resizePortal,} from './portal.js';
+import { playScene, playSFX, sakemeSFX } from './spaces/audio.js';
 // ======================================================
 // 基本セットアップ
 // ======================================================
@@ -992,7 +984,8 @@ function alignCameraToRiftAndLock() {
       cameraLocked = true;
       doorPhase = 'spiraling';
       doorTime = 0;
-      createDoorParticles();
+createDoorParticles();
+       playScene('star', { target: 0.6, fadeInDuration: 800, fadeOutDuration: 1500 }); // ★変更：mainからstarへクロスフェード
     }
   }
 
@@ -1266,6 +1259,10 @@ function updateDoor() {
   if (doorPhase === 'complete') {
     const t = doorTime;
     // ★高速化(2.2->3.0): 脈動のリズムを速く
+      if (!doorSys._sakemePlayed) {
+    doorSys._sakemePlayed = true;
+    playSFX(sakemeSFX);
+  }
     const pulse = 0.85 + Math.sin(t * 3.0) * 0.15;
 
     // ★白飛び抑制・中心可視化: 脈動時の透明度を大幅に下げる(0.16->0.10)

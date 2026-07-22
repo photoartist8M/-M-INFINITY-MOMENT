@@ -5,6 +5,7 @@ import { extractPastelColors } from './utils/color.js';
 import { loadImageSafely, getTextureSource } from './utils/image.js';
 import { hasSubmitted, submitMessage, fetchLetterMessages, fetchBubbleMessages } from './core/messaging.js';
 import { BookReveal } from './effects/BookReveal.js';
+import { playSFX, kirakiraSFX } from './audio.js';
 
 // ======================================================================
 // exhibitionSpace.js
@@ -1788,6 +1789,7 @@ haloMat.depthTest = false;                // ← 追加
     if (albumUnlocked) { showPhotoAlbumOverlay(); return; }
     if (starAbsorbing) return;
     starAbsorbing = true;
+    playSFX(kirakiraSFX);
     absorbFlyingPlanesIntoStar();
   }
 
@@ -2190,7 +2192,9 @@ function resetStarAfterFinale() {
 
   let touchStartX = 0, touchStartY = 0, touchMoved = false;
   const TAP_MOVE_THRESHOLD = 10;
-
+  // ★追加：スマホのover-scroll（上に引っ張る動作）を防ぐ
+  canvasEl.style.touchAction = 'none';
+  document.body.style.overscrollBehavior = 'none'; // ページ全体のプルトゥリフレッシュも防ぐ
   canvasEl.addEventListener('touchstart', (e) => {
     if (e.touches.length === 1) {
       lastX = e.touches[0].clientX;
@@ -2238,7 +2242,7 @@ function resetStarAfterFinale() {
     const hFov = 2 * Math.atan(Math.tan(vFov / 2) * aspect);
     const distForWidth = (w / 2) / Math.tan(hFov / 2);
 
-    const margin = 1.35;
+    const margin = 1.20; //小さくするほど余白なくなる
     return Math.max(distForHeight, distForWidth) * margin;
   }
 

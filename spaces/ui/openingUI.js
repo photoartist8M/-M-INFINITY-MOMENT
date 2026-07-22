@@ -2,6 +2,10 @@ import { canvas, ctx, drawLogo, stopLogoAnimation } from "./logoCanvas.js";
 import { disposeFlareBackground } from "./flareBackground.js";
 import { disposeClockButton, triggerTouchAnimation } from "./clockButton.js";
 import { playScene, toggleBGM } from "../audio.js"; 
+// ★追加：タッチボタンの効果音
+const touchSFX = new Audio("./assets/bgm/kirakira2.mp3");
+touchSFX.preload = "auto";
+touchSFX.volume = 0.6; // 音量は好みで調整してください
 
 // ======================================================
 // 画面全体を覆う爆発用オーバーレイcanvas
@@ -235,6 +239,9 @@ document.getElementById("startButton").addEventListener("click", () => {
     triggerTouchAnimation();
     explodeLogo();
      playScene('main');
+         // ★追加：タッチした瞬間の効果音
+    touchSFX.currentTime = 0; // 連打された場合も毎回最初から鳴らす
+    touchSFX.play().catch(()=>{});
 });
 
 // ======================================================
