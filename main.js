@@ -3,7 +3,7 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import {initPortal,updatePortal,getPortalState,completePortalSwitch,getExhibition,resizePortal,} from './portal.js';
-import { playScene, playSFX, sakemeSFX } from './spaces/audio.js';
+import { fadeVolume, mainBGM, starBGM, space2BGM, playSFX, sakemeSFX } from './spaces/audio.js';
 // ======================================================
 // 基本セットアップ
 // ======================================================
@@ -943,15 +943,13 @@ function easeInOutCubic(t) {
 }
 
 function alignCameraToRiftAndLock() {
-  cameraAligning = true; // 補正中は既存のカメラ操作・自動処理を無効化
-
-  camera.up.set(0, 1, 0); // ロールのねじれを防ぐため基準を明示的にリセット
+  cameraAligning = true;
+  camera.up.set(0, 1, 0);
 
   const startPos  = camera.position.clone();
   const startQuat = camera.quaternion.clone();
   const startFov  = camera.fov;
 
-  // 目標位置：ACCUM_POINTの真正面・Z軸上・適正距離
   const targetPos = new THREE.Vector3(
     ACCUM_POINT.x,
     ACCUM_POINT.y,
@@ -984,14 +982,17 @@ function alignCameraToRiftAndLock() {
       cameraLocked = true;
       doorPhase = 'spiraling';
       doorTime = 0;
-createDoorParticles();
-       playScene('star', { target: 0.6, fadeInDuration: 800, fadeOutDuration: 1500 }); // ★変更：mainからstarへクロスフェード
+      createDoorParticles();
+      
+      // ★main フェードアウト、star フェードイン
+      fadeVolume(mainBGM, 0, 3000);
+      fadeVolume(starBGM, 0.45, 3000);
+      playSFX(sakemeSFX);
     }
   }
-
+  
   requestAnimationFrame(animateAlign);
 }
-
 // ======================================================
 // 記憶の星雲・裂け目 ターゲット座標
 // ------------------------------------------------------
@@ -2004,7 +2005,10 @@ if (doorPhase === 'switched') {
   completePortalSwitch();
   disposeMainScene();
   getExhibition().activateIntro?.();
-  playScene('space2'); // ★追加：展示空間のBGMへクロスフェード
+  
+  // ★star フェードアウト、space2 フェードイン
+  fadeVolume(starBGM, 0, 3000);
+  fadeVolume(space2BGM, 0.4, 4000);
   return;
 }
   composer.render();

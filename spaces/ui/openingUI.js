@@ -1,7 +1,7 @@
 import { canvas, ctx, drawLogo, stopLogoAnimation } from "./logoCanvas.js";
 import { disposeFlareBackground } from "./flareBackground.js";
 import { disposeClockButton, triggerTouchAnimation } from "./clockButton.js";
-import { playScene, toggleBGM } from "../audio.js"; 
+import { startAllBGMs, fadeVolume, openingBGM, mainBGM, toggleBGM } from "../audio.js";
 // ★追加：タッチボタンの効果音
 const touchSFX = new Audio("./assets/bgm/kirakira2.mp3");
 touchSFX.preload = "auto";
@@ -238,31 +238,32 @@ document.getElementById("startButton").addEventListener("click", () => {
     }
     triggerTouchAnimation();
     explodeLogo();
-     playScene('main');
-         // ★追加：タッチした瞬間の効果音
-    touchSFX.currentTime = 0; // 連打された場合も毎回最初から鳴らす
-    touchSFX.play().catch(()=>{});
+    
+    // ★opening フェードアウト、main フェードイン
+    fadeVolume(openingBGM, 0, 3000);
+    fadeVolume(mainBGM, 0.4, 3000);
+    touchSFX.currentTime = 0;
+    touchSFX.play().catch(() => {});
 });
-
 // ======================================================
-// BGM ボタン(トグル)
+// BGM ボタン(ON/OFF)
 // ======================================================
 const bgmButton = document.getElementById("bgmButton");
-let bgmStarted = false; // ★追加：まだ一度も再生していないかどうか
+let bgmStarted = false;
 
 bgmButton.addEventListener("click", () => {
     if (!bgmStarted) {
-        // 初回クリック時はここでopeningを鳴らし始める(ユーザー操作直後なのでブロックされにくい)
+        // 初回クリック：全BGM再生開始、openingをフェードイン
         bgmStarted = true;
-        playScene('opening');
+        startAllBGMs();
+        fadeVolume(openingBGM, 0.4, 2000);
         bgmButton.textContent = "♪ BGM ON";
-        return;
+    } else {
+        // 2回目以降：ON/OFF切り替え
+        const enabled = toggleBGM();
+        bgmButton.textContent = enabled ? "♪ BGM ON" : "♪ BGM OFF";
     }
-
-    const nowEnabled = toggleBGM();
-    bgmButton.textContent = nowEnabled ? "♪ BGM ON" : "♪ BGM OFF";
 });
-
 // ======================================================
 // Information パネル 開閉
 // ======================================================

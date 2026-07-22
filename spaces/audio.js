@@ -1,143 +1,73 @@
 // ======================================================
 // Audio Manager
+// 全BGMを最初から再生開始、音量制御のみでシーン切り替え
 // ======================================================
 
 export let bgmEnabled = true;
 
-// ------------------------------------------------------
-// シーンごとのBGM(4曲。starもクロスフェード対象のシーントラックとして扱う)
-// ------------------------------------------------------
-export const openingBGM = new Audio("./assets/bgm/opening.mp3"); // ①UI用(桜の記憶)
-export const mainBGM    = new Audio("./assets/bgm/main.mp3");    // ②裂け目/メイン空間用(淡い記憶)
-export const space2BGM  = new Audio("./assets/bgm/space2.mp3");  // ③展示空間用(宇宙でうたたね)
-export const starBGM    = new Audio("./assets/bgm/star.mp3");    // ④カメラロック〜裂け目完成用
+// BGM
+export const openingBGM = new Audio("./assets/bgm/opening.mp3");
+export const mainBGM    = new Audio("./assets/bgm/main.mp3");
+export const starBGM    = new Audio("./assets/bgm/star.mp3");
+export const space2BGM  = new Audio("./assets/bgm/space2.mp3");
 
-[openingBGM, mainBGM, space2BGM].forEach(audio => {
+const ALL_BGMS = [openingBGM, mainBGM, starBGM, space2BGM];
+
+ALL_BGMS.forEach(audio => {
   audio.preload = "auto";
   audio.loop = true;
   audio.volume = 0;
 });
-starBGM.preload = "auto";
-starBGM.loop = false; // ★star.mp3はループさせない
-starBGM.volume = 0;
 
-// ------------------------------------------------------
-// 効果音(BGMのループ/クロスフェードとは別枠で管理)
-// ------------------------------------------------------
+// 効果音（変更なし）
 export const sakemeSFX   = new Audio("./assets/bgm/sakeme.mp3");
 export const kirakiraSFX = new Audio("./assets/bgm/kirakira.mp3");
 sakemeSFX.preload = "auto";
 kirakiraSFX.preload = "auto";
-sakemeSFX.volume = 0.85; // ★少し大きめ
+sakemeSFX.volume = 0.85;
 kirakiraSFX.volume = 0.7;
 
-// ★効果音を鳴らすための汎用関数(重複再生時は頭から鳴らし直す)
+// 効果音再生（変更なし）
 export function playSFX(audio) {
   audio.currentTime = 0;
-  audio.play().catch(()=>{});
+  audio.play().catch(() => {});
 }
 
-let currentBGM = null;
+// ★音量フェード（新規・修正版）
+export function fadeVolume(audio, targetVolume, duration = 3000) {
+  const startVolume = audio.volume;
+  const start = performance.now();
 
-export function toggleBGM() {
+  function update(now) {
+    const elapsed = now - start;
+    const progress = Math.min(elapsed / duration, 1);
+    // ★修正：音量を0〜1の範囲にクランプ
+    audio.volume = Math.max(0, Math.min(1, startVolume + (targetVolume - startVolume) * progress));
 
-    bgmEnabled = !bgmEnabled;
-
-    if (!bgmEnabled) {
-
-        [openingBGM, mainBGM, space2BGM, starBGM].forEach(a => a.pause());
-
-    } else {
-
-        if (currentBGM && currentBGM.currentTime > 0) {
-            currentBGM.play().catch(()=>{});
-        }
-
+    if (progress < 1) {
+      requestAnimationFrame(update);
     }
+  }
 
-    return bgmEnabled;
-
+  requestAnimationFrame(update);
 }
 
-export function fadeIn(audio, target = 0.4, duration = 4000){
-
-    if(!bgmEnabled) return;
-
+// ★全BGM再生開始（UI ONボタン押下時）
+export function startAllBGMs() {
+  ALL_BGMS.forEach(audio => {
+    audio.currentTime = 0;
     audio.volume = 0;
-    audio.play().catch(()=>{});
-
-    const start = performance.now();
-
-    function update(now){
-
-        const t = Math.min((now-start)/duration,1);
-
-        audio.volume = Math.max(0, Math.min(1, target*t));
-
-        if(t<1){
-            requestAnimationFrame(update);
-        }
-
-    }
-
-    requestAnimationFrame(update);
-
+    audio.play().catch(() => {});
+  });
 }
 
-export function fadeOut(audio,duration=5000){
+// ON/OFF切り替え
+export function toggleBGM() {
+  bgmEnabled = !bgmEnabled;
 
-    const startVolume = audio.volume;
-    const start = performance.now();
-
-    function update(now){
-
-        const t = Math.min((now-start)/duration,1);
-
-        audio.volume = Math.max(0, Math.min(1, startVolume*(1-t)));
-
-        if(t<1){
-
-            requestAnimationFrame(update);
-
-        }else{
-
-            audio.pause();
-            audio.currentTime=0;
-
-        }
-
-    }
-
-    requestAnimationFrame(update);
-
-}
-
-// ------------------------------------------------------
-// シーン切り替え用のクロスフェード関数
-// ------------------------------------------------------
-const SCENE_TRACKS = {
-  opening: openingBGM,
-  main: mainBGM,
-  space2: space2BGM,
-  star: starBGM,
-};
-
-export function playScene(name, { target = 0.4, fadeInDuration = 4000, fadeOutDuration = 3000 } = {}) {
-  const nextBGM = SCENE_TRACKS[name];
-  if (!nextBGM) {
-    console.warn(`playScene: 不明なシーン名です: ${name}`);
-    return;
+  if (!bgmEnabled) {
+    ALL_BGMS.forEach(a => a.volume = 0);
   }
 
-  if (currentBGM === nextBGM) return;
-
-  if (currentBGM) {
-    fadeOut(currentBGM, fadeOutDuration);
-  }
-
-  currentBGM = nextBGM;
-
-  if (bgmEnabled) {
-    fadeIn(nextBGM, target, fadeInDuration);
-  }
+  return bgmEnabled;
 }

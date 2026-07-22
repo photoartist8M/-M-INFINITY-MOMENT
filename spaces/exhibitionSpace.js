@@ -5,7 +5,7 @@ import { extractPastelColors } from './utils/color.js';
 import { loadImageSafely, getTextureSource } from './utils/image.js';
 import { hasSubmitted, submitMessage, fetchLetterMessages, fetchBubbleMessages } from './core/messaging.js';
 import { BookReveal } from './effects/BookReveal.js';
-import { playSFX, kirakiraSFX } from './audio.js';
+import { fadeVolume, space2BGM, playSFX, kirakiraSFX } from './audio.js';
 
 // ======================================================================
 // exhibitionSpace.js
@@ -2618,15 +2618,16 @@ function handlePhotoSelect(item) {
     playConceptReveal();
   }
 
-  function closeConceptOverlay() {
+function closeConceptOverlay() {
     clearConceptRevealTimers();
     conceptOverlayEl.style.display = 'none';
     if (introPhase !== 'done') {
       introPhase = 'done';
       introCinematicActive = false;
     }
-    showGuideCard(); // ★追加：閉じたら自動でガイドカードを見せる
-  }
+    // space2はここで音量が既に設定されているので、特に追加不要
+    showGuideCard();
+}
 
   conceptCloseButtonEl.addEventListener('click', closeConceptOverlay);
 

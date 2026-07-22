@@ -238,7 +238,7 @@ export class BookReveal {
     this.bookGroup.rotation.y = Math.atan2(centerDir.x, centerDir.z);
 
     // 上下傾きは「少し見上げる」固定角度
-    this.bookGroup.rotation.x = THREE.MathUtils.degToRad(25);
+    this.bookGroup.rotation.x = THREE.MathUtils.degToRad(30);
 
     this._phaseT += dt;
 
