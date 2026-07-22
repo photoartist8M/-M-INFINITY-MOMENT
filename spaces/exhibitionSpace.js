@@ -2244,34 +2244,45 @@ function resetStarAfterFinale() {
 
     const margin = 1.20; //小さくするほど余白なくなる
     return Math.max(distForHeight, distForWidth) * margin;
+    const minDistance = Math.max(distForHeight, distForWidth) * 1.12; // 常に最小値を確保
+  return Math.max(distance, minDistance);
   }
 
-  function handlePhotoSelect(item) {
-    switch (item.type) {
-      case 'normal':
-      case 'depth':
-      case 'letter':
-      case 'bubble':
-      default: {
-        if (viewingItem === item) {
-          viewingItem = null;
-          approachTarget = 0;
-        } else {
-          viewingItem = item;
-          approachTarget = 1;
+function handlePhotoSelect(item) {
+  switch (item.type) {
+    case 'normal':
+    case 'depth':
+    case 'letter':
+    case 'bubble':
+    default: {
+      if (viewingItem === item) {
+        viewingItem = null;
+        approachTarget = 0;
+      } else {
+        viewingItem = item;
+        approachTarget = 1;
 
-          const dir = item.position.clone();
-          dir.y = 0;
-          dir.normalize();
+        // ★変更：写真メッシュの回転を考慮して、確実に正対するカメラ位置を計算
+        // 写真メッシュは lookAt(0, y, 0) で中心を向いているので、
+        // その「背後」にカメラを配置することで、常に正面から見える
 
-          const fitDistance = calcFitDistance(item);
-          cameraApproachPos = item.position.clone().sub(dir.multiplyScalar(fitDistance));
-          cameraApproachPos.y = item.position.y;
-        }
+        // 1. 写真の位置ベクトル（中心からの方向）
+        const posVec = item.position.clone();
+        posVec.y = 0;
+        const posDir = posVec.normalize();
+
+        // 2. カメラまでの距離を計算
+        const fitDistance = calcFitDistance(item);
+
+        // 3. 写真の背後（写真が向いている中心の反対側）にカメラを配置
+        cameraApproachPos = item.position.clone().sub(posDir.multiplyScalar(fitDistance));
+        cameraApproachPos.y = item.position.y - 0.5; // 少し下から見上げる角度で柔らかく
+
         break;
       }
     }
   }
+}
 
   function onPointerClick(clientX, clientY) {
     const elapsed = (performance.now() - spaceStartTime) / 1000;

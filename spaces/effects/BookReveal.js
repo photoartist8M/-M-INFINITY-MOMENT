@@ -221,22 +221,24 @@ export class BookReveal {
     this._onClose = onDone;
   }
 
-  // ============================================================
+// ============================================================
   // 毎フレーム更新
   // ============================================================
   update(dt) {
     if (!this._visible || !this.bookGroup) return;
 
-// 表紙をカメラ方向へ向ける
-const cam  = this.camera.position;
-const bPos = this.bookGroup.position;
+    // ★変更：毎フレームカメラ方向へ向くのではなく、
+    // ギャラリーの中心（0, y, 0）を向く固定向きにする
+    // これにより、デバイス・PCに関わらず一貫性が保たれる
+    const bPos = this.bookGroup.position;
+    const centerDir = new THREE.Vector3(0, bPos.y, 0).sub(bPos);
+    centerDir.normalize();
 
-// 左右
-this.bookGroup.rotation.y =
-    Math.atan2(cam.x - bPos.x, cam.z - bPos.z);
+    // 中心方向を向くようにY回転
+    this.bookGroup.rotation.y = Math.atan2(centerDir.x, centerDir.z);
 
-// ★追加：少しだけカメラ側へ傾ける
-this.bookGroup.rotation.x = THREE.MathUtils.degToRad(30);
+    // 上下傾きは「少し見上げる」固定角度
+    this.bookGroup.rotation.x = THREE.MathUtils.degToRad(25);
 
     this._phaseT += dt;
 
@@ -304,7 +306,6 @@ this.bookGroup.rotation.x = THREE.MathUtils.degToRad(30);
       }
     }
   }
-
   // ============================================================
   // イージング
   // ============================================================
