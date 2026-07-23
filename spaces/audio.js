@@ -1,6 +1,5 @@
 // ======================================================
-// Audio Manager（スマホ対応版）
-// 各シーンで必要なBGMだけを再生開始（スマホ全曲鳴り回避）
+// Audio Manager（スマホ安定版）
 // ======================================================
 
 export let bgmEnabled = true;
@@ -27,18 +26,42 @@ export const starSFX     = new Audio("./assets/bgm/star.mp3");
 
 [sakemeSFX, kirakiraSFX, starSFX].forEach(audio => {
   audio.preload = "auto";
+  audio.loop = false;
 });
+
 sakemeSFX.volume = 0.85;
 kirakiraSFX.volume = 0.7;
 starSFX.volume = 0.45;
 
-// 効果音再生
+// 効果音再生（基本版）
 export function playSFX(audio) {
   audio.currentTime = 0;
   audio.play().catch(() => {});
 }
 
-// ★改善：フェード中断機能付き
+// ★新機能：効果音再生（スマホ安定版・遅延付き）
+export function playSFXRobust(audio, targetVolume = 0.45) {
+  // 必ず停止してからリセット
+  audio.pause();
+  audio.currentTime = 0;
+  audio.volume = targetVolume;
+  
+  // 少し待ってから再生（スマホの初期化待ち）
+  setTimeout(() => {
+    audio.play().catch(err => {
+      console.warn("SFX再生失敗:", err);
+    });
+  }, 50);
+}
+
+// ★新機能：効果音停止（安定版）
+export function stopSFX(audio) {
+  audio.pause();
+  audio.currentTime = 0;
+  audio.volume = 0;
+}
+
+// 音量フェード
 export function fadeVolume(audio, targetVolume, duration = 3000) {
   // 既存のフェードがあればキャンセル
   if (fadeTimers.has(audio)) {
@@ -68,94 +91,54 @@ export function fadeVolume(audio, targetVolume, duration = 3000) {
   fadeTimers.set(audio, { id: animationId });
 }
 
-// ★改善：BGM切り替え完全管理版
+// BGM再生
 export function playBGM(bgm, targetVolume = 0.4, fadeDuration = 2000) {
-
+  // BGMが無効なら何もしない
   if (!bgmEnabled) {
+    if (currentBGM && currentBGM !== bgm) {
+      currentBGM.pause();
+      currentBGM.currentTime = 0;
+    }
     currentBGM = bgm;
     return;
   }
 
-  const previous = currentBGM;
-
-  if (previous && previous !== bgm) {
-
-    fadeVolume(previous, 0, 600);
-
+  // 前のBGMをフェードアウト＆完全停止
+  if (currentBGM && currentBGM !== bgm) {
+    fadeVolume(currentBGM, 0, 500);
     setTimeout(() => {
-      previous.pause();
-      previous.currentTime = 0;
-      previous.volume = 0;
-    }, 650);
-
+      if (currentBGM && currentBGM !== bgm) {
+        currentBGM.pause();
+        currentBGM.currentTime = 0;
+      }
+    }, 600);
   }
 
+  // 新しいBGMを再生
   currentBGM = bgm;
-
-  bgm.pause();
   bgm.currentTime = 0;
-  bgm.volume = 0;
   bgm.loop = true;
-
   bgm.play()
     .then(() => {
       fadeVolume(bgm, targetVolume, fadeDuration);
     })
-    .catch(console.warn);
+    .catch((err) => {
+      console.warn("BGM再生失敗:", err);
+    });
 }
 
-// ★改善：ON/OFF時に実行中のアニメーションをキャンセル
+// ON/OFF切り替え
 export function toggleBGM() {
   bgmEnabled = !bgmEnabled;
 
   if (!bgmEnabled) {
-    // OFF：全BGMをフェードアウト＆停止
-    ALL_BGMS.forEach(audio => {
-      fadeVolume(audio, 0, 300);
-    });
-    setTimeout(() => {
-      ALL_BGMS.forEach(audio => {
-        audio.pause();
-        audio.currentTime = 0;
-      });
-    }, 400);
+    ALL_BGMS.forEach(a => a.volume = 0);
   } else {
-    // ON：現在のアクティブなBGMを復元
     if (currentBGM) {
-      // まず再生確保
       currentBGM.play().catch(() => {});
       fadeVolume(currentBGM, 0.4, 500);
     }
   }
 
   return bgmEnabled;
-}
-
-// ★新機能：BGM停止（フェードアウト付き）
-export function stopBGM(duration = 1000) {
-  if (currentBGM) {
-    fadeVolume(currentBGM, 0, duration);
-    setTimeout(() => {
-      if (currentBGM) {
-        currentBGM.pause();
-        currentBGM.currentTime = 0;
-      }
-    }, duration + 100);
-  }
-}
-
-// ★新機能：全BGM強制停止（スマホ対応）
-export function stopAllBGM() {
-  ALL_BGMS.forEach(audio => {
-    // フェード中断
-    if (fadeTimers.has(audio)) {
-      cancelAnimationFrame(fadeTimers.get(audio).id);
-      fadeTimers.delete(audio);
-    }
-    // 即座に停止
-    audio.volume = 0;
-    audio.pause();
-    audio.currentTime = 0;
-  });
-  currentBGM = null;
 }

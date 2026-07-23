@@ -3,7 +3,7 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import {initPortal,updatePortal,getPortalState,completePortalSwitch,getExhibition,resizePortal,} from './portal.js';
-import { fadeVolume, openingBGM, mainBGM, space2BGM, playBGM, stopBGM, playSFX, sakemeSFX, starSFX } from "./spaces/audio.js";
+import { fadeVolume, openingBGM, mainBGM, space2BGM, playBGM, playSFX, playSFXRobust, stopSFX, sakemeSFX, starSFX } from "./spaces/audio.js";
 // ======================================================
 // 基本セットアップ
 // ======================================================
@@ -660,7 +660,7 @@ function markPhotoFailed(item) {
   item.fixed      = true;
   item.dissolving = true;
   item._photoFadedOut = true;
-  item.dissolved  = true; // checkDissolvedAndAccumulate が検知し蓄積カウントへ加算する
+  item.dissolved  = true;
 }
 
 // ======================================================
@@ -670,7 +670,6 @@ function loadPhotoItem(item) {
   const img = new Image();
   let settled = false;
 
-  // ネットワーク遅延やハングで onload/onerror が発火しない場合の保険
   const failTimeoutId = setTimeout(() => {
     if (settled) return;
     settled = true;
@@ -694,7 +693,7 @@ function loadPhotoItem(item) {
       clearTimeout(failTimeoutId);
       console.error(`画像が壊れています: ${item.src}`);
       markPhotoFailed(item);
-      return; // 不正な画像は処理しない
+      return;
     }
 
     settled = true;
@@ -710,14 +709,11 @@ function loadPhotoItem(item) {
     let baseWidth = frameHeight * aspect;
     let baseHeight = frameHeight;
 
-
-    // 横長写真を制限
     if (baseWidth > 14) {
       baseWidth = 14;
       baseHeight = baseWidth / aspect;
     }
 
-    // 縦写真を制限
     const maxHeight = isMobile ? 13 : 14;
 
     if (baseHeight > maxHeight) {
@@ -811,7 +807,7 @@ item.material = new THREE.MeshBasicMaterial({
 }
 
 function buildAura(item, baseWidth, baseHeight) {
-  const borderSize = 0.04; // 枠の太さ
+  const borderSize = 0.04;
   const outerW = baseWidth  + borderSize * 2;
   const outerH = baseHeight + borderSize * 2;
 
@@ -822,7 +818,6 @@ function buildAura(item, baseWidth, baseHeight) {
   shape.lineTo(-outerW / 2,  outerH / 2);
   shape.closePath();
 
-  // 穴のサイズを写真メッシュと完全一致させる
   const hole = new THREE.Path();
   hole.moveTo(-baseWidth / 2, -baseHeight / 2);
   hole.lineTo( baseWidth / 2, -baseHeight / 2);
@@ -833,7 +828,7 @@ function buildAura(item, baseWidth, baseHeight) {
 
   const geo = new THREE.ShapeGeometry(shape);
   const mat = new THREE.MeshBasicMaterial({
-    color: new THREE.Color(1.6, 1.6, 1.6), // 光量
+    color: new THREE.Color(1.6, 1.6, 1.6),
     transparent: true,
     opacity: 0,
     blending: THREE.AdditiveBlending,
@@ -842,7 +837,6 @@ function buildAura(item, baseWidth, baseHeight) {
   });
 
   item.aura = new THREE.Mesh(geo, mat);
-  // 写真メッシュと同じz位置にして隙間をなくす
   item.aura.position.copy(item.position).add(new THREE.Vector3(0, 0, 3.0));
   item.aura.visible = false;
   item.aura.layers.enable(BLOOM_LAYER);
@@ -852,7 +846,7 @@ function buildAura(item, baseWidth, baseHeight) {
 photoItems.forEach(item => loadPhotoItem(item));
 
 // ======================================================
-// dissolvedになった瞬間を検知（追加）
+// dissolvedになった瞬間を検知
 // ======================================================
 function checkDissolvedAndAccumulate() {
   for (let i = 0; i < photoItems.length; i++) {
@@ -942,10 +936,15 @@ function alignCameraToRiftAndLock() {
       doorTime = 0;
       createDoorParticles();
       
-      // ★改善版：mainBGM フェードアウト（完全停止は done コールバックで）
-      // 代わりに star 効果音だけ再生
-      fadeVolume(mainBGM, 0, 1500);
-      playSFX(starSFX);
+      // ★修正：mainBGM を確実に停止
+      mainBGM.pause();
+      mainBGM.currentTime = 0;
+      mainBGM.volume = 0;
+      
+      // star 効果音を再生（安定版・遅延付き）
+      setTimeout(() => {
+        playSFXRobust(starSFX, 0.45);
+      }, 100);
     }
   }
   
@@ -962,10 +961,9 @@ function getDoorTargetPositions(count) {
 
   for (let i = 0; i < count; i++) {
     const theta = Math.random() * Math.PI * 2;
-    // 中心ほど密度が高くなるように、べき乗分布で半径を決める
     const r = NEBULA_MAX_R * Math.pow(Math.random(), 2.0);
 
-    const jitterZ = (Math.random() - 0.5) * 2.2; // 奥行きを持たせ立体的な雲に
+    const jitterZ = (Math.random() - 0.5) * 2.2;
     const jitterXY = (Math.random() - 0.5) * 0.3;
 
     const x = cx + r * Math.cos(theta) + jitterXY;
@@ -977,7 +975,7 @@ function getDoorTargetPositions(count) {
   return targets;
 }
 // ======================================================
-// 裂け目パーティクルシステムの作成（軽量・高品質）
+// 裂け目パーティクルシステムの作成
 // ======================================================
 const DOOR_PARTICLE_PALETTE = [
   new THREE.Color(0xffe0b3),
@@ -1076,7 +1074,7 @@ function updateAccumulationGlow() {
 }
 
 // ======================================================
-// ドアアニメーションの更新（改善版）
+// ドアアニメーションの更新（安定版）
 // ======================================================
 function updateDoor() {
   if (doorPhase === 'none' || !doorSys) return;
@@ -1094,10 +1092,12 @@ function updateDoor() {
     const sp    = Math.min(1.0, doorTime / SPIRAL_DUR);
     const accel = Math.pow(sp, 2.2);
 
-    // ★改善：sakeme 効果音を1回だけ再生
+    // ★sakeme 効果音を一度だけ再生（遅延付き）
     if (!doorSys._sakemePlayed) {
       doorSys._sakemePlayed = true;
-      playSFX(sakemeSFX);
+      setTimeout(() => {
+        playSFXRobust(sakemeSFX, 0.85);
+      }, 300);
     }
 
     doorSys.mesh.material.opacity = Math.min(0.25, doorTime * 0.4);
@@ -1127,7 +1127,6 @@ function updateDoor() {
       doorTime  = 0;
     }
   }
-
   // ────────────────────────────────────────
   // Phase 2: 渦が緩みながら裂け目（星雲）の形に収束
   // ────────────────────────────────────────
@@ -1179,7 +1178,6 @@ function updateDoor() {
       doorPhase = 'complete';
     }
   }
-
   // ────────────────────────────────────────
   // Phase 3: 星雲が脈動 → カメラが吸い込まれる
   // ────────────────────────────────────────
@@ -1242,15 +1240,16 @@ function updateDoor() {
       uni.uPortalReveal.value = t2;
     }
 
-    // ★改善版：BGM切り替え（完全停止＆完全開始を同時）
+    // ★修正：効果音を完全停止 + space2BGM 開始
     if (distToDoor < 0.5 && !doorSys._switchedToSpace2) {
       doorSys._switchedToSpace2 = true;
       
-      // star 効果音をフェードアウト
-      fadeVolume(starSFX, 0, 800);
+      // 効果音を完全停止（安定版）
+      stopSFX(starSFX);
+      stopSFX(sakemeSFX);
       
-      // space2BGM を新規に再生（mainBGM は既に停止）
-      playBGM(space2BGM, 0.4, 1500);
+      // space2BGM を開始
+      playBGM(space2BGM, 0.4, 2000);
     }
 
     if (distToDoor < 0.5) {
@@ -1308,7 +1307,7 @@ function checkTriggers() {
 }
 
 // ======================================================
-// 写真形成中の粒子収束と白飛び抑制
+// 写真形成中の粒子収束
 // ======================================================
 function attractParticles(item) {
   if (!item.attract || !item.particles || item.formed) return;
@@ -1403,7 +1402,6 @@ function updateParticleEffects() {
   const accentSparkle = Math.pow(Math.random(), 12) * 0.3;
   accentParticles.material.opacity = 0.50 + Math.sin(t * 0.4) * 0.05 + accentSparkle;
 
-  // 写真粒子
   photoItems.forEach(item => {
     if (!item.particles) return;
     const mat = item.particles.material;
@@ -1568,19 +1566,13 @@ window.addEventListener("touchmove", (e) => {
 
   e.preventDefault();
 
-  //--------------------------------------------------
-  // 一本指
-  //--------------------------------------------------
-
   if (e.touches.length === 1) {
 
     const dx = e.touches[0].clientX - lastTouchX;
     const dy = e.touches[0].clientY - lastTouchY;
 
-    // 左右を見る
     targetRotY -= dx * 0.0015;
 
-    // 前後移動
     camera.position.z -= dy * 0.035;
 
     const limits = getYawLimits();
@@ -1606,10 +1598,6 @@ window.addEventListener("touchmove", (e) => {
 
   }
 
-  //--------------------------------------------------
-  // ピンチ（今は何もしない）
-  //--------------------------------------------------
-
   if (e.touches.length === 2) {
 
     const dx = e.touches[0].clientX - e.touches[1].clientX;
@@ -1622,12 +1610,12 @@ window.addEventListener("touchmove", (e) => {
 }, { passive: false });
 
 // ======================================================
-// 事前確保ベクトル（フレームごとの new/clone を排除）
+// 事前確保ベクトル
 // ======================================================
 const _basePos = new THREE.Vector3();
 
 // ======================================================
-// mainScene 完全破棄（GPUメモリ解放）
+// mainScene 完全破棄
 // ======================================================
 let mainSceneDisposed = false;
 
@@ -1893,7 +1881,7 @@ function animate() {
 }
 
 // ======================================================
-// 粒子がランダムに渦巻き、再び光（中心）に戻って消える
+// 粒子がランダムに渦巻き消える
 // ======================================================
 function dissolvePhoto(item) {
   if (!item.loaded || item.dissolved) return;
