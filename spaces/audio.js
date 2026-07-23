@@ -1,11 +1,11 @@
 // ======================================================
-// Audio Manager（改善版）
-// fadeVolume に中断機能を追加＆BGM切り替え完全管理
+// Audio Manager（スマホ対応版）
+// 各シーンで必要なBGMだけを再生開始（スマホ全曲鳴り回避）
 // ======================================================
 
 export let bgmEnabled = true;
 export let currentBGM = null;
-let fadeTimers = new Map(); // フェード中のアニメーションを追跡
+let fadeTimers = new Map();
 
 // BGM
 export const openingBGM = new Audio("./assets/bgm/opening.mp3");
@@ -70,39 +70,38 @@ export function fadeVolume(audio, targetVolume, duration = 3000) {
 
 // ★改善：BGM切り替え完全管理版
 export function playBGM(bgm, targetVolume = 0.4, fadeDuration = 2000) {
-  // BGMが無効なら何もしない
+
   if (!bgmEnabled) {
-    if (currentBGM && currentBGM !== bgm) {
-      currentBGM.pause();
-      currentBGM.currentTime = 0;
-    }
     currentBGM = bgm;
     return;
   }
 
-  // 前のBGMをフェードアウト＆完全停止
-  if (currentBGM && currentBGM !== bgm) {
-    fadeVolume(currentBGM, 0, 500);
+  const previous = currentBGM;
+
+  if (previous && previous !== bgm) {
+
+    fadeVolume(previous, 0, 600);
+
     setTimeout(() => {
-      if (currentBGM && currentBGM !== bgm) { // ★ダブルチェック
-        currentBGM.pause();
-        currentBGM.currentTime = 0;
-      }
-    }, 600); // フェード時間 + 少し余裕
+      previous.pause();
+      previous.currentTime = 0;
+      previous.volume = 0;
+    }, 650);
+
   }
 
-  // 新しいBGMを再生
   currentBGM = bgm;
+
+  bgm.pause();
   bgm.currentTime = 0;
+  bgm.volume = 0;
   bgm.loop = true;
+
   bgm.play()
     .then(() => {
-      // 再生成功後にフェードイン
       fadeVolume(bgm, targetVolume, fadeDuration);
     })
-    .catch((err) => {
-      console.warn("BGM再生失敗:", err);
-    });
+    .catch(console.warn);
 }
 
 // ★改善：ON/OFF時に実行中のアニメーションをキャンセル
@@ -143,4 +142,20 @@ export function stopBGM(duration = 1000) {
       }
     }, duration + 100);
   }
+}
+
+// ★新機能：全BGM強制停止（スマホ対応）
+export function stopAllBGM() {
+  ALL_BGMS.forEach(audio => {
+    // フェード中断
+    if (fadeTimers.has(audio)) {
+      cancelAnimationFrame(fadeTimers.get(audio).id);
+      fadeTimers.delete(audio);
+    }
+    // 即座に停止
+    audio.volume = 0;
+    audio.pause();
+    audio.currentTime = 0;
+  });
+  currentBGM = null;
 }
