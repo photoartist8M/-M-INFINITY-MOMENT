@@ -52,13 +52,19 @@ export function fadeVolume(audio, targetVolume, duration = 3000) {
   requestAnimationFrame(update);
 }
 
-// ★全BGM再生開始（UI ONボタン押下時）
-export function startAllBGMs() {
-  ALL_BGMS.forEach(audio => {
+// ★全BGM再生開始（修正版）
+export async function startAllBGMs() {
+  for (const audio of ALL_BGMS) {
     audio.currentTime = 0;
-    audio.volume = 0;
-    audio.play().catch(() => {});
-  });
+    audio.loop = true;
+    try {
+      await audio.play();
+      // play() 完了後に、確実に volume を 0 にセット
+      audio.volume = 0;
+    } catch (err) {
+      console.warn("BGM再生失敗:", err);
+    }
+  }
 }
 
 // ON/OFF切り替え

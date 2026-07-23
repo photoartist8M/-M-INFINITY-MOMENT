@@ -31,10 +31,6 @@ export function startExhibitionSpace(renderer, camera) {
   const keyLight = new THREE.DirectionalLight(0xffefe0, 0.3);
   keyLight.position.set(3, 8, 5);
   scene.add(keyLight);
-  // ====================================================================
-  // [SECTION: lights end]
-  // ====================================================================
-
 
   // ====================================================================
   // [SECTION: background] 背景グラデーション
@@ -79,10 +75,6 @@ export function startExhibitionSpace(renderer, camera) {
   drawBackgroundGradient();
   scene.background = bgTexture;
   scene.fog = new THREE.Fog(0xffffff, 60, 140);
-  // ====================================================================
-  // [SECTION: background end]
-  // ====================================================================
-
 
   // ====================================================================
   // [SECTION: water] 水面（波紋）
@@ -169,10 +161,6 @@ export function startExhibitionSpace(renderer, camera) {
   rippleWater.rotation.x = -Math.PI / 2;
   rippleWater.position.y = -8;
   scene.add(rippleWater);
-  // ====================================================================
-  // [SECTION: water end]
-  // ====================================================================
-
 
   // ====================================================================
   // [SECTION: flare] 太陽フレア
@@ -229,10 +217,6 @@ export function startExhibitionSpace(renderer, camera) {
   const flareRing = new THREE.Mesh(flareGeo, flareMaterial);
   flareRing.position.y = -7.8;
   scene.add(flareRing);
-  // ====================================================================
-  // [SECTION: flare end]
-  // ====================================================================
-
 
   // ====================================================================
   // [SECTION: sparkles] キラキラ光の粒子
@@ -320,10 +304,6 @@ export function startExhibitionSpace(renderer, camera) {
     }
     colorAttr.needsUpdate = true;
   }
-  // ====================================================================
-  // [SECTION: sparkles end]
-  // ====================================================================
-
 
   // ====================================================================
   // [SECTION: mobileFocusButton] スマホ用：正面の写真に留まると出現する決定ボタン
@@ -388,10 +368,6 @@ export function startExhibitionSpace(renderer, camera) {
       }
     });
   }
-  // ====================================================================
-  // [SECTION: mobileFocusButton end]
-  // ====================================================================
-
 
   // ====================================================================
   // [SECTION: messageUI] 飛行機・シャボン玉：記入ボタン＆入力フォーム
@@ -802,10 +778,6 @@ function updateWriteButton() {
       hideWriteButton();
     }
   }
-  // ====================================================================
-  // [SECTION: messageUI end]
-  // ====================================================================
-
 
   // ====================================================================
   // [SECTION: flyingMessages] 紙飛行機・シャボン玉の生成と浮遊演出
@@ -1079,7 +1051,7 @@ const heading = Math.random() * Math.PI * 2;
 
     bubbles.push({
       sprite,
-      glowSprite, // ★追加
+      glowSprite, 
       data,
       angle: Math.random() * Math.PI * 2,
       radius: 4 + Math.random() * (GALLERY_RADIUS * 0.7),
@@ -1223,10 +1195,6 @@ e.sprite.position.z += e.velocity.z * dt;
 
     });
   }
-  // ====================================================================
-  // [SECTION: flyingMessages end]
-  // ====================================================================
-
 
   // ====================================================================
   // [SECTION: photos] 写真アイテムの生成
@@ -1345,18 +1313,11 @@ e.sprite.position.z += e.velocity.z * dt;
     item.revealIndex = idx;
     photoItems.push(item);
   });
-  // ====================================================================
-  // [SECTION: photos end]
-  // ====================================================================
-
 
   // ====================================================================
   // [SECTION: ceilingFilmStar] 天井の35mmフィルム星型オブジェ
   // タップ → 浮遊中の紙飛行機を吸収 → 写真集（購入導線）を表示
   // ====================================================================
-
-  // ★デモで調整した値をそのまま反映（本数・大きさ・星の尖り・ねじれ・フィルム断面・
-  // フィルムの質感・光と透明感・回転速度・発光の脈動）
   const FILM_PARAMS = {
     count: 4,
     tiltDeg: 35,      // 星の尖り
@@ -1717,8 +1678,8 @@ e.sprite.position.z += e.velocity.z * dt;
     });
     ceilingStarCore = new THREE.Sprite(coreMat);
     ceilingStarCore.scale.set(CEILING_STAR.size * 0.9, CEILING_STAR.size * 0.9, 1);
-    ceilingStarCore.renderOrder = 999;        // ← 追加
-coreMat.depthTest = false;                // ← 追加
+    ceilingStarCore.renderOrder = 999;       
+coreMat.depthTest = false;                
     ceilingStarGroup.add(ceilingStarCore);
 
     const haloMat = new THREE.SpriteMaterial({
@@ -1732,8 +1693,8 @@ coreMat.depthTest = false;                // ← 追加
     });
     ceilingStarHalo = new THREE.Sprite(haloMat);
     ceilingStarHalo.scale.set(CEILING_STAR.size * 1.8, CEILING_STAR.size * 1.8, 1);
-    ceilingStarHalo.renderOrder = 998;        // ← 追加
-haloMat.depthTest = false;                // ← 追加
+    ceilingStarHalo.renderOrder = 998;       
+haloMat.depthTest = false;               
     ceilingStarGroup.add(ceilingStarHalo);
 
     // 見た目より少し大きい、見えない当たり判定用の球
@@ -1742,12 +1703,12 @@ haloMat.depthTest = false;                // ← 追加
     ceilingHitMesh = new THREE.Mesh(hitGeo, hitMat);
     ceilingStarGroup.add(ceilingHitMesh);
 
-    ceilingStarGroup.visible = false; // ★追加：導入カメラワーク中は非表示（①）。自由閲覧開始で出現させる
+    ceilingStarGroup.visible = false; // ：導入カメラワーク中は非表示（①）。自由閲覧開始で出現させる
     scene.add(ceilingStarGroup);
   }
   buildCeilingFilmStar();
 
-  // ★追加：BookRevealのインスタンス生成（写真は展示写真を使い回す）
+  // ：BookRevealのインスタンス生成（写真は展示写真を使い回す）
   let bookReveal = null;
   function initBookReveal() {
     const textures = photoItems

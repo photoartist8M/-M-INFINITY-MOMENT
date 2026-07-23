@@ -12,15 +12,12 @@ scene.background = new THREE.Color(0x0a0805);
 scene.fog = new THREE.Fog(0x0a0805, 10, 55);
 const ambientLight = new THREE.AmbientLight(0xfff5e0, 0.25); // 暖色の環境光
 scene.add(ambientLight);
-
 const keyLight = new THREE.DirectionalLight(0xfff0d0, 0.9);  // キーライト（正面上方）
 keyLight.position.set(3, 8, 12);
 scene.add(keyLight);
-
 const fillLight = new THREE.DirectionalLight(0xd0e8ff, 0.25); // フィルライト（逆側）
 fillLight.position.set(-5, -3, 5);
 scene.add(fillLight);
-
 const camera = new THREE.PerspectiveCamera(
   75,
   window.innerWidth / window.innerHeight,
@@ -203,11 +200,7 @@ let _dissolvedFlags  = new Array(PHOTO_FILES.length).fill(false);
 let portalPlane = null;
 
 // ======================================================
-// 裂け目（記憶の星雲）の広がり半径（追加）
-// ------------------------------------------------------
-// ★JS側のパーティクル雲の広がりと、GLSL側のfbm星雲テクスチャの
-//   スケールを揃えるための共有定数。多角形の輪郭は使わず、
-//   ここを基準にした「濃淡のある曖昧な雲」として裂け目を表現する。
+// 裂け目（記憶の星雲）の広がり半径
 // ======================================================
 const NEBULA_MAX_R = 3.4; // 星雲パーティクル雲・シェーダー共通の広がり半径
 
@@ -391,7 +384,6 @@ gl_FragColor =
     }
 
   `
-
 });
 
   const bg = new THREE.Points(geo, mat);
@@ -406,7 +398,6 @@ gl_FragColor =
 function createAccentParticles() {
 
   const count = 200;
-
   const positions = new Float32Array(count * 3);
 
   for (let i = 0; i < count; i++) {
@@ -438,9 +429,7 @@ function createAccentParticles() {
   });
 
   const mesh = new THREE.Points(geo, mat);
-
   scene.add(mesh);
-
   return mesh;
 }
 
@@ -470,7 +459,6 @@ function createAccumulationGlow() {
   layers.forEach(({ size, opacity }) => {
 
     const geo = new THREE.PlaneGeometry(size, size);
-
     const mat = new THREE.MeshBasicMaterial({
 
       map: particleTexture,
@@ -496,31 +484,9 @@ function createAccumulationGlow() {
     accumulationGlow.add(mesh);
 
   });
-
 }
 // ======================================================
 // 記憶の星雲・裂け目（ポータル面）
-// ------------------------------------------------------
-// ★今回の修正（映画的で高品質な星雲表現への変更）：
-//   ① ノイズの基本周波数が低すぎて格子セル数が少なく、
-//      ブロック状・マーブル状・タイル状に見えていた。
-//      → wp に掛ける係数を 0.55 → 2.2 に上げ、格子を細かくした。
-//   ② fbmのオクターブ数・persistenceが高周波を残しすぎていた。
-//      → オクターブを5→4に、ampの減衰(0.5→0.42)を強め、
-//        低周波主体の滑らかな"塊"だけが残るようにした。
-//   ③ ドメインワーピングのオフセットが単純な値で、軸に揃った
-//      縞・タイル状のパターンが出やすかった。
-//      → オフセットを非対称・非整数の値に変更し、ワープの強さも
-//        4.0→2.6に弱め、格子由来のパターンが伸びて目立つのを防いだ。
-//   ④ 輪郭が硬く見えていたため、radialFalloffのべき指数を
-//      1.4→2.2に上げ、外周がよりじわっと滑らかにフェードするように。
-//   ⑤ 時間変化がやや速く、呼吸感が乏しかったため、
-//      uTimeの係数を全体的に落とし、密度に緩やかなsin波（breathe）
-//      を掛けてゆっくり呼吸するような揺らぎを追加した。
-//   ⑥ 中心のcoreColorは白飛びを避けるため、純白ではなく
-//      暖白寄りの色にし、混合率にもキャップ(0.75)をかけている。
-//   ⑦ 開口部(apertureMask)のfeatherを広げ、輪郭がはっきりした
-//      円ではなく、じわっと滲むように次空間が見えるようにした。
 // ======================================================
 function createPortalPlane() {
   const PLANE_SIZE = 10; // JS側のワールド座標とUVを対応づけるための基準サイズ
@@ -607,8 +573,6 @@ function createPortalPlane() {
         float angle  = atan(wp.y, wp.x);
 
         // ── ドメインワーピングfbm：雲がゆっくり渦を巻きながら揺らめく ──
-        // ★修正①：基本周波数 0.55→2.2（格子を細かくしてブロック感を解消）
-        // ★修正⑤：時間係数を落として、ゆっくり流れるように
         vec2 p = wp * 2.2 + vec2(0.0, uTime * 0.02);
         vec2 q = vec2(
           fbm(p + vec2(1.7, 92.3)),
@@ -901,7 +865,6 @@ function checkDissolvedAndAccumulate() {
     }
   }
 }
-
 // ======================================================
 // 写真粒子が蓄積ポイントに到達したときの処理
 // ------------------------------------------------------
@@ -922,7 +885,6 @@ function onPhotoArrivedAtLight(index) {
     }, 1500);
   }
 }
-
 // ======================================================
 // カメラを裂け目正面・適正距離へ補正してからロックする
 // ======================================================
@@ -995,10 +957,6 @@ function alignCameraToRiftAndLock() {
 }
 // ======================================================
 // 記憶の星雲・裂け目 ターゲット座標
-// ------------------------------------------------------
-// ★多角形の輪郭ではなく、中心ほど密度が高い「立体的な星雲の雲」として
-//   粒子を配置する。若干の奥行き(z jitter)も持たせ、平面的なリング
-//   ではなく、ふわっと膨らんだガスの塊のように見えるようにしている。
 // ======================================================
 function getDoorTargetPositions(count) {
   const targets = [];
@@ -1020,7 +978,6 @@ function getDoorTargetPositions(count) {
 
     targets.push(new THREE.Vector3(x, y, z));
   }
-
   return targets;
 }
 // ======================================================
@@ -1199,7 +1156,6 @@ function updateDoor() {
       doorTime  = 0;
     }
   }
-
   // ────────────────────────────────────────
   // Phase 2: 渦が緩みながら裂け目（星雲）の形に収束
   // ────────────────────────────────────────
@@ -1253,7 +1209,6 @@ function updateDoor() {
       doorPhase = 'complete';
     }
   }
-
   // ────────────────────────────────────────
   // Phase 3: 星雲が脈動 → カメラが吸い込まれる → ポータル拡大開始
   // ────────────────────────────────────────
@@ -2105,7 +2060,7 @@ function dissolvePhoto(item) {
     item.particleGeo.attributes.position.needsUpdate = true;
 
     if (progress > 0.4) {
-      item.particles.material.opacity = Math.max(0, 1.0 - (progress - 0.4) * 1.6);
+      item.particles.material.opacity = Math.max(0, 1.0 - (progress - 0.6) * 1.2);
     }
   }
 
