@@ -3,7 +3,7 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import {initPortal,updatePortal,getPortalState,completePortalSwitch,getExhibition,resizePortal,} from './portal.js';
-import { fadeVolume, mainBGM, starBGM, space2BGM, playSFX, sakemeSFX } from './spaces/audio.js';
+import { fadeVolume, openingBGM, mainBGM, space2BGM, playBGM, stopBGM, playSFX, sakemeSFX, starSFX } from "./spaces/audio.js";
 // ======================================================
 // 基本セットアップ
 // ======================================================
@@ -647,8 +647,6 @@ vec3 color = mix(outerColor, midColor, smoothstep(0.15, 0.62, density));
 }
 // ======================================================
 // 写真ロードに失敗した場合のフォールバック処理
-// ----------------------------------------------------
-// 画像の読み込みエラー・破損・タイムアウト対策
 // ======================================================
 function markPhotoFailed(item) {
   if (item.failed || item.dissolved) return; // 二重処理防止
@@ -867,8 +865,6 @@ function checkDissolvedAndAccumulate() {
 }
 // ======================================================
 // 写真粒子が蓄積ポイントに到達したときの処理
-// ------------------------------------------------------
-// カメラを裂け目正面・適正距離へ補正してからロックする
 // ======================================================
 function onPhotoArrivedAtLight(index) {
   accumulatedCount++;
@@ -888,9 +884,9 @@ function onPhotoArrivedAtLight(index) {
 // ======================================================
 // カメラを裂け目正面・適正距離へ補正してからロックする
 // ======================================================
-const RIFT_VIEW_DISTANCE      = 5.5;    // Phase4のdistToDoor想定初期値(6.0)と一致させる
-const CAMERA_ALIGN_DURATION   = 2500; // カメラ補正にかける時間(ms)　1秒
-const RIFT_BASE_FOV           = 75;   // カメラ初期FOV（吸い込み演出の基準値）
+const RIFT_VIEW_DISTANCE      = 5.5;
+const CAMERA_ALIGN_DURATION   = 2500;
+const RIFT_BASE_FOV           = 75;
 
 function computeLookAtQuaternion(fromPos, targetPos) {
   const m = new THREE.Matrix4();
@@ -946,10 +942,10 @@ function alignCameraToRiftAndLock() {
       doorTime = 0;
       createDoorParticles();
       
-      // ★main フェードアウト、star フェードイン
-      fadeVolume(mainBGM, 0, 3000);
-      fadeVolume(starBGM, 0.45, 3000);
-      playSFX(sakemeSFX);
+      // ★改善版：mainBGM フェードアウト（完全停止は done コールバックで）
+      // 代わりに star 効果音だけ再生
+      fadeVolume(mainBGM, 0, 1500);
+      playSFX(starSFX);
     }
   }
   
@@ -983,18 +979,16 @@ function getDoorTargetPositions(count) {
 // ======================================================
 // 裂け目パーティクルシステムの作成（軽量・高品質）
 // ======================================================
-// ★変更：黄色とオレンジの粒子をより「キラキラ」させるため、彩度を下げて白に近づけ、高明度に。
-// 裂け目パーティクルの色パレット（記憶・次空間を思わせる複数色）
 const DOOR_PARTICLE_PALETTE = [
-  new THREE.Color(0xffe0b3), // ★変更(ffb066->ffe0b3): 淡い琥珀色（黄色寄り）
-  new THREE.Color(0xfbf0db), // ★変更(f5d98c->fbf0db): 極めて淡いゴールド
-  new THREE.Color(0xfff8f0), // ★変更(fff2df->fff8f0): ほぼ白に近い暖白
+  new THREE.Color(0xffe0b3),
+  new THREE.Color(0xfbf0db),
+  new THREE.Color(0xfff8f0),
 ];
 
 function createDoorParticles() {
-  const count = 1400; // 軽量だが密度感を保つバランス値
+  const count = 1400;
   const pos    = new Float32Array(count * 3);
-  const colors = new Float32Array(count * 3); // ★追加：粒子ごとの色
+  const colors = new Float32Array(count * 3);
   const sizes  = new Float32Array(count);
 
   for (let i = 0; i < count; i++) {
@@ -1004,7 +998,6 @@ function createDoorParticles() {
     pos[i * 3]     = ACCUM_POINT.x + r * Math.sin(phi) * Math.cos(theta);
     pos[i * 3 + 1] = ACCUM_POINT.y + r * Math.sin(phi) * Math.sin(theta);
     pos[i * 3 + 2] = ACCUM_POINT.z + r * Math.cos(phi);
-    // ★微調整: 粒子の大小バラつきを少し抑え、全体的にシャープに
     sizes[i] = 0.14 + Math.random() * 0.16;
 
     const c = DOOR_PARTICLE_PALETTE[Math.floor(Math.random() * DOOR_PARTICLE_PALETTE.length)];
@@ -1015,13 +1008,13 @@ function createDoorParticles() {
 
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3)); // ★追加
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 
   const mat = new THREE.PointsMaterial({
     map: particleTexture,
-    vertexColors: true, // ★追加：粒子ごとの色を有効化
-    color: 0xffffff,    // ベースは白（vertexColorsと掛け合わされる）
-    size: 0.06,         // ★小さく(0.09->0.06): 粒子を小さくしてシャープな煌めきに
+    vertexColors: true,
+    color: 0xffffff,
+    size: 0.06,
     transparent: true,
     opacity: 0,
     blending: THREE.AdditiveBlending,
@@ -1032,7 +1025,6 @@ function createDoorParticles() {
   const points = new THREE.Points(geo, mat);
   scene.add(points);
 
-  // 对数螺旋（台風の目）用のパラメータ
   const noises = [];
   for (let i = 0; i < count; i++) {
     noises.push({
@@ -1057,43 +1049,38 @@ function createDoorParticles() {
 
   if (!portalPlane) createPortalPlane();
 
-  // ▼追加：Portal(RenderTarget)方式の初期化。ここから次空間のプリロードが始まる
   initPortal(renderer, portalPlane);
 }
 // ======================================================
-// 蓄積光のアニメーション更新（追加）
+// 蓄積光のアニメーション更新
 // ======================================================
 function updateAccumulationGlow() {
   if (!accumulationGlow || accumulatedCount === 0) return;
-  if (doorPhase !== 'none') return; // ★追加：裂け目演出が始まったら蓄積光は不要。同じ場所での多重加算による白飛びを防ぐ
+  if (doorPhase !== 'none') return;
   const t     = Date.now() * 0.001;
   const ratio = accumulatedCount / PHOTO_FILES.length;
 
   accumulationGlow.children.forEach((mesh, i) => {
-    // レイヤーごとに異なる呼吸リズム
     const breathe = Math.sin(t * 0.9 + i * 0.8) * 0.5
                   + Math.sin(t * 0.4 + i * 0.3) * 0.3
                   + Math.sin(t * 1.6 + i * 1.2) * 0.2;
 
-    // 0〜1の範囲に正規化（0.5基準）
     const pulse = 0.5 + breathe * 0.5;
 
     mesh.material.opacity =
       mesh.userData.baseOpacity * ratio * pulse;
 
-    // 外側レイヤーほどゆっくり大きくなる
     const scaleBreath = 1.0 + Math.sin(t * 0.7 + i * 0.6) * 0.12;
     mesh.scale.setScalar(scaleBreath);
   });
 }
 
 // ======================================================
-// ドアアニメーションの更新
+// ドアアニメーションの更新（改善版）
 // ======================================================
 function updateDoor() {
   if (doorPhase === 'none' || !doorSys) return;
 
-  // ★高速化(0.004->0.006): アニメーション自体の進行速度を上げる
   doorTime += 0.006;
   const pos = doorSys.geo.attributes.position.array;
   const uni = portalPlane ? portalPlane.material.uniforms : null;
@@ -1103,11 +1090,16 @@ function updateDoor() {
   // Phase 1: 台風の目のような対数螺旋で渦が巻き始める
   // ────────────────────────────────────────
   if (doorPhase === 'spiraling') {
-    const SPIRAL_DUR = 1.4; // 渦巻き時間
+    const SPIRAL_DUR = 1.4;
     const sp    = Math.min(1.0, doorTime / SPIRAL_DUR);
     const accel = Math.pow(sp, 2.2);
 
-    // ★白飛び抑制: 最大透明度を抑える(0.38->0.25)
+    // ★改善：sakeme 効果音を1回だけ再生
+    if (!doorSys._sakemePlayed) {
+      doorSys._sakemePlayed = true;
+      playSFX(sakemeSFX);
+    }
+
     doorSys.mesh.material.opacity = Math.min(0.25, doorTime * 0.4);
 
     if (uni) {
@@ -1115,40 +1107,19 @@ function updateDoor() {
       uni.uWarp.value    = sp;
     }
 
-    // 対数螺旋の巻き込み係数（中心に近いほど速く回る）
-    const B = 1.6; // 螺旋のきつさ（大きいほど急に巻く）
+    const B = 1.6;
 
     for (let i = 0; i < doorSys.count; i++) {
       const ix = i * 3, iy = i * 3 + 1, iz = i * 3 + 2;
-      const noise  = doorSys.noises[i];
+      const noise = doorSys.noises[i];
       const target = doorSys.targets[i];
 
-      const dx       = target.x - ACCUM_POINT.x;
-      const dy       = target.y - ACCUM_POINT.y;
-      const finalR   = Math.sqrt(dx * dx + dy * dy);
-      const finalAng = Math.atan2(dy, dx);
+      const angle = noise.angleOffset + doorTime * noise.speedMod * 8.0;
+      const r = 3.0 * Math.pow(1.0 - accel, 1.5) + noise.radiusMod * 0.1;
 
-      // 現在の半径（外側→中心へ収束していく）
-      const curR = Math.max(0.05, (finalR + noise.radiusMod * (1 - sp)) * sp);
-
-      // 対数螺旋：半径が小さいほど角速度が指数的に増す
-      const radiusFactor = 1.0 / (curR + 0.3); // 中心に近いほど大きくなる
-      const rotSpeed = (0.5 + accel * 9.0) * (1.0 + radiusFactor * B);
-
-      const curAng = finalAng
-                   + noise.angleOffset * (1 - sp) * 0.4
-                   + doorTime * noise.speedMod * rotSpeed;
-
-      const tx = ACCUM_POINT.x + Math.cos(curAng) * curR;
-      const ty = ACCUM_POINT.y + Math.sin(curAng) * curR;
-      const followSpeed = 0.045 + accel * 0.07;
-
-      pos[ix] += (tx - pos[ix]) * followSpeed;
-      pos[iy] += (ty - pos[iy]) * followSpeed;
-      pos[iz] += (ACCUM_POINT.z - pos[iz]) * 0.04;
-
-      // ★粒子を小さく: 渦巻き中のサイズ増加を抑える
-      doorSys.mesh.material.size = 0.10 + accel * 0.15 + noise.sizeScale * 0.10;
+      pos[ix] = ACCUM_POINT.x + Math.cos(angle) * r;
+      pos[iy] = ACCUM_POINT.y + Math.sin(angle) * r;
+      pos[iz] = ACCUM_POINT.z + (Math.random() - 0.5) * 2.0;
     }
 
     if (doorTime > SPIRAL_DUR) {
@@ -1156,16 +1127,16 @@ function updateDoor() {
       doorTime  = 0;
     }
   }
+
   // ────────────────────────────────────────
   // Phase 2: 渦が緩みながら裂け目（星雲）の形に収束
   // ────────────────────────────────────────
   if (doorPhase === 'forming') {
-    const FORM_DUR      = 0.8; // ★高速化(1.2->0.8): 形状形成時間を短縮
+    const FORM_DUR      = 0.8;
     const fp            = Math.min(1.0, doorTime / FORM_DUR);
     const swirlStrength = 1.0 - fp;
     const B = 1.6;
 
-    // ★白飛び抑制: 不透明度を維持しつつ少し下げる(0.25)
     doorSys.mesh.material.opacity = 0.25;
 
     if (uni) {
@@ -1201,7 +1172,6 @@ function updateDoor() {
       pos[iy] += (ty - pos[iy]) * 0.06;
       pos[iz] += (target.z - pos[iz]) * 0.05;
 
-      // ★粒子を小さく: 収束時のサイズを小さく
       doorSys.mesh.material.size = 0.20 - fp * 0.12 + noise.sizeScale * 0.06;
     }
 
@@ -1209,20 +1179,14 @@ function updateDoor() {
       doorPhase = 'complete';
     }
   }
+
   // ────────────────────────────────────────
-  // Phase 3: 星雲が脈動 → カメラが吸い込まれる → ポータル拡大開始
+  // Phase 3: 星雲が脈動 → カメラが吸い込まれる
   // ────────────────────────────────────────
   if (doorPhase === 'complete') {
     const t = doorTime;
-    // ★高速化(2.2->3.0): 脈動のリズムを速く
-      if (!doorSys._sakemePlayed) {
-    doorSys._sakemePlayed = true;
-    playSFX(sakemeSFX);
-  }
     const pulse = 0.85 + Math.sin(t * 3.0) * 0.15;
 
-    // ★白飛び抑制・中心可視化: 脈動時の透明度を大幅に下げる(0.16->0.10)
-    // 加算合成による中心の白潰れを防ぎ、次空間が見えるようにする
     doorSys.mesh.material.opacity = 0.10 * pulse;
 
     if (uni) {
@@ -1237,17 +1201,15 @@ function updateDoor() {
       pos[iy] += (target.y - pos[iy]) * 0.08;
     }
 
-    // カメラを裂け目へ吸い込む
     const distToDoor = ACCUM_POINT.z - camera.position.z;
     if (distToDoor < -1.5) {
-      // ★高速化(0.15->0.20, 0.03->0.05): 基本速度と加速度を上げる
-      const pull = Math.min(0.40, 0.2 + t * 0.2); 
+      const pull = Math.min(0.40, 0.2 + t * 0.2);
       camera.position.z -= pull * Math.abs(distToDoor) * 0.3;
       
-      // ★高速化(+0.4->+0.5): FOVの変化量を増やし、スピード感を強調
-      camera.fov = Math.min(110, camera.fov + 3.0); 
+      camera.fov = Math.min(110, camera.fov + 3.0);
       camera.updateProjectionMatrix();
     }
+
     if (uni) {
       const distAbs = Math.abs(distToDoor);
       const t2 = THREE.MathUtils.clamp(
@@ -1257,7 +1219,6 @@ function updateDoor() {
       uni.uPortalReveal.value = t2;
     }
 
-    // ★高速化(6.0->8.0): 次空間への切り替え判定距離を少し手前に
     if (Math.abs(distToDoor) < 8.0) {
       doorPhase = 'portal-open';
     }
@@ -1266,7 +1227,7 @@ function updateDoor() {
   // ────────────────────────────────────────
   // Phase 4: ポータルが画面いっぱいに拡大していく
   // ────────────────────────────────────────
-if (doorPhase === 'portal-open') {
+  if (doorPhase === 'portal-open') {
     const distToDoor = Math.abs(ACCUM_POINT.z - camera.position.z);
     const pull = 0.02;
     camera.position.z -= pull * distToDoor * 0.3;
@@ -1279,6 +1240,17 @@ if (doorPhase === 'portal-open') {
         0, 1
       );
       uni.uPortalReveal.value = t2;
+    }
+
+    // ★改善版：BGM切り替え（完全停止＆完全開始を同時）
+    if (distToDoor < 0.5 && !doorSys._switchedToSpace2) {
+      doorSys._switchedToSpace2 = true;
+      
+      // star 効果音をフェードアウト
+      fadeVolume(starSFX, 0, 800);
+      
+      // space2BGM を新規に再生（mainBGM は既に停止）
+      playBGM(space2BGM, 0.4, 1500);
     }
 
     if (distToDoor < 0.5) {
@@ -1311,7 +1283,7 @@ function checkTriggers() {
       if (byDistance || byClick || byTime) {
         item.triggered = true;
         item.attract   = true;
-        item._attractStart = Date.now(); // 【追加】時間経過で加速させるためのタイマー
+        item._attractStart = Date.now();
       }
 
       if (i >= 1) {
@@ -1319,7 +1291,7 @@ function checkTriggers() {
         if (prevItem && prevItem.dissolving) {
           item.triggered = true;
           item.attract   = true;
-          item._attractStart = Date.now(); // 【追加】
+          item._attractStart = Date.now();
         }
       }
     }
@@ -1328,7 +1300,7 @@ function checkTriggers() {
       const oldestItem = photoItems[i - 1];
       if (oldestItem && !oldestItem.dissolving && !oldestItem.dissolved) {
         oldestItem.dissolving = true;
-        oldestItem._dissolveStart = Date.now(); // 【追加】消滅開始時刻を記録
+        oldestItem._dissolveStart = Date.now();
         oldestItem.viewing = false;
       }
     }
@@ -1336,13 +1308,7 @@ function checkTriggers() {
 }
 
 // ======================================================
-// 【修正】写真形成中の粒子収束と白飛び抑制
-// ------------------------------------------------------
-// 元の実装は粒子が写真の形に収束していく最終局面で密集しすぎ、
-// 加算合成(Additive Blending)の重なりにより白飛びしていた。
-// ここでは収束度(_formProgress)を計算するだけに留め、
-// 実際の見た目（不透明度・サイズ・色）の抑制は
-// updateParticleEffects 側に一本化する（責務を分けて事故を防ぐ）。
+// 写真形成中の粒子収束と白飛び抑制
 // ======================================================
 function attractParticles(item) {
   if (!item.attract || !item.particles || item.formed) return;
@@ -1376,7 +1342,6 @@ function attractParticles(item) {
   }
   item.particleGeo.attributes.position.needsUpdate = true;
 
-  // 収束度(0=散らばっている, 1=ほぼ写真の形)を保存しておく
   const avgDist = item.particleCount > 0 ? totalDist / item.particleCount : 0;
   const CONVERGE_REF_DIST = 6.0;
   item._formProgress = Math.min(1, Math.max(0, 1 - avgDist / CONVERGE_REF_DIST));
@@ -1389,12 +1354,6 @@ function fadeInPhoto(item) {
   if (!item.mesh) return;
   if (item.material.opacity < 1) item.material.opacity += 0.01;
 
-  // 【修正】これまでは item.particles.material.opacity を直接減算していたが、
-  // 同じフレーム内で後から呼ばれる updateParticleEffects() がその値を
-  // 毎回まるごと上書きしてしまい、実質フェードアウトが機能していなかった。
-  // → 減衰は独立した係数 item._particleFadeMult (0〜1) として持たせ、
-  //   updateParticleEffects 側でこれを最終的な不透明度に掛け合わせることで
-  //   両者が衝突しないようにする。
   if (item._particleFadeMult === undefined) item._particleFadeMult = 1;
   const particleFadeBefore = item._particleFadeMult;
 
@@ -1404,10 +1363,6 @@ function fadeInPhoto(item) {
   }
 
   if (item.aura) {
-    // 【修正】粒子(加算合成)がまだ明るく残っている間にオーラ(加算合成+Bloom)を
-    // 同時に立ち上げると、重なった瞬間だけBloomが強く反応して白飛びする。
-    // オーラの最終的な明るさ・色は一切変えず、粒子が十分減光してから
-    // 立ち上がり始めるようタイミングだけをずらして重なりのピークを避ける。
     if (!item.aura.visible) item.aura.visible = true;
     const AURA_TARGET = 1.8;
     const gate = 1.0 - Math.min(1, particleFadeBefore);
@@ -1440,7 +1395,6 @@ function updateParticleEffects() {
   const now = Date.now();
   const t = now * 0.0035;
 
-  // 【修正】周りの雲が外に伸びすぎないよう、不規則なランダムパターンにして広がりを抑える
   const noise = Math.sin(t * 0.5) * Math.cos(t * 0.7) * 0.03;
   const sparkle = Math.pow(Math.random(), 15) * 0.4;
   backgroundParticles.material.opacity = 0.22 + noise + sparkle;
@@ -1455,50 +1409,32 @@ function updateParticleEffects() {
     const mat = item.particles.material;
     if (!mat._phase) mat._phase = Math.random() * 10;
 
-    // 【修正】グルグル渦巻くスピード：消滅開始からの時間経過で、最初は遅く、段々早くする
-    let timeScale = 0.0035; 
+    let timeScale = 0.0035;
     let dissolveFactor = 1.0;
 
     if (item.dissolving && item._dissolveStart) {
-      const dElapsed = (now - item._dissolveStart) * 0.001; // 消滅してからの秒数
-      
-      // 最初は遅く(0.001)、段々早く(最高0.012以上)
-      timeScale = 0.001 + dElapsed * 0.004; 
-      
-      // 【修正】中心の白飛びをさらにガッツリ低減（不透明度を大幅にカット）
-      dissolveFactor = Math.max(0.0, 1.0 - dElapsed * 0.7); 
+      const dElapsed = (now - item._dissolveStart) * 0.001;
+      timeScale = 0.001 + dElapsed * 0.004;
+      dissolveFactor = Math.max(0.0, 1.0 - dElapsed * 0.7);
     }
 
-    // 【修正】写真"形成中〜まだ固定されていない間"の白飛び抑制係数。
-    // ★重要な修正: 以前は「!item.formed」（収束しきる前まで）でしか効いておらず、
-    //   一番粒子が密集する「収束し終わった直後(formed=trueになった瞬間)」に
-    //   ダンピングが切れてフル輝度に戻ってしまい、そこが実際のフラッシュの原因だった。
-    //   → 「item.fixed になるまで」(=写真として完全固定されるまで)ずっと
-    //     効かせ続けるようにし、最も密集するピークの瞬間もカバーする。
-    //   item.fixed後は particles は非表示(checkFixedで visible=false)になるため、
-    //   写真そのものや枠の光(aura)には一切影響しない。
     let convergeDamp = 1.0;
     if (item.attract && !item.fixed) {
       const fp = item.formed ? 1 : (item._formProgress || 0);
       const ramp = Math.min(1, Math.max(0, (fp - 0.35) / 0.65));
-      convergeDamp = 1.0 - ramp * 0.7; // 最大70%まで抑制（0にはしない＝真っ黒防止）
+      convergeDamp = 1.0 - ramp * 0.7;
     }
 
     const customT = now * timeScale;
 
-    // 基本の不透明度とサイズ（完全維持ベース）
-    const smooth       = 0.72  + Math.sin(customT * 0.15 + mat._phase) * 0.06;
+    const smooth       = 0.72 + Math.sin(customT * 0.15 + mat._phase) * 0.06;
     const photoSparkle = Math.pow(Math.random(), 100) * 0.12;
-    
-    // 消滅時は dissolveFactor、形成中は convergeDamp を掛けて白飛びを抑える
+
     let opacity = Math.min(1.0, smooth + photoSparkle);
     if (item.dissolving) {
       opacity *= dissolveFactor * 0.1;
     } else {
       opacity *= convergeDamp;
-      // 【追加】fadeInPhoto が進めているフェードアウト係数を反映する。
-      // formed後（写真に収束し終えた後）は必ずこれが1から徐々に0へ減るため、
-      // 密集ピーク後にきちんと暗くなりながら消えていく。
       if (item.formed && !item.fixed && item._particleFadeMult !== undefined) {
         opacity *= item._particleFadeMult;
       }
@@ -1509,26 +1445,24 @@ function updateParticleEffects() {
     if (item.dissolving) {
       size *= dissolveFactor;
     } else if (item.attract && !item.fixed) {
-      size *= (0.6 + convergeDamp * 0.4); // 密集時はサイズも少し絞って重なりを軽減
+      size *= (0.6 + convergeDamp * 0.4);
       if (item.formed && item._particleFadeMult !== undefined) {
         size *= (0.5 + item._particleFadeMult * 0.5);
       }
     }
     mat.size = size;
 
-    // 元の色味の計算（完全維持：色相・彩度・明度は一切変更しない）
-    // ★白飛び対策はopacity/sizeの抑制のみで行い、色味には触れない
-    //   （色を暗くすると黄色っぽく見えてしまうため）
     const hueShift = (Math.sin(customT * 0.5 + mat._phase) + 1) / 2;
     const color = new THREE.Color();
     color.setHSL(
-      0.08 + hueShift * 0.08, 
-      0.55 + hueShift * 0.25, 
+      0.08 + hueShift * 0.08,
+      0.55 + hueShift * 0.25,
       0.60 + hueShift * 0.30 + photoSparkle * 0.4
     );
     mat.color = color;
   });
 }
+
 // ======================================================
 // 入力管理（PC・スマホ）
 // ======================================================
@@ -1686,6 +1620,7 @@ window.addEventListener("touchmove", (e) => {
   }
 
 }, { passive: false });
+
 // ======================================================
 // 事前確保ベクトル（フレームごとの new/clone を排除）
 // ======================================================
@@ -1712,21 +1647,17 @@ function disposeMainScene() {
     mat.dispose();
   }
 
-  // シーン内の全メッシュ・ポイントを走査してGeometry/Material/Textureを破棄
   scene.traverse((obj) => {
     if (obj.geometry) obj.geometry.dispose();
     if (obj.material) disposeMaterial(obj.material);
   });
 
-  // シーンからすべてのオブジェクトを除去
   while (scene.children.length > 0) {
     scene.remove(scene.children[0]);
   }
 
-  // 個別に保持しているテクスチャ類
   if (particleTexture) particleTexture.dispose();
 
-  // 写真アイテムの参照を解放
   photoItems.forEach((item) => {
     item.mesh = null;
     item.material = null;
@@ -1736,12 +1667,10 @@ function disposeMainScene() {
     item._img = null;
   });
 
-  // ドアパーティクル・ポータル面の参照解放
   doorSys = null;
   portalPlane = null;
   accumulationGlow = null;
 
-  // composer（EffectComposer）が内部に保持しているRenderTargetを解放
   composer.passes.forEach((pass) => {
     if (pass.renderTarget) pass.renderTarget.dispose?.();
     if (pass.renderTargetsHorizontal) {
@@ -1767,8 +1696,6 @@ const mainClock = new THREE.Clock();
 function animate() {
   requestAnimationFrame(animate);
 
-  // ★完全遷移後は、mainScene関連の処理を一切行わず
-  //   exhibitionspace.js の描画だけを行う軽量ループに切り替える
   if (getPortalState() === 'switched') {
     const { scene: exScene, camera: exCamera, update: exUpdate } = getExhibition();
     const delta = mainClock.getDelta();
@@ -1779,18 +1706,17 @@ function animate() {
 
   const now = performance.now();
 
-if (!cameraLocked && !cameraAligning) {
-  camera.position.z -= 0.006; //ドリフト速度
-}
-
-// 自動演出（裂け目へ向かう移動・吸い込み）はロック中でも動かす
-if (moveForward) {
-  camera.position.z += (moveTargetZ - camera.position.z) * 0.15;
-  if (Math.abs(moveTargetZ - camera.position.z) < 0.03) {
-    camera.position.z = moveTargetZ;
-    moveForward = false;
+  if (!cameraLocked && !cameraAligning) {
+    camera.position.z -= 0.006;
   }
-}
+
+  if (moveForward) {
+    camera.position.z += (moveTargetZ - camera.position.z) * 0.15;
+    if (Math.abs(moveTargetZ - camera.position.z) < 0.03) {
+      camera.position.z = moveTargetZ;
+      moveForward = false;
+    }
+  }
 
   if (!cameraLocked && !cameraAligning) {
     camera.rotation.y += (targetRotY - camera.rotation.y) * 0.08;
@@ -1802,7 +1728,6 @@ if (moveForward) {
   accentParticles.rotation.y     += 0.0002;
   accentParticles.rotation.x     += 0.00005;
 
-  // 背景パーティクル個別移動
   const positions = backgroundParticles.geometry.attributes.position.array;
   const speeds = backgroundParticles.userData.speeds;
   for (let i = 0; i < speeds.length; i++) {
@@ -1822,7 +1747,6 @@ if (moveForward) {
   backgroundParticles.position.copy(camera.position);
   accentParticles.position.copy(camera.position);
 
-  // ★テレポートループ
   if (!loopDisabled && camera.position.z < -LOOP_LENGTH) {
     camera.position.z += LOOP_LENGTH;
     photoItems.forEach(item => {
@@ -1836,7 +1760,7 @@ if (moveForward) {
       item._dissolvePhase  = null;
       item._auraActivated  = false;
       item._clickTriggered = false;
-      item._particleFadeMult = 1; // 【追加】粒子フェード係数もリセット
+      item._particleFadeMult = 1;
       if (item.material) item.material.opacity = 0;
       if (item.aura) {
         item.aura.material.opacity = 0;
@@ -1860,6 +1784,7 @@ if (moveForward) {
       }
     });
   }
+
   checkTriggers();
 
   if (!cameraLocked && !cameraAligning) {
@@ -1895,55 +1820,56 @@ if (moveForward) {
       _basePos.copy(item.position);
       _basePos.z += 3;
 
-  const pdx = item.mesh.position.x - camera.position.x;
-  const pdz = item.mesh.position.z - camera.position.z;
-  const distXZ = Math.sqrt(pdx * pdx + pdz * pdz);
-  
-  const hitDist = 10.0;
-  const pushPower = 0.10;
+      const pdx = item.mesh.position.x - camera.position.x;
+      const pdz = item.mesh.position.z - camera.position.z;
+      const distXZ = Math.sqrt(pdx * pdx + pdz * pdz);
+      
+      const hitDist = 10.0;
+      const pushPower = 0.10;
 
-  if (item._vx === undefined) { item._vx = 0; item._vz = 0; }
+      if (item._vx === undefined) { item._vx = 0; item._vz = 0; }
 
-  if (distXZ < hitDist && distXZ > 0.01) {
-    const dirX = pdx / distXZ;
-    const dirZ = pdz / distXZ;
+      if (distXZ < hitDist && distXZ > 0.01) {
+        const dirX = pdx / distXZ;
+        const dirZ = pdz / distXZ;
 
-    const pushDirX = dirX >= 0 ? 1 : -1;
-    item._vx += pushDirX * pushPower * 0.5; 
-    item._vz += (dirZ >= 0 ? 1 : -1) * pushPower; 
+        const pushDirX = dirX >= 0 ? 1 : -1;
+        item._vx += pushDirX * pushPower * 0.5;
+        item._vz += (dirZ >= 0 ? 1 : -1) * pushPower;
+      }
+
+      item._vx *= 0.98;
+      item._vz *= 0.98;
+
+      if (item._repelX === undefined) { item._repelX = 0; item._repelZ = 0; }
+      item._repelX += item._vx;
+      item._repelZ += item._vz;
+
+      item._repelX *= 0.995;
+      item._repelZ *= 0.995;
+
+      const mx = _basePos.x + floatX + item._repelX;
+      const my = _basePos.y + floatY;
+      const mz = _basePos.z + item._repelZ;
+      item.mesh.position.set(mx, my, mz);
+
+      _basePos.copy(camera.position);
+      _basePos.y = item.mesh.position.y;
+      
+      const currentRotation = item.mesh.quaternion.clone();
+      item.mesh.lookAt(_basePos);
+      const targetRotation = item.mesh.quaternion.clone();
+      
+      item.mesh.quaternion.copy(currentRotation);
+      item.mesh.quaternion.slerp(targetRotation, 0.005);
+
+      if (item.aura) {
+        item.aura.position.copy(item.mesh.position);
+        item.aura.quaternion.copy(item.mesh.quaternion);
+      }
+    }
   }
 
-  item._vx *= 0.98;
-  item._vz *= 0.98;
-
-  if (item._repelX === undefined) { item._repelX = 0; item._repelZ = 0; }
-  item._repelX += item._vx;
-  item._repelZ += item._vz;
-
-  item._repelX *= 0.995;
-  item._repelZ *= 0.995;
-
-  const mx = _basePos.x + floatX + item._repelX;
-  const my = _basePos.y + floatY;
-  const mz = _basePos.z + item._repelZ;
-  item.mesh.position.set(mx, my, mz);
-
-  _basePos.copy(camera.position);
-  _basePos.y = item.mesh.position.y;
-  
-  const currentRotation = item.mesh.quaternion.clone();
-  item.mesh.lookAt(_basePos);
-  const targetRotation = item.mesh.quaternion.clone();
-  
-  item.mesh.quaternion.copy(currentRotation);
-  item.mesh.quaternion.slerp(targetRotation, 0.005);
-
-  if (item.aura) {
-    item.aura.position.copy(item.mesh.position);
-    item.aura.quaternion.copy(item.mesh.quaternion);
-  }
-  }
-}
   backgroundParticles.material.uniforms.uTime.value = now * 0.001;
   updateParticleEffects();
 
@@ -1951,21 +1877,18 @@ if (moveForward) {
   bgMat.opacity = 0.38 + Math.sin(now * 0.0006) * 0.015;
   bgMat.size    = 0.20 + Math.sin(now * 0.00012) * 0.035;
 
-    checkDissolvedAndAccumulate();
-  updateAccumulationGlow(); 
+  checkDissolvedAndAccumulate();
+  updateAccumulationGlow();
   updateDoor();
   updatePortal();
 
-if (doorPhase === 'switched') {
-  completePortalSwitch();
-  disposeMainScene();
-  getExhibition().activateIntro?.();
-  
-  // ★star フェードアウト、space2 フェードイン
-  fadeVolume(starBGM, 0, 3000);
-  fadeVolume(space2BGM, 0.4, 4000);
-  return;
-}
+  if (doorPhase === 'switched') {
+    completePortalSwitch();
+    disposeMainScene();
+    getExhibition().activateIntro?.();
+    return;
+  }
+
   composer.render();
 }
 
@@ -2069,7 +1992,9 @@ function dissolvePhoto(item) {
     if (item.particles) { scene.remove(item.particles); item.particles = null; }
   }
 }
+
 animate();
+
 // ======================================================
 // フルスクリーン（スマホ）
 // ======================================================
@@ -2082,6 +2007,7 @@ window.addEventListener('touchstart', () => {
   }
 
 }, { once: true });
+
 // ======================================================
 // リサイズ
 // ======================================================
