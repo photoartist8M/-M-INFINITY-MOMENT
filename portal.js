@@ -5,7 +5,7 @@
 // ======================================================
 import * as THREE from 'three';
 import { fadeVolume, openingBGM, mainBGM, starBGM, space2BGM, playSFX, sakemeSFX } from './spaces/audio.js';
-import { startExhibitionSpace } from './spaces/exhibitionspace.js';
+import { startExhibitionSpace } from './spaces/exhibitionSpace.js';
 let renderTarget = null;
 let exhibitionCamera = null;
 let exhibitionScene = null;
