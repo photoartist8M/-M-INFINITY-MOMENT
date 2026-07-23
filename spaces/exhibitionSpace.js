@@ -2623,9 +2623,9 @@ function closeConceptOverlay() {
     <div style="opacity:0.85; margin-bottom:8px; letter-spacing:0.15em; font-size:11px;">展示の楽しみ方</div>
     <div style="opacity:0.7;">
       ・スワイプで視点移動<br>
-      ・写真をタップして拡大<br>
-      ・空の紙飛行機と<br>
-      　シャボン玉にも触れます
+      ・Viweで写真拡大(PCクリック)<br>
+      ・空の紙飛行機とシャボン玉、<br>
+       フィルムオブジェにも触れます
     </div>
   `;
   document.body.appendChild(guideCardEl);

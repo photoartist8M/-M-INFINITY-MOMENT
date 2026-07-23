@@ -53,18 +53,17 @@ export function fadeVolume(audio, targetVolume, duration = 3000) {
 }
 
 // ★全BGM再生開始（修正版）
-export async function startAllBGMs() {
-  for (const audio of ALL_BGMS) {
+export function startAllBGMs() {
+  ALL_BGMS.forEach(audio => {
     audio.currentTime = 0;
     audio.loop = true;
-    try {
-      await audio.play();
-      // play() 完了後に、確実に volume を 0 にセット
+    audio.volume = 0;
+    audio.play().catch(() => {});
+    // play() 直後に再度設定（二重保険）
+    setTimeout(() => {
       audio.volume = 0;
-    } catch (err) {
-      console.warn("BGM再生失敗:", err);
-    }
-  }
+    }, 1);  // ← 10ms後に確実にセット
+  });
 }
 
 // ON/OFF切り替え
