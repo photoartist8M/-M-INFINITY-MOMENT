@@ -2578,15 +2578,28 @@ function handlePhotoSelect(item) {
     conceptOverlayEl.style.display = 'flex';
     playConceptReveal();
   }
-
 function closeConceptOverlay() {
+
+    // スマホ対策：
+    // ユーザーのタップ中に一度だけspace2BGMを有効化しておく
+    space2BGM.volume = 0;
+
+    space2BGM.play()
+      .then(() => {
+        space2BGM.pause();
+        space2BGM.currentTime = 0;
+      })
+      .catch(() => {});
+
     clearConceptRevealTimers();
+
     conceptOverlayEl.style.display = 'none';
+
     if (introPhase !== 'done') {
-      introPhase = 'done';
-      introCinematicActive = false;
+        introPhase = 'done';
+        introCinematicActive = false;
     }
-    // space2はここで音量が既に設定されているので、特に追加不要
+
     showGuideCard();
 }
 

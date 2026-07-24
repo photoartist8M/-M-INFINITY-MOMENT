@@ -3,7 +3,7 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import {initPortal,updatePortal,getPortalState,completePortalSwitch,getExhibition,resizePortal,} from './portal.js';
-import { fadeVolume, openingBGM, mainBGM, space2BGM, playBGM, playSFX, playSFXRobust, stopSFX, sakemeSFX, starSFX } from "./spaces/audio.js";
+import { fadeVolume, openingBGM, mainBGM, space2BGM, playBGM, playSFX, playSFXRobust, stopSFX, sakemeSFX, starSFX,stopCurrentBGM, } from "./spaces/audio.js";
 // ======================================================
 // 基本セットアップ
 // ======================================================
@@ -935,16 +935,12 @@ function alignCameraToRiftAndLock() {
       doorPhase = 'spiraling';
       doorTime = 0;
       createDoorParticles();
-      
-      // ★修正：mainBGM を確実に停止
-      mainBGM.pause();
-      mainBGM.currentTime = 0;
-      mainBGM.volume = 0;
-      
-      // star 効果音を再生（安定版・遅延付き）
-      setTimeout(() => {
-        playSFXRobust(starSFX, 0.45);
-      }, 100);
+
+      // ① mainBGMを一発消去せず、1秒かけてフェードアウト
+      stopCurrentBGM(3000);
+
+      // ② setTimeoutを排除して即時実行（スマホの自動再生ブロック回避）
+      playSFXRobust(starSFX, 0.45);
     }
   }
   
@@ -1092,12 +1088,10 @@ function updateDoor() {
     const sp    = Math.min(1.0, doorTime / SPIRAL_DUR);
     const accel = Math.pow(sp, 2.2);
 
-    // ★sakeme 効果音を一度だけ再生（遅延付き）
+    // ★sakemeSFX は spiraling フェーズの最初だけ
     if (!doorSys._sakemePlayed) {
       doorSys._sakemePlayed = true;
-      setTimeout(() => {
-        playSFXRobust(sakemeSFX, 0.85);
-      }, 300);
+      playSFXRobust(sakemeSFX, 0.85);
     }
 
     doorSys.mesh.material.opacity = Math.min(0.25, doorTime * 0.4);
