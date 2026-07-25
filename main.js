@@ -5,6 +5,23 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import {initPortal,updatePortal,getPortalState,completePortalSwitch,getExhibition,resizePortal,} from './portal.js';
 import { fadeVolume, openingBGM, mainBGM, space2BGM, playBGM, playSFX, playSFXRobust, stopSFX,stopSFXAsync, sakemeSFX, starSFX,stopCurrentBGM,delay } from "./spaces/audio.js";
 
+// ★修正：starSFX, sakemeSFX は除外（自分自身のplay()でアンロックされるため）
+function unlockAudioForPortal() {
+  const allAudio = [openingBGM, mainBGM, space2BGM]; // ← BGMのみ
+
+  allAudio.forEach(audio => {
+    audio.volume = 0;
+    audio.play()
+      .then(() => {
+        audio.pause();
+        audio.currentTime = 0;
+        audio.volume = 1;
+      })
+      .catch(() => {
+        console.warn('Audio unlock failed');
+      });
+  });
+}
 // ======================================================
 // 基本セットアップ
 // ======================================================
@@ -930,19 +947,23 @@ function alignCameraToRiftAndLock() {
 
     if (t < 1) {
       requestAnimationFrame(animateAlign);
-    } else {
-      cameraAligning = false;
-      cameraLocked = true;
-      doorPhase = 'spiraling';
-      doorTime = 0;
-      createDoorParticles();
+} else {
+  cameraAligning = false;
+  cameraLocked = true;
+  
+  //unlockAudioForPortal(); // BGMのみアンロック（非同期・待たなくてOK）
+  
+  doorPhase = 'spiraling';
+  doorTime = 0;
+  createDoorParticles();
 
-      // ① mainBGMを一発消去せず、1秒かけてフェードアウト
-      stopCurrentBGM(3000);
-
-      // ② setTimeoutを排除して即時実行（スマホの自動再生ブロック回避）
-      playSFXRobust(starSFX, 0.45);
-    }
+  stopCurrentBGM(3000);
+  
+  // ★少し遅延させて確実にstarSFXを再生
+  setTimeout(() => {
+    playSFXRobust(starSFX, 0.45);
+  }, 100);
+}
   }
   
   requestAnimationFrame(animateAlign);
@@ -1092,7 +1113,7 @@ function updateDoor() {
     // ★sakemeSFX は spiraling フェーズの最初だけ
     if (!doorSys._sakemePlayed) {
       doorSys._sakemePlayed = true;
-      playSFXRobust(sakemeSFX, 0.85);
+     // playSFXRobust(sakemeSFX, 0.85);
     }
 
     doorSys.mesh.material.opacity = Math.min(0.25, doorTime * 0.4);

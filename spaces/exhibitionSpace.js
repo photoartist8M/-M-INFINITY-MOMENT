@@ -2587,10 +2587,6 @@ function closeConceptOverlay() {
         introPhase = 'done';
         introCinematicActive = false;
     }
-
-    // コンセプト画面を閉じたらBGM開始
-    playBGM(space2BGM, 0.4, 2000);
-
     showGuideCard();
 }
 
