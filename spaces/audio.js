@@ -72,6 +72,20 @@ export function stopSFX(audio) {
 }
 
 // ======================================================
+// ユーティリティ
+// ======================================================
+
+export function delay(ms) {
+  return new Promise(r => setTimeout(r, ms));
+}
+
+export async function stopSFXAsync(audio) {
+  audio.pause();
+  audio.currentTime = 0;
+  audio.volume = 0;
+  return delay(50);
+}
+// ======================================================
 // フェード
 // ======================================================
 
@@ -91,9 +105,9 @@ export function fadeVolume(audio, targetVolume, duration = 3000) {
     const elapsed = now - start;
     const progress = Math.min(elapsed / duration, 1);
 
-    audio.volume =
-      startVolume +
-      (targetVolume - startVolume) * progress;
+  audio.volume = Math.max(0, Math.min(1, 
+      startVolume + (targetVolume - startVolume) * progress
+    ));
 
     audio.volume = Math.max(0, Math.min(1, audio.volume));
 

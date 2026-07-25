@@ -3,7 +3,8 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import {initPortal,updatePortal,getPortalState,completePortalSwitch,getExhibition,resizePortal,} from './portal.js';
-import { fadeVolume, openingBGM, mainBGM, space2BGM, playBGM, playSFX, playSFXRobust, stopSFX, sakemeSFX, starSFX,stopCurrentBGM, } from "./spaces/audio.js";
+import { fadeVolume, openingBGM, mainBGM, space2BGM, playBGM, playSFX, playSFXRobust, stopSFX,stopSFXAsync, sakemeSFX, starSFX,stopCurrentBGM,delay } from "./spaces/audio.js";
+
 // ======================================================
 // 基本セットアップ
 // ======================================================
@@ -1235,15 +1236,16 @@ function updateDoor() {
     }
 
     // ★修正：効果音を完全停止 + space2BGM 開始
-    if (distToDoor < 0.5 && !doorSys._switchedToSpace2) {
+     if (distToDoor < 0.5 && !doorSys._switchedToSpace2) {
       doorSys._switchedToSpace2 = true;
       
-      // 効果音を完全停止（安定版）
-      stopSFX(starSFX);
-      stopSFX(sakemeSFX);
-      
-      // space2BGM を開始
-      playBGM(space2BGM, 0.4, 2000);
+      // ★修正：async で順次実行
+      (async () => {
+        await stopSFXAsync(starSFX);
+        await stopSFXAsync(sakemeSFX);
+        await delay(100);
+        playBGM(space2BGM, 0.4, 2000);
+      })();
     }
 
     if (distToDoor < 0.5) {

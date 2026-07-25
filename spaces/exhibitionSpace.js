@@ -5,7 +5,7 @@ import { extractPastelColors } from './utils/color.js';
 import { loadImageSafely, getTextureSource } from './utils/image.js';
 import { hasSubmitted, submitMessage, fetchLetterMessages, fetchBubbleMessages } from './core/messaging.js';
 import { BookReveal } from './effects/BookReveal.js';
-import { fadeVolume, space2BGM, playSFX, kirakiraSFX } from './audio.js';
+import { fadeVolume, space2BGM, playBGM, playSFX, kirakiraSFX } from './audio.js';
 
 // ======================================================================
 // exhibitionSpace.js
@@ -2580,19 +2580,7 @@ function handlePhotoSelect(item) {
   }
 function closeConceptOverlay() {
 
-    // スマホ対策：
-    // ユーザーのタップ中に一度だけspace2BGMを有効化しておく
-    space2BGM.volume = 0;
-
-    space2BGM.play()
-      .then(() => {
-        space2BGM.pause();
-        space2BGM.currentTime = 0;
-      })
-      .catch(() => {});
-
     clearConceptRevealTimers();
-
     conceptOverlayEl.style.display = 'none';
 
     if (introPhase !== 'done') {
@@ -2600,11 +2588,13 @@ function closeConceptOverlay() {
         introCinematicActive = false;
     }
 
+    // コンセプト画面を閉じたらBGM開始
+    playBGM(space2BGM, 0.4, 2000);
+
     showGuideCard();
 }
 
-  conceptCloseButtonEl.addEventListener('click', closeConceptOverlay);
-
+conceptCloseButtonEl.addEventListener('click', closeConceptOverlay);
   // ====================================================================
   // 閉じた後のガイドカード（操作説明）＋「？」再表示アイコン
   // ------------------------------------------------------
