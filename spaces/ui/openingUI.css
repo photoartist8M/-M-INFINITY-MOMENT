@@ -297,10 +297,10 @@ body.loaded .titleArea{
 .bottomBar{
     width:100%;
     display:flex;
-    justify-content:space-between;
+    justify-content:center;
     align-items:center;
-    gap:10px;
-    margin-top:22px;
+    gap:16px; 
+    margin-top:12px;
     opacity:0;
     transform:translateY(16px);
 }
@@ -310,13 +310,14 @@ body.loaded .titleArea{
 }
 
 .bottomBar button{
-    flex:1;
-    height:24px;
+    flex:0 1 auto; 
+    width:120px;
+    height:38px;
     border-radius:10px;
     border:1px solid rgba(255,215,145,.28);
     background:rgba(255,255,255,.015);
     color:rgba(255,255,255,.32);
-    font-size:.58rem;
+    font-size:.8rem;
     letter-spacing:.05em;
     cursor:pointer;
     transition:all var(--transition);

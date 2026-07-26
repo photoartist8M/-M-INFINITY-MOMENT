@@ -1909,25 +1909,25 @@ if (length <= 60) {
     animationStep();
   }
 
-  let ceilingBookSprite = null;
+  
+let ceilingBookSprite = null;
   function spawnBookFromStar(position) {
-    initBookReveal();
+    initBookReveal(); // まだなければここで試みる
     if (!bookReveal) {
+      // BookRevealが作れない場合は従来のオーバーレイを直接表示
       revealAlbumOverlayFromBook();
       return;
     }
-    const bookPos = camera.position.clone();
-    bookPos.add(
-      camera.getWorldDirection(new THREE.Vector3()).multiplyScalar(6)
-    );
-    bookPos.y += 0.25;
+const bookPos = camera.position.clone();
+bookPos.add(
+  camera.getWorldDirection(new THREE.Vector3()).multiplyScalar(6)
+);
+bookPos.y += 0.25;
+bookPos.y -= 0.5;
 
-    // ★追加：カメラをアニメーション（本が見える角度へ）
-    animateCameraToBook(bookPos, 0.6);
-
-    bookReveal.open(bookPos, () => {
-      revealAlbumOverlayFromBook();
-    });
+bookReveal.open(bookPos, () => {
+    revealAlbumOverlayFromBook();
+});
   }
 
   function revealAlbumOverlayFromBook() {
@@ -2208,7 +2208,7 @@ if (length <= 60) {
           const fitDistance = calcFitDistance(item);
 
           cameraApproachPos = item.position.clone().sub(posDir.multiplyScalar(fitDistance));
-          cameraApproachPos.y = item.position.y - 0.5;
+          //cameraApproachPos.y = item.position.y - 0.5;
 
           break;
         }
@@ -2692,6 +2692,7 @@ guideCardEl.innerHTML = `
     if (viewingItem && approachProgress > 0.01) {
       camera.position.lerpVectors(cameraHomePos, cameraApproachPos, approachProgress);
       camera.lookAt(viewingItem.position);
+    
     } else {
       camera.position.lerp(cameraHomePos, 0.1);
       camera.rotation.set(pitch, yaw, 0, 'YXZ');

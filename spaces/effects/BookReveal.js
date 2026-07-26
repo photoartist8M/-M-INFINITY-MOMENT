@@ -244,15 +244,14 @@ export class BookReveal {
 
     switch (this._phase) {
 
-      // ── 出現：スケールアップ（バネ感）───────────────────
-      case 'appearing': {
+// ── 出現：スケールアップ（バネ感）───────────────────
+case 'appearing': {
         const p = Math.min(1, this._phaseT / 1.2);
-        this.bookGroup.scale.setScalar(this._easeOutBack(p));
+        this.bookGroup.scale.setScalar(p);  // easeOutBack(p) → p に変更（バウンドなし）
         if (this._edgeMat) this._edgeMat.opacity = p * 0.10;
         if (p >= 1) { this._phase = 'hold'; this._phaseT = 0; }
         break;
       }
-
       // ── 静止：余韻 ──────────────────────────────────────
       case 'hold': {
         if (this._phaseT >= 0.7) { this._phase = 'opening'; this._phaseT = 0; }
