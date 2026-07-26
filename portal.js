@@ -4,7 +4,7 @@
 // exhibitionspace.js の空間を覗かせ、最終的に完全移行する
 // ======================================================
 import * as THREE from 'three';
-import { fadeVolume, openingBGM, mainBGM, space2BGM, playSFX, sakemeSFX, starSFX } from "./spaces/audio.js";
+import { fadeVolume, openingBGM, mainBGM, space2BGM, playSFX, sakemeSFX } from "./spaces/audio.js";
 import { startExhibitionSpace } from './spaces/exhibitionSpace.js';
 let renderTarget = null;
 let exhibitionCamera = null;

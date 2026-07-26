@@ -3,7 +3,23 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import {initPortal,updatePortal,getPortalState,completePortalSwitch,getExhibition,resizePortal,} from './portal.js';
-import { fadeVolume, openingBGM, mainBGM, space2BGM, playBGM, playSFX, playSFXRobust, stopSFX,stopSFXAsync, sakemeSFX, starSFX,stopCurrentBGM,delay } from "./spaces/audio.js";
+import { 
+  fadeVolume, 
+  openingBGM, 
+  mainBGM, 
+  space2BGM, 
+  playBGM, 
+  playSFX, 
+  playSFXRobust, 
+  stopSFX,
+  stopSFXAsync,
+  sakemeSFX,
+  stopCurrentBGM,
+  delay,
+  loadSFXBuffer,
+  playSFXBuffer,
+  unlockAudioContext,
+} from "./spaces/audio.js";
 
 // ★修正：starSFX, sakemeSFX は除外（自分自身のplay()でアンロックされるため）
 function unlockAudioForPortal() {
@@ -912,6 +928,25 @@ function easeInOutCubic(t) {
   return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 }
 
+// star.mp3 を Web Audio API 用バッファとして事前ロード
+let starSFXBuffer = null;
+let starSFXSource = null;
+let sakemeSFXBuffer = null;
+
+loadSFXBuffer('./assets/bgm/star.mp3')
+  .then(buffer => {
+    starSFXBuffer = buffer;
+    console.log('star.mp3 バッファロード完了');
+  })
+  .catch(err => console.warn('star.mp3 ロード失敗:', err));
+loadSFXBuffer('./assets/bgm/sakeme.mp3')
+  .then(buffer => { sakemeSFXBuffer = buffer; })
+  .catch(err => console.warn('sakeme.mp3 ロード失敗:', err));
+// 最初のタップで AudioContext をアンロック
+document.addEventListener('click', () => {
+  unlockAudioContext();
+}, { once: true });
+
 function alignCameraToRiftAndLock() {
   cameraAligning = true;
   camera.up.set(0, 1, 0);
@@ -947,25 +982,24 @@ function alignCameraToRiftAndLock() {
 
     if (t < 1) {
       requestAnimationFrame(animateAlign);
-} else {
-  cameraAligning = false;
-  cameraLocked = true;
-  
-  //unlockAudioForPortal(); // BGMのみアンロック（非同期・待たなくてOK）
-  
-  doorPhase = 'spiraling';
-  doorTime = 0;
-  createDoorParticles();
+    } else {
+      cameraAligning = false;
+      cameraLocked = true;
+      doorPhase = 'spiraling';
+      doorTime = 0;
+      createDoorParticles();
 
-  stopCurrentBGM(3000);
-  
-  // ★少し遅延させて確実にstarSFXを再生
-  setTimeout(() => {
-    playSFXRobust(starSFX, 0.45);
-  }, 100);
-}
+      stopCurrentBGM(3000);
+
+      // ★ Web Audio API で starSFX を再生（iOS Safari 対応）
+      if (starSFXBuffer) {
+        starSFXSource = playSFXBuffer(starSFXBuffer, 0.45);
+      } else {
+        console.warn('starSFXBuffer がまだロードされていません');
+      }
+    }
   }
-  
+
   requestAnimationFrame(animateAlign);
 }
 // ======================================================
@@ -1235,13 +1269,16 @@ function updateDoor() {
 
     if (Math.abs(distToDoor) < 8.0) {
       doorPhase = 'portal-open';
+            if (sakemeSFXBuffer) {
+        playSFXBuffer(sakemeSFXBuffer, 0.85);
+      }
     }
   }
 
   // ────────────────────────────────────────
   // Phase 4: ポータルが画面いっぱいに拡大していく
   // ────────────────────────────────────────
-  if (doorPhase === 'portal-open') {
+if (doorPhase === 'portal-open') {
     const distToDoor = Math.abs(ACCUM_POINT.z - camera.position.z);
     const pull = 0.02;
     camera.position.z -= pull * distToDoor * 0.3;
@@ -1256,24 +1293,21 @@ function updateDoor() {
       uni.uPortalReveal.value = t2;
     }
 
-    // ★修正：効果音を完全停止 + space2BGM 開始
-     if (distToDoor < 0.5 && !doorSys._switchedToSpace2) {
+    // ★修正：Web Audio API の source を停止 + space2BGM 開始
+    if (distToDoor < 0.5 && !doorSys._switchedToSpace2) {
       doorSys._switchedToSpace2 = true;
-      
-      // ★修正：async で順次実行
-      (async () => {
-        await stopSFXAsync(starSFX);
-        await stopSFXAsync(sakemeSFX);
-        await delay(100);
-        playBGM(space2BGM, 0.4, 2000);
-      })();
+
+      if (starSFXSource) {
+        try { starSFXSource.stop(); } catch(e) {}
+        starSFXSource = null;
+      }
+
     }
 
     if (distToDoor < 0.5) {
       doorPhase = 'switched';
     }
   }
-
   doorSys.geo.attributes.position.needsUpdate = true;
 }
 

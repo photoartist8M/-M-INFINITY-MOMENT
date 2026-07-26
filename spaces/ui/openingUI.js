@@ -1,7 +1,7 @@
 import { canvas, ctx, drawLogo, stopLogoAnimation } from "./logoCanvas.js";
 import { disposeFlareBackground } from "./flareBackground.js";
 import { disposeClockButton, triggerTouchAnimation } from "./clockButton.js";
-import { playBGM, fadeVolume, openingBGM, mainBGM, toggleBGM, playSFX, sakemeSFX, starSFX } from "../audio.js";
+import { playBGM, fadeVolume, openingBGM, mainBGM, toggleBGM, playSFX, sakemeSFX, } from "../audio.js";
 // ★追加：タッチボタンの効果音
 const touchSFX = new Audio("./assets/bgm/kirakira2.mp3");
 touchSFX.preload = "auto";

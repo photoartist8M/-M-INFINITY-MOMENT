@@ -2579,7 +2579,6 @@ function handlePhotoSelect(item) {
     playConceptReveal();
   }
 function closeConceptOverlay() {
-
     clearConceptRevealTimers();
     conceptOverlayEl.style.display = 'none';
 
@@ -2587,6 +2586,10 @@ function closeConceptOverlay() {
         introPhase = 'done';
         introCinematicActive = false;
     }
+
+    // ★ボタンタップ直後なのでiOS Safariでも確実に再生される
+    playBGM(space2BGM, 0.4, 2000);
+
     showGuideCard();
 }
 
