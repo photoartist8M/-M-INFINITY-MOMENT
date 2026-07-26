@@ -10,16 +10,11 @@ import { fadeVolume, space2BGM, playBGM, playSFX, kirakiraSFX } from './audio.js
 // ======================================================================
 // exhibitionSpace.js
 // 元ファイルの [SECTION: lights] 〜 [SECTION: update end] をそのまま移動
-// （このブロックは全部が同じ関数のローカル変数を共有しているため、
-//   これ以上ファイルを分けるには設計変更が必要）
 // ======================================================================
 
-// ======================================================================
-// エントリーポイント：外部(test.html)から呼び出される
-// ======================================================================
 export function startExhibitionSpace(renderer, camera) {
   const scene = new THREE.Scene();
-  const spaceStartTime = performance.now(); // ★追加：次空間の演出開始時刻（フェードインの基準）
+  const spaceStartTime = performance.now();
 
   camera.position.set(0, 0, 0);
 
@@ -306,7 +301,7 @@ export function startExhibitionSpace(renderer, camera) {
   }
 
   // ====================================================================
-  // [SECTION: mobileFocusButton] スマホ用：正面の写真に留まると出現する決定ボタン
+  // [SECTION: mobileFocusButton]
   // ====================================================================
   let focusButtonEl = null;
   if (IS_MOBILE) {
@@ -338,10 +333,10 @@ export function startExhibitionSpace(renderer, camera) {
     document.body.appendChild(focusButtonEl);
   }
 
-  let focusedItem = null;      // 現在正面に留まっている写真
-  let focusTimer = 0;          // 留まっている時間(秒)
+  let focusedItem = null;
+  let focusTimer = 0;
   let focusButtonVisible = false;
-  const FOCUS_DWELL_TIME = 1.0; // 何秒留まったらボタンを出すか
+  const FOCUS_DWELL_TIME = 1.0;
 
   function showFocusButton() {
     if (!focusButtonEl || focusButtonVisible) return;
@@ -370,17 +365,23 @@ export function startExhibitionSpace(renderer, camera) {
   }
 
   // ====================================================================
-  // [SECTION: messageUI] 飛行機・シャボン玉：記入ボタン＆入力フォーム
+  // [SECTION: messageUI]
   // ====================================================================
   const writeButtonEl = document.createElement('button');
   writeButtonEl.textContent = 'message';
   Object.assign(writeButtonEl.style, {
     position: 'fixed',
     left: '50%',
-    bottom: '9%',
+    bottom: window.innerWidth <= 768
+  ? 'calc(env(safe-area-inset-bottom) + 42px)'
+  : '9%',
     transform: 'translateX(-50%) translateY(20px)',
-    padding: '6px 20px',
-    fontSize: '10px',
+    padding: window.innerWidth <= 768
+  ? '12px 30px'
+  : '6px 20px',
+    fontSize: window.innerWidth <= 768
+  ? '15px'
+  : '10px',
     fontFamily: 'sans-serif',
     color: '#3a2c20',
     background: 'rgba(255, 240, 220, 0.3)',
@@ -536,7 +537,7 @@ export function startExhibitionSpace(renderer, camera) {
 
   function applyLetterStyle() {
     Object.assign(formPanelEl.style, {
-      background: 'repeating-linear-gradient(#ffffff 0px, #ffffff 27px, #ececec 28px)', // ★変更：黄色みのあるクリーム色→白に
+      background: 'repeating-linear-gradient(#ffffff 0px, #ffffff 27px, #ececec 28px)',
       border: '1px solid rgba(120,100,70,0.35)',
       borderRadius: '4px',
       boxShadow: '0 10px 40px rgba(0,0,0,0.5)',
@@ -646,9 +647,6 @@ export function startExhibitionSpace(renderer, camera) {
       }
 
       if (trackedPosition) {
-        // ★修正：写真のフレームサイズ(calcFitDistance)を基準にすると、
-        // 写真ごとの大きさに引きずられて距離が安定しなかった。
-        // 紙飛行機/シャボン玉自体のスケールを基準にした、程よく近い距離に変更する。
         const dir = submittedItem.position.clone();
         dir.y = 0;
         dir.normalize();
@@ -656,14 +654,14 @@ export function startExhibitionSpace(renderer, camera) {
         const spawnedScale = (submittedItem.type === 'letter')
           ? letterPlanes[letterPlanes.length - 1].sprite.scale.x
           : bubbles[bubbles.length - 1].sprite.scale.x || 2.0;
-        const seeOffDistance = Math.max(6, spawnedScale * 2.6); // ★変更：紙飛行機自体のサイズ基準の距離(写真に寄りすぎない下限も設定)
+        const seeOffDistance = Math.max(6, spawnedScale * 2.6);
 
         cameraApproachPos = submittedItem.position.clone().sub(dir.multiplyScalar(seeOffDistance));
-        cameraApproachPos.y = submittedItem.position.y - 1; // 少し低い位置から見上げる構図
+        cameraApproachPos.y = submittedItem.position.y - 1;
 
         viewingItem = { position: trackedPosition };
         approachProgress = Math.min(approachProgress, 0.6);
-        approachTarget = 0.55; // ★変更(0.35→0.55)：もう少し寄って紙飛行機をはっきり見せる
+        approachTarget = 0.55;
         setTimeout(() => {
           viewingItem = null;
           approachTarget = 0;
@@ -688,16 +686,14 @@ export function startExhibitionSpace(renderer, camera) {
     }
   });
 
-  // ★追加：紙飛行機・シャボン玉をタップした時に、そこに書かれたメッセージを
-  // 読める吹き出し（ツールチップ）。これが無いためタップしても無反応だった。
   const messageTooltipEl = document.createElement('div');
   Object.assign(messageTooltipEl.style, {
     position: 'fixed',
     left: '50%',
-    top: '20%', // ★変更(50%→20%)：表示位置を30%ほど上に
+    top: '20%',
     transform: 'translate(-50%, -50%) scale(0.96)',
-    maxWidth: 'min(86vw, 380px)',
-    padding: '22px 26px',
+    maxWidth: 'min(92vw, 600px)',
+    padding: '24px 34px',
     borderRadius: '14px',
     background: 'rgba(20, 16, 26, 0.35)',
     border: '1px solid rgba(255,255,255,0.12)',
@@ -724,6 +720,9 @@ export function startExhibitionSpace(renderer, camera) {
     lineHeight: '1.8',
     whiteSpace: 'pre-line',
     wordBreak: 'break-word',
+      maxHeight: '40vh',
+  overflowY: 'auto',
+  paddingRight: '6px',
   });
   messageTooltipEl.appendChild(messageTooltipNameEl);
   messageTooltipEl.appendChild(messageTooltipBodyEl);
@@ -733,12 +732,11 @@ export function startExhibitionSpace(renderer, camera) {
   function showMessageTooltip(data, planeColor) {
     if (!data) return;
     const message = (data.message || '').trim();
-    if (!message) return; // メッセージが無いものはタップしても何も出さない
+    if (!message) return;
 
     messageTooltipNameEl.textContent = data.name ? data.name : '匿名';
     messageTooltipBodyEl.textContent = message;
 
-    // ★追加：紙飛行機の色があれば、枠と淡い発光をその色に合わせる
     if (planeColor) {
       messageTooltipEl.style.border = `1px solid ${hexToRgba(planeColor, 0.5)}`;
       messageTooltipEl.style.boxShadow = `0 12px 40px rgba(0,0,0,0.3), 0 0 24px ${hexToRgba(planeColor, 0.25)}`;
@@ -751,9 +749,18 @@ export function startExhibitionSpace(renderer, camera) {
     messageTooltipEl.style.transform = 'translate(-50%, -50%) scale(1)';
     messageTooltipEl.style.pointerEvents = 'auto';
 
-    clearTimeout(messageTooltipTimer);
-    messageTooltipTimer = setTimeout(hideMessageTooltip, 4000);
-  }
+clearTimeout(messageTooltipTimer);
+
+const length = message.length;
+
+if (length <= 60) {
+  messageTooltipTimer = setTimeout(hideMessageTooltip, 4000);
+} else if (length <= 120) {
+  messageTooltipTimer = setTimeout(hideMessageTooltip, 7000);
+} else {
+  // 長文は自動では閉じない
+  messageTooltipTimer = null;
+}}
   function hideMessageTooltip() {
     clearTimeout(messageTooltipTimer);
     messageTooltipEl.style.opacity = '0';
@@ -762,7 +769,7 @@ export function startExhibitionSpace(renderer, camera) {
   }
   messageTooltipEl.addEventListener('click', hideMessageTooltip);
 
-function updateWriteButton() {
+  function updateWriteButton() {
     if (formOverlayEl.style.display === 'flex') return;
     if (introCinematicActive) { hideWriteButton(); return; }
 
@@ -770,7 +777,6 @@ function updateWriteButton() {
     const eligible =
       zoomedFully &&
       (viewingItem.type === 'letter' || viewingItem.type === 'bubble');
-      // ★変更：!hasSubmitted(viewingItem.type) の条件を削除。何度でも投稿できるようにする
 
     if (eligible) {
       showWriteButton();
@@ -780,10 +786,10 @@ function updateWriteButton() {
   }
 
   // ====================================================================
-  // [SECTION: flyingMessages] 紙飛行機・シャボン玉の生成と浮遊演出
+  // [SECTION: flyingMessages]
   // ====================================================================
   const PLANE_COLORS = ['#3d8fd6', '#4fa84f', '#e8822a', '#e8508f', '#8a4fd6', '#e8b800'];
-  const BUBBLE_GLOW_COLORS = ['#ffb4dc', '#b4d0ff', '#b4ffd8', '#fff0b0', '#d8b4ff', '#ffffff']; // ★追加：シャボン玉のハロー色バリエーション
+  const BUBBLE_GLOW_COLORS = ['#ffb4dc', '#b4d0ff', '#b4ffd8', '#fff0b0', '#d8b4ff', '#ffffff'];
 
   function createPaperPlaneTexture(baseColor) {
     const size = 180;
@@ -928,36 +934,34 @@ function updateWriteButton() {
       map: createPaperPlaneTexture(color),
       transparent: true,
       depthWrite: false,
-      depthTest: false, // ★追加：写真フレームの裏に隠れて見えなくなっていたため、常に手前に描画する
+      depthTest: false,
       opacity: 0.95,
-      fog: false, // ★追加：霧で色が白く薄まり見えなくなっていたため除外
+      fog: false,
     });
     const sprite = new THREE.Sprite(mat);
-    sprite.renderOrder = 10; // ★追加：確実に他オブジェクトより後(手前)に描画されるように
+    sprite.renderOrder = 10;
     const scaleV = 7 + Math.random() * 2;
     sprite.scale.set(scaleV, scaleV, 1);
 
-    // ★追加：機体色で光る加算合成のハロー。単体だと空に溶け込みがちなため、
-    // 背後にほのかな発光を添えて視認性を上げる。
     const glowMat = new THREE.SpriteMaterial({
       map: sparkleTexture,
       color: new THREE.Color(color),
       transparent: true,
-      opacity: 0.2, // ★変更(0.55→0.2)：強すぎたため弱める
+      opacity: 0.2,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
-      depthTest: false, // ★追加：同上
-      fog: false, // ★追加：霧の影響を除外
+      depthTest: false,
+      fog: false,
     });
     const glowSprite = new THREE.Sprite(glowMat);
-    glowSprite.renderOrder = 9; // ★追加：本体(10)より奥、他より手前
-    glowSprite.scale.set(scaleV * 1.05, scaleV * 1.05, 1); // ★変更(1.12→1.05)：さらに本体サイズに近づける
+    glowSprite.renderOrder = 9;
+    glowSprite.scale.set(scaleV * 1.05, scaleV * 1.05, 1);
 
-const startHeight = fromPosition ? fromPosition.y : (15 + Math.random() * 6);
+    const startHeight = fromPosition ? fromPosition.y : (15 + Math.random() * 6);
     const startPos = fromPosition
-        ? camera.position.clone()
-        .add(camera.getWorldDirection(new THREE.Vector3()).multiplyScalar(0.05)) 
-        .add(new THREE.Vector3(0, -0.20, -0.3)) 
+      ? camera.position.clone()
+        .add(camera.getWorldDirection(new THREE.Vector3()).multiplyScalar(0.05))
+        .add(new THREE.Vector3(0, -0.20, -0.3))
       : new THREE.Vector3(
           (Math.random() - 0.5) * GALLERY_RADIUS * 1.6,
           startHeight,
@@ -967,16 +971,13 @@ const startHeight = fromPosition ? fromPosition.y : (15 + Math.random() * 6);
     glowSprite.position.copy(startPos);
     sprite.material.rotation = Math.random() * Math.PI * 2;
     sprite.userData.messageData = data;
-    sprite.userData.planeColor = color; // ★追加：ツールチップの色合わせに使用
+    sprite.userData.planeColor = color;
     scene.add(sprite);
     scene.add(glowSprite);
 
-const heading = Math.random() * Math.PI * 2;
+    const heading = Math.random() * Math.PI * 2;
 
-    // ★変更：ふわふわ上下に漂いながら上昇するのではなく、投げた瞬間に
-    // スーッと勢いよく斜め上へ飛んでいく「swoosh」な動きにする。
-    // 速度を積み上げるのではなく、開始地点→目標地点を時間で直接補間する。
-    const riseDuration = 2000 + Math.random() * 300; // 1.1〜1.3秒でスッと上がりきる
+    const riseDuration = 2000 + Math.random() * 300;
     const riseDistance = 12 + Math.random() * 4;
     const riseTargetPos = new THREE.Vector3(
       startPos.x + Math.cos(heading) * riseDistance,
@@ -986,9 +987,9 @@ const heading = Math.random() * Math.PI * 2;
 
     letterPlanes.push({
       sprite,
-      glowSprite, // ★追加
+      glowSprite,
       data,
-      color, // ★追加
+      color,
       velocity: new THREE.Vector3(
         Math.cos(heading) * 4.0,
         0,
@@ -1017,11 +1018,11 @@ const heading = Math.random() * Math.PI * 2;
     const s = 2 + Math.random() * 1;
     sprite.scale.set(0.01, 0.01, 1);
 
-    const restingY = 27 + Math.random() * 8; // ★変更：シャボン玉はもう少し低い位置を漂う
+    const restingY = 27 + Math.random() * 8;
     const startY = fromPosition ? fromPosition.y : restingY;
 
     const startPos = fromPosition
-        ? camera.position.clone()
+      ? camera.position.clone()
         .add(camera.getWorldDirection(new THREE.Vector3()).multiplyScalar(3.5))
         .add(new THREE.Vector3(0, -0.8, 0))
       : new THREE.Vector3(
@@ -1033,7 +1034,6 @@ const heading = Math.random() * Math.PI * 2;
     sprite.userData.messageData = data;
     scene.add(sprite);
 
-    // ★追加：シャボン玉本体とほぼ同サイズの、薄い加算合成ハロー(色はランダム)
     const bubbleGlowColor = BUBBLE_GLOW_COLORS[Math.floor(Math.random() * BUBBLE_GLOW_COLORS.length)];
     const glowMat = new THREE.SpriteMaterial({
       map: sparkleTexture,
@@ -1042,7 +1042,7 @@ const heading = Math.random() * Math.PI * 2;
       opacity: 0.2,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
-      fog: false, // ★追加：霧の影響を除外
+      fog: false,
     });
     const glowSprite = new THREE.Sprite(glowMat);
     glowSprite.scale.set(0.01, 0.01, 1);
@@ -1051,7 +1051,7 @@ const heading = Math.random() * Math.PI * 2;
 
     bubbles.push({
       sprite,
-      glowSprite, 
+      glowSprite,
       data,
       angle: Math.random() * Math.PI * 2,
       radius: 4 + Math.random() * (GALLERY_RADIUS * 0.7),
@@ -1074,9 +1074,6 @@ const heading = Math.random() * Math.PI * 2;
     }
   }
 
-  // ★変更：紙飛行機は「過去に送信された本物のメッセージ」のみ復元する。
-  // 環境演出用の空メッセージ紙飛行機は、目の前にないと視認しづらく紛らわしいため廃止。
-  // シャボン玉は従来通り、不足分を環境演出で補う。
   const TARGET_BUBBLE_COUNT = 14;
 
   function fillAmbientBubbles(existingCount) {
@@ -1085,13 +1082,11 @@ const heading = Math.random() * Math.PI * 2;
     }
   }
 
-(async () => {
+  (async () => {
     try {
       const pastLetters = await fetchLetterMessages();
-      const MAX_LETTER_PLANES = 15; // ★ここで表示する紙飛行機の最大数を調整
+      const MAX_LETTER_PLANES = 15;
       const fullList = Array.isArray(pastLetters) ? pastLetters : [];
-      // 配列の末尾＝一番新しいメッセージという前提。もし逆順で返ってくる場合は
-      // list.slice(0, MAX_LETTER_PLANES) に変えてください。
       const list = fullList.slice(-MAX_LETTER_PLANES);
       list.forEach((msg) => {
         spawnLetterPlane({ name: msg.name ?? null, message: msg.message ?? '' });
@@ -1108,22 +1103,18 @@ const heading = Math.random() * Math.PI * 2;
       list.forEach((msg) => {
         spawnBubble({ name: msg.name ?? null, message: msg.message ?? '' });
       });
-      //fillAmbientBubbles(list.length);  環境用シャボン
     } catch (err) {
       console.warn('シャボン玉メッセージの復元に失敗しました:', err);
-      //fillAmbientBubbles(0); 環境用シャボン
     }
   })();
 
- function updateFlyingMessages(dt) {
+  function updateFlyingMessages(dt) {
     const maxR = GALLERY_RADIUS * 1.8;
     const t = performance.now() * 0.0004;
 
     letterPlanes.forEach(e => {
       if (e.absorbing) return;
-if (e.rising) {
-
-// ★変更：スーッと勢いよく、まっすぐ目標地点まで飛ぶ（イーズアウト）
+      if (e.rising) {
         const t = Math.min(1, (performance.now() - e.riseStart) / e.riseDuration);
         const eased = 1 - Math.pow(1 - t, 3);
         e.sprite.position.lerpVectors(e.riseStartPos, e.riseTargetPos, eased);
@@ -1135,7 +1126,6 @@ if (e.rising) {
           e.glowSprite.scale.set(s * 1.05, s * 1.05, 1);
         }
 
-        // 飛んでいく方向へ機体を傾ける（swoosh感）
         e.sprite.material.rotation = Math.atan2(
           e.riseTargetPos.y - e.riseStartPos.y,
           Math.hypot(e.riseTargetPos.x - e.riseStartPos.x, e.riseTargetPos.z - e.riseStartPos.z)
@@ -1144,13 +1134,10 @@ if (e.rising) {
         if (t >= 1) {
           e.rising = false;
         }
-
       } else {
-
-  e.sprite.position.x += e.velocity.x * dt;
-e.sprite.position.z += e.velocity.z * dt;
-
-}
+        e.sprite.position.x += e.velocity.x * dt;
+        e.sprite.position.z += e.velocity.z * dt;
+      }
 
       const distXZ = Math.hypot(e.sprite.position.x, e.sprite.position.z);
       if (distXZ > maxR) {
@@ -1158,17 +1145,13 @@ e.sprite.position.z += e.velocity.z * dt;
         e.velocity.z *= -1;
       }
       if (e.sprite.position.y < 40) { e.sprite.position.y = 40; e.velocity.y = Math.abs(e.velocity.y); }
-      if (e.sprite.position.y > 50) {
-    e.sprite.position.y = 50;
-    e.velocity.y = -Math.abs(e.velocity.y);
-}
+      if (e.sprite.position.y > 50) { e.sprite.position.y = 50; e.velocity.y = -Math.abs(e.velocity.y); }
 
       e.sprite.material.rotation += Math.sin(t + e.phase) * 0.004;
 
       if (e.glowSprite) {
-        e.glowSprite.position.copy(e.sprite.position); // ★追加：ハローを本体に追従
+        e.glowSprite.position.copy(e.sprite.position);
       }
-
     });
 
     const bt = performance.now() * 0.0003;
@@ -1178,26 +1161,25 @@ e.sprite.position.z += e.velocity.z * dt;
         const eased = 1 - Math.pow(1 - e.popProgress, 3);
         const s = e.targetScale * eased;
         e.sprite.scale.set(s, s, 1);
-        if (e.glowSprite) e.glowSprite.scale.set(s * 1.1, s * 1.1, 1); // ★追加：ハローも本体と同じ勢いで拡大
+        if (e.glowSprite) e.glowSprite.scale.set(s * 1.1, s * 1.1, 1);
       }
 
       if (e.currentY < e.baseY) {
-        e.currentY = Math.min(e.baseY, e.currentY + dt * 7.0); // ★変更(1.2→2.4)：上昇速度を速く
+        e.currentY = Math.min(e.baseY, e.currentY + dt * 7.0);
       }
 
-      e.angle += e.driftSpeed * dt * 0.4; // ★変更(0.2→0.4)：横方向の漂いも少し速く
+      e.angle += e.driftSpeed * dt * 0.4;
       e.sprite.position.set(
         Math.cos(e.angle) * e.radius,
         e.currentY + Math.sin(bt * 1.3 + e.phase) * 0.6,
         Math.sin(e.angle) * e.radius
       );
-      if (e.glowSprite) e.glowSprite.position.copy(e.sprite.position); // ★追加：ハローを本体に追従
-
+      if (e.glowSprite) e.glowSprite.position.copy(e.sprite.position);
     });
   }
 
   // ====================================================================
-  // [SECTION: photos] 写真アイテムの生成
+  // [SECTION: photos]
   // ====================================================================
   const photoItems = [];
 
@@ -1293,15 +1275,15 @@ e.sprite.position.z += e.velocity.z * dt;
 
         item.pastelColors = extractPastelColors(img);
         if (config.interaction === 'glow') {
-        item.isGlowing = true;
+          item.isGlowing = true;
           if (item.aura) {
-    item.aura.material.blending = THREE.AdditiveBlending;
-    item.aura.material.needsUpdate = true;
-      }
+            item.aura.material.blending = THREE.AdditiveBlending;
+            item.aura.material.needsUpdate = true;
+          }
         }
         item.loaded = true;
         registerPhotoColorsToSparkles(item.pastelColors);
-        notifyPhotoLoadedForCeilingStar(); // ★追加：展示写真が読み込まれるたび、天井オブジェのフィルム絵を実際の写真で更新する
+        notifyPhotoLoadedForCeilingStar();
       },
     });
 
@@ -1315,43 +1297,39 @@ e.sprite.position.z += e.velocity.z * dt;
   });
 
   // ====================================================================
-  // [SECTION: ceilingFilmStar] 天井の35mmフィルム星型オブジェ
-  // タップ → 浮遊中の紙飛行機を吸収 → 写真集（購入導線）を表示
+  // [SECTION: ceilingFilmStar]
   // ====================================================================
   const FILM_PARAMS = {
     count: 4,
-    tiltDeg: 35,      // 星の尖り
-    twistDeg: 86,     // ねじれ
-    sizeRatioWidth: 0.220 / 0.60,   // デモでのフィルム幅/大きさ の比率をそのまま維持
-    sizeRatioThickness: 0.030 / 0.60, // デモでの厚み/大きさ の比率をそのまま維持
-    frames: 3,        // くり返し
-    warmth: 5,        // 色温度
-    leak: 100,        // 光漏れ
-    grain: 100,        // 粒子/傷
-    density: 1.00,    // コマの濃さ
-    opacity: 0.49,    // 透明感
-    fresnelPower: 3.15, // フレネル光
-    glow: 1.6,        // ふちの発光（★強化）
-    pulse: 0.6,       // 発光の脈動
-    speed: 0.2,       // 回転速度（★ゆっくりに）
+    tiltDeg: 35,
+    twistDeg: 86,
+    sizeRatioWidth: 0.220 / 0.60,
+    sizeRatioThickness: 0.030 / 0.60,
+    frames: 3,
+    warmth: 5,
+    leak: 100,
+    grain: 100,
+    density: 1.00,
+    opacity: 0.49,
+    fresnelPower: 3.15,
+    glow: 1.6,
+    pulse: 0.6,
+    speed: 0.2,
   };
 
   const CEILING_STAR = {
-    // ★変更：ワールド固定座標ではなく、毎フレーム「現在のカメラの向き(yaw)」に
-    // 追従させることで、どの方向を向いていても見上げれば必ず中心に見えるようにする。
-    elevation: 1.4, // 見上げ角(rad)。画面のより上のほうに来るよう引き上げ
+    elevation: 1.4,
     distance: 35,
     ringCount: FILM_PARAMS.count,
     size: 5,
     tilt: THREE.MathUtils.degToRad(FILM_PARAMS.tiltDeg),
     twist: THREE.MathUtils.degToRad(FILM_PARAMS.twistDeg),
     segments: 140,
-    hitRadius: 5.5, // タップ判定用の当たり半径（見た目より少し大きめ）
+    hitRadius: 5.5,
   };
   CEILING_STAR.filmWidth = CEILING_STAR.size * FILM_PARAMS.sizeRatioWidth;
   CEILING_STAR.filmThickness = CEILING_STAR.size * FILM_PARAMS.sizeRatioThickness;
 
-  // 断面が一定のまま円軌道を描く曲線（Frenetフレームで押し出す土台）
   class CircleCurve3 extends THREE.Curve {
     constructor(radius) { super(); this.radius = radius; }
     getPoint(t, target) {
@@ -1361,7 +1339,6 @@ e.sprite.position.z += e.velocity.z * dt;
     }
   }
 
-  // カーブに沿って「幅・厚みが常に一定の帯」の片面を生成する
   function buildFilmStripFace(curve, segments, frenet, edgeAFn, edgeBFn, uLen, flip) {
     const positions = [], uvs = [], normalsArr = [], indices = [];
     for (let i = 0; i <= segments; i++) {
@@ -1461,7 +1438,6 @@ e.sprite.position.z += e.velocity.z * dt;
     return `rgba(${r},${g},${b},`;
   }
 
-  // フィルムのコマ絵：既にロード済みの展示写真があればそれを使い、無ければ簡易パターンで代用
   function makeCeilingFilmTexture() {
     const framesPerTile = 4;
     const tileW = 320 * framesPerTile, tileH = 220;
@@ -1503,7 +1479,6 @@ e.sprite.position.z += e.velocity.z * dt;
         ctx.fillRect(x, winY, winW, winH);
       }
 
-      // 色温度のティント
       ctx.globalAlpha = 0.30;
       ctx.fillStyle = tint + '1)';
       ctx.globalCompositeOperation = 'overlay';
@@ -1511,7 +1486,6 @@ e.sprite.position.z += e.velocity.z * dt;
       ctx.globalCompositeOperation = 'source-over';
       ctx.globalAlpha = 1;
 
-      // ハレーション（光の滲み）
       const gx = x + winW * (0.3 + 0.4 * Math.sin(i * 1.7));
       const gy = winY + winH * 0.3;
       const sun = ctx.createRadialGradient(gx, gy, 0, gx, gy, winW * 0.35);
@@ -1520,7 +1494,6 @@ e.sprite.position.z += e.velocity.z * dt;
       ctx.fillStyle = sun;
       ctx.fillRect(x, winY, winW, winH);
 
-      // ビネット
       const vig = ctx.createRadialGradient(x + winW / 2, winY + winH / 2, winH * 0.3, x + winW / 2, winY + winH / 2, winH * 0.8);
       vig.addColorStop(0, 'rgba(0,0,0,0)');
       vig.addColorStop(1, 'rgba(0,0,0,0.5)');
@@ -1533,12 +1506,10 @@ e.sprite.position.z += e.velocity.z * dt;
       ctx.strokeRect(x, winY, winW, winH);
     }
 
-    // ネガの縁のオレンジ帯
     ctx.fillStyle = 'rgba(120,70,20,0.35)';
     ctx.fillRect(0, tileH * 0.115, tileW, tileH * 0.03);
     ctx.fillRect(0, tileH * 0.855, tileW, tileH * 0.03);
 
-    // 光漏れ（オレンジ〜ピンクのにじみ）
     const leakStrength = FILM_PARAMS.leak / 100;
     if (leakStrength > 0) {
       const leakColors = ['rgba(255,140,80,ALPHA)', 'rgba(255,90,140,ALPHA)', 'rgba(255,210,90,ALPHA)'];
@@ -1556,7 +1527,6 @@ e.sprite.position.z += e.velocity.z * dt;
       }
     }
 
-    // 粒子・傷
     const grainAmt = FILM_PARAMS.grain / 100;
     if (grainAmt > 0) {
       const dots = Math.floor(tileW * tileH * 0.02 * grainAmt);
@@ -1585,7 +1555,6 @@ e.sprite.position.z += e.velocity.z * dt;
       }
     }
 
-    // パーフォレーション（穴は本当に透明にくり抜く）
     ctx.globalCompositeOperation = 'destination-out';
     const holeCols = framesPerTile * 8;
     const holeW = (tileW / holeCols) * 0.5;
@@ -1611,19 +1580,21 @@ e.sprite.position.z += e.velocity.z * dt;
 
   let ceilingStarGroup = null;
   let ceilingRingMeshes = [];
-  let ceilingRingPivots = []; // ★追加：解ける演出でリングを動かすため、pivotも保持
+  let ceilingRingPivots = [];
   let ceilingHitMesh = null;
   let ceilingFilmTexture = null;
-  let ceilingStarCore = null; // ★追加：中心の光のフレア核
-  let ceilingStarHalo = null; // ★追加：核の外側のふんわりした光暈
-  let starFinaleActive = false; // ★追加：吸収後の「解けて本になる」演出中フラグ
-  let finaleCameraLock = false; // ★追加：演出中はカメラ操作を固定する
+  let ceilingStarCore = null;
+  let ceilingStarHalo = null;
+  let starFinaleActive = false;
+  let finaleCameraLock = false;
+  let starHoverScale = 1.0; // ★追加：ホバーエフェクト用のスケール
+  let starIsHovering = false; // ★追加：マウス進入フラグ
 
   function buildCeilingFilmStar() {
     ceilingFilmTexture = makeCeilingFilmTexture();
     ceilingStarGroup = new THREE.Group();
     ceilingStarGroup.position.set(0, CEILING_STAR.distance * Math.sin(CEILING_STAR.elevation), -CEILING_STAR.distance * Math.cos(CEILING_STAR.elevation));
-    ceilingStarGroup.renderOrder = 5; // ★追加：他の半透明オブジェクトより手前に描画されやすくする
+    ceilingStarGroup.renderOrder = 5;
 
     const curve = new CircleCurve3(CEILING_STAR.size);
     const frenet = curve.computeFrenetFrames(CEILING_STAR.segments, true);
@@ -1662,14 +1633,13 @@ e.sprite.position.z += e.velocity.z * dt;
       ringMesh.renderOrder = 5;
       pivot.add(ringMesh);
       ceilingRingMeshes.push(ringMesh);
-      ceilingRingPivots.push(pivot); // ★追加
+      ceilingRingPivots.push(pivot);
       ceilingStarGroup.add(pivot);
     }
 
-    // ★追加：中心の光のフレア核。太陽やダイヤモンドのようなエネルギーの塊のイメージ
     const coreMat = new THREE.SpriteMaterial({
       map: sparkleTexture,
-      color: new THREE.Color(2.5, 2.2, 1.5), 
+      color: new THREE.Color(2.5, 2.2, 1.5),
       transparent: true,
       opacity: 1.0,
       blending: THREE.AdditiveBlending,
@@ -1678,8 +1648,8 @@ e.sprite.position.z += e.velocity.z * dt;
     });
     ceilingStarCore = new THREE.Sprite(coreMat);
     ceilingStarCore.scale.set(CEILING_STAR.size * 0.9, CEILING_STAR.size * 0.9, 1);
-    ceilingStarCore.renderOrder = 999;       
-coreMat.depthTest = false;                
+    ceilingStarCore.renderOrder = 999;
+    coreMat.depthTest = false;
     ceilingStarGroup.add(ceilingStarCore);
 
     const haloMat = new THREE.SpriteMaterial({
@@ -1693,42 +1663,37 @@ coreMat.depthTest = false;
     });
     ceilingStarHalo = new THREE.Sprite(haloMat);
     ceilingStarHalo.scale.set(CEILING_STAR.size * 1.8, CEILING_STAR.size * 1.8, 1);
-    ceilingStarHalo.renderOrder = 998;       
-haloMat.depthTest = false;               
+    ceilingStarHalo.renderOrder = 998;
+    haloMat.depthTest = false;
     ceilingStarGroup.add(ceilingStarHalo);
 
-    // 見た目より少し大きい、見えない当たり判定用の球
     const hitGeo = new THREE.SphereGeometry(CEILING_STAR.hitRadius, 12, 12);
     const hitMat = new THREE.MeshBasicMaterial({ visible: false });
     ceilingHitMesh = new THREE.Mesh(hitGeo, hitMat);
     ceilingStarGroup.add(ceilingHitMesh);
 
-    ceilingStarGroup.visible = false; // ：導入カメラワーク中は非表示（①）。自由閲覧開始で出現させる
+    ceilingStarGroup.visible = false;
     scene.add(ceilingStarGroup);
   }
   buildCeilingFilmStar();
 
-  // ：BookRevealのインスタンス生成（写真は展示写真を使い回す）
   let bookReveal = null;
   function initBookReveal() {
     const textures = photoItems
       .filter(it => it.loaded && it.mesh && it.mesh.material.map)
       .slice(0, 3)
       .map(it => it.mesh.material.map);
-    if (textures.length === 0) return; // まだ読み込まれていなければ後回し
-    if (bookReveal) return; // 二重生成防止
+    if (textures.length === 0) return;
+    if (bookReveal) return;
     bookReveal = new BookReveal(scene, camera, {
       photoTextures: textures,
       tintColors: [0x9fd0ff, 0xffb27a, 0xffe2a6],
     });
   }
-  
-  // ★変更：4秒待つだけの決め打ちではなく、実際に展示写真が読み込まれるたびに
-  // （notifyPhotoLoadedForCeilingStarから呼ばれる）差し替える。連続で何枚も
-  // 読み込まれる場合に備えて少しデバウンスする。
+
   let ceilingTextureRefreshTimer = null;
   let ceilingTextureRefreshCount = 0;
-  const CEILING_TEXTURE_MAX_REFRESH = 8; // 十分な枚数が揃ったら以降は再生成しない
+  const CEILING_TEXTURE_MAX_REFRESH = 8;
   function notifyPhotoLoadedForCeilingStar() {
     initBookReveal();
     if (!ceilingFilmTexture) return;
@@ -1772,7 +1737,7 @@ haloMat.depthTest = false;
     targets.forEach((e, idx) => {
       const startPos = e.sprite.position.clone();
       const duration = 900 + idx * 70;
-      const startTime = performance.now() + idx * 40; // 少しずつ時間差で吸い込まれる
+      const startTime = performance.now() + idx * 40;
 
       function step(now) {
         const t = THREE.MathUtils.clamp((now - startTime) / duration, 0, 1);
@@ -1804,11 +1769,10 @@ haloMat.depthTest = false;
   function finishAbsorption() {
     starAbsorbing = false;
     albumUnlocked = true;
-    pulseCeilingStarGlow(FILM_PARAMS.glow * 1.6); // 一瞬強く光らせてから演出開始
+    pulseCeilingStarGlow(FILM_PARAMS.glow * 1.6);
     startStarFinale();
   }
 
-  // ★追加：カメラ操作を一時的に固定する（演出中のブレを防ぐ）
   function lockCameraForFinale() {
     finaleCameraLock = true;
     targetYaw = yaw;
@@ -1818,13 +1782,11 @@ haloMat.depthTest = false;
     finaleCameraLock = false;
   }
 
-  // ★追加：紙飛行機吸収後の「発光が強まる→星がほどける→本が現れる→
-  // カメラ固定のまま『この物語を手元へ』がフェードイン」という一連の演出
   function startStarFinale() {
     starFinaleActive = true;
     lockCameraForFinale();
 
-    const finalePos = ceilingStarGroup.position.clone(); // この場に固定する
+    const finalePos = ceilingStarGroup.position.clone();
     const unravelDuration = 1500;
     const startTime = performance.now();
 
@@ -1834,47 +1796,44 @@ haloMat.depthTest = false;
       (Math.random() - 0.5)
     ).normalize());
 
-function unravelStep(now) {
-  const t = Math.min(1, (now - startTime) / unravelDuration);
-  const eased = 1 - Math.pow(1 - t, 2);
+    function unravelStep(now) {
+      const t = Math.min(1, (now - startTime) / unravelDuration);
+      const eased = 1 - Math.pow(1 - t, 2);
 
-ceilingRingPivots.forEach((pivot, i) => {
-  const dist = eased * (5 + i * 1.2);
-  pivot.position.copy(dirs[i]).multiplyScalar(dist);
-  pivot.rotation.y += 0.06;
-  const mesh = ceilingRingMeshes[i];
-  if (mesh) {
-    mesh.material.uniforms.uOpacity.value = FILM_PARAMS.opacity * (1 - eased);
-    mesh.material.uniforms.uGlow.value    = FILM_PARAMS.glow    * (1 - eased); // ← 追加
-  }
-});
+      ceilingRingPivots.forEach((pivot, i) => {
+        const dist = eased * (5 + i * 1.2);
+        pivot.position.copy(dirs[i]).multiplyScalar(dist);
+        pivot.rotation.y += 0.06;
+        const mesh = ceilingRingMeshes[i];
+        if (mesh) {
+          mesh.material.uniforms.uOpacity.value = FILM_PARAMS.opacity * (1 - eased);
+          mesh.material.uniforms.uGlow.value = FILM_PARAMS.glow * (1 - eased);
+        }
+      });
 
-  // ── 変更：core/haloも一緒にフェードアウト ──────────────
-  if (ceilingStarCore) {
-    const flash = t < 0.35
-      ? (t / 0.35)
-      : (1 - (t - 0.35) / 0.65);
-    const s = CEILING_STAR.size * 1.4 * (1 + flash * 1.8);
-    ceilingStarCore.scale.set(s, s, 1);
-    ceilingStarCore.material.opacity = (0.8 + flash * 0.5) * (1 - eased); // フェードアウト追加
-  }
-  if (ceilingStarHalo) {
-    const s = CEILING_STAR.size * 2.8 * (1 + eased * 0.5);
-    ceilingStarHalo.scale.set(s, s, 1);
-    ceilingStarHalo.material.opacity = 0.6 * (1 - eased);  // フェードアウト追加
-  }
-  // ──────────────────────────────────────────────────────
+      if (ceilingStarCore) {
+        const flash = t < 0.35
+          ? (t / 0.35)
+          : (1 - (t - 0.35) / 0.65);
+        const s = CEILING_STAR.size * 1.4 * (1 + flash * 1.8);
+        ceilingStarCore.scale.set(s, s, 1);
+        ceilingStarCore.material.opacity = (0.8 + flash * 0.5) * (1 - eased);
+      }
+      if (ceilingStarHalo) {
+        const s = CEILING_STAR.size * 2.8 * (1 + eased * 0.5);
+        ceilingStarHalo.scale.set(s, s, 1);
+        ceilingStarHalo.material.opacity = 0.6 * (1 - eased);
+      }
 
-  if (t < 1) {
-    requestAnimationFrame(unravelStep);
-  } else {
-    spawnBookFromStar(finalePos);
-  }
-}
+      if (t < 1) {
+        requestAnimationFrame(unravelStep);
+      } else {
+        spawnBookFromStar(finalePos);
+      }
+    }
     requestAnimationFrame(unravelStep);
   }
 
-  // ★追加：本のシルエット＋淡い後光を描いたテクスチャ
   function makeBookTexture() {
     const w = 256, h = 256;
     const cnv = document.createElement('canvas');
@@ -1913,26 +1872,64 @@ ceilingRingPivots.forEach((pivot, i) => {
     return new THREE.CanvasTexture(cnv);
   }
 
-let ceilingBookSprite = null;
+  // ★追加：カメラをアニメーション（本が見える角度へ）
+  let cameraAnimationInProgress = false;
+
+  function animateCameraToBook(bookPosition, duration = 0.8) {
+    if (cameraAnimationInProgress) return;
+    cameraAnimationInProgress = true;
+
+    const idealCameraPos = new THREE.Vector3(
+      bookPosition.x,
+      bookPosition.y + 1.5,
+      bookPosition.z + 5.5
+    );
+
+    const startPos = camera.position.clone();
+    const startTime = performance.now();
+
+    function animationStep() {
+      const elapsed = performance.now() - startTime;
+      const progress = Math.min(elapsed / (duration * 1000), 1);
+
+      const eased = progress < 0.5
+        ? 2 * progress * progress
+        : -1 + (4 - 2 * progress) * progress;
+
+      camera.position.lerpVectors(startPos, idealCameraPos, eased);
+      camera.lookAt(bookPosition);
+
+      if (progress < 1) {
+        requestAnimationFrame(animationStep);
+      } else {
+        cameraAnimationInProgress = false;
+      }
+    }
+
+    animationStep();
+  }
+
+  let ceilingBookSprite = null;
   function spawnBookFromStar(position) {
-    initBookReveal(); // まだなければここで試みる
+    initBookReveal();
     if (!bookReveal) {
-      // BookRevealが作れない場合は従来のオーバーレイを直接表示
       revealAlbumOverlayFromBook();
       return;
     }
-const bookPos = camera.position.clone();
-bookPos.add(
-  camera.getWorldDirection(new THREE.Vector3()).multiplyScalar(6)
-);
-bookPos.y += 0.25;
+    const bookPos = camera.position.clone();
+    bookPos.add(
+      camera.getWorldDirection(new THREE.Vector3()).multiplyScalar(6)
+    );
+    bookPos.y += 0.25;
 
-bookReveal.open(bookPos, () => {
-    revealAlbumOverlayFromBook();
-});
+    // ★追加：カメラをアニメーション（本が見える角度へ）
+    animateCameraToBook(bookPos, 0.6);
+
+    bookReveal.open(bookPos, () => {
+      revealAlbumOverlayFromBook();
+    });
   }
 
-  // ★追加：本が現れきったあと、パネルを本からふわっとフェードインさせる
   function revealAlbumOverlayFromBook() {
     albumPanelEl.style.transition = 'none';
     albumPanelEl.style.opacity = '0';
@@ -1945,11 +1942,9 @@ bookReveal.open(bookPos, () => {
     });
   }
 
-  // ★追加：写真集を閉じたら、星・カメラ操作・本を元の状態に戻す
-function resetStarAfterFinale() {
+  function resetStarAfterFinale() {
     if (bookReveal) {
       bookReveal.close(() => {
-        // 本が消えたあとに星を復元する
         ceilingRingPivots.forEach((pivot, i) => {
           pivot.position.set(0, 0, 0);
           const mesh = ceilingRingMeshes[i];
@@ -1961,7 +1956,6 @@ function resetStarAfterFinale() {
         unlockCameraForFinale();
       });
     } else {
-      // BookReveal未使用の場合は従来通り
       ceilingRingPivots.forEach((pivot, i) => {
         pivot.position.set(0, 0, 0);
         const mesh = ceilingRingMeshes[i];
@@ -1975,7 +1969,6 @@ function resetStarAfterFinale() {
     if (ceilingBookSprite) ceilingBookSprite.visible = false;
   }
 
-  // --- 写真集（購入導線）オーバーレイ ---
   const albumOverlayEl = document.createElement('div');
   Object.assign(albumOverlayEl.style, {
     position: 'fixed', inset: '0',
@@ -2050,20 +2043,14 @@ function resetStarAfterFinale() {
   function updateCeilingStar(dt) {
     if (!ceilingStarGroup) return;
 
-    // ★追加：導入カメラワーク中は非表示。自由閲覧が始まったら出現させる（①）
     if (introCinematicActive) {
       ceilingStarGroup.visible = false;
       return;
     }
     ceilingStarGroup.visible = true;
 
-    // ★追加：吸収後の「解けて本になる」演出中は、通常の追従・回転・脈動を止める
     if (starFinaleActive) return;
 
-    // ★重要な修正：camera.quaternion をそのまま使うと「上下(pitch)」も含めて
-    // 追従してしまい、常に画面の同じ位置に貼り付いたようになってしまっていた。
-    // 「左右(yaw)だけ」に追従させ、高さはワールド空間で固定することで、
-    // 正面を向くと見えず、天井を見上げると中央に来るようにする。
     ceilingStarYawQuat.setFromAxisAngle(ceilingStarUpAxis, yaw);
     ceilingStarWorldOffset.copy(ceilingStarLocalOffset).applyQuaternion(ceilingStarYawQuat);
     ceilingStarGroup.position.copy(camera.position).add(ceilingStarWorldOffset);
@@ -2071,24 +2058,26 @@ function resetStarAfterFinale() {
     ceilingStarGroup.rotation.y += dt * FILM_PARAMS.speed;
     ceilingStarGroup.rotation.x = Math.sin(performance.now() * 0.0002) * 0.08;
 
-    // 発光の脈動：フレネル光が下限〜上限を呼吸するように繰り返す
+    // ★追加：ホバーエフェクト用のスケール更新
+    starHoverScale += (starIsHovering ? 1.08 : 1.0 - starHoverScale * 0.08) * 0.08;
+    starHoverScale = THREE.MathUtils.clamp(starHoverScale, 1.0, 1.08);
+
     if (!starAbsorbing) {
       const pulseSpeed = 0.0007 + FILM_PARAMS.pulse * 0.0015;
       const wave = (Math.sin(performance.now() * pulseSpeed) + 1) / 2;
-      ceilingStarPulseWave = wave; // ★追加：写真の照らし演出でも同じ脈動を使う
+      ceilingStarPulseWave = wave;
       const glowBase = albumUnlocked ? FILM_PARAMS.glow * 0.85 : FILM_PARAMS.glow;
       const low = glowBase * (1 - FILM_PARAMS.pulse * 0.95);
       const high = glowBase * (1 + FILM_PARAMS.pulse * 1.1);
       pulseCeilingStarGlow(low + (high - low) * wave);
 
-      // ★追加：中心の光核も同じリズムで呼吸させる（②）
       if (ceilingStarCore) {
-        const coreScale = CEILING_STAR.size * (0.75 + 0.35 * wave);
+        const coreScale = CEILING_STAR.size * (0.75 + 0.35 * wave) * starHoverScale;
         ceilingStarCore.scale.set(coreScale, coreScale, 1);
         ceilingStarCore.material.opacity = 0.6 + 0.4 * wave;
       }
       if (ceilingStarHalo) {
-        const haloScale = CEILING_STAR.size * (1.6 + 0.5 * wave);
+        const haloScale = CEILING_STAR.size * (1.6 + 0.5 * wave) * starHoverScale;
         ceilingStarHalo.scale.set(haloScale, haloScale, 1);
         ceilingStarHalo.material.opacity = 0.2 + 0.25 * wave;
       }
@@ -2097,17 +2086,13 @@ function resetStarAfterFinale() {
     updateStarLightOnPhotos();
   }
 
-  // ★追加：星から届く光が近くの写真を照らして浮かび上がらせる演出。
-  // 写真本体はMeshBasicMaterialで実際の光源には反応しないため、
-  // 既存の「aura」（選択時などに白く光らせるオーバーレイ）の不透明度を
-  // 星との距離と発光の脈動に応じてかさ上げすることで疑似的に表現する。
   let ceilingStarPulseWave = 0.5;
   const STAR_LIGHT_RADIUS = 26;
   const STAR_LIGHT_STRENGTH = 0.65;
   function updateStarLightOnPhotos() {
     if (!ceilingStarGroup) return;
     const starPos = ceilingStarGroup.position;
-    const pulseFactor = 0.4 + 0.6 * ceilingStarPulseWave; // 脈動の谷でも完全には消えないように下駄を履かせる
+    const pulseFactor = 0.4 + 0.6 * ceilingStarPulseWave;
     photoItems.forEach(item => {
       if (!item.mesh || !item.aura) return;
       const d = item.position.distanceTo(starPos);
@@ -2119,20 +2104,16 @@ function resetStarAfterFinale() {
       }
     });
   }
-  // ====================================================================
-  // [SECTION: ceilingFilmStar end]
-  // ====================================================================
-
 
   // ====================================================================
-  // [SECTION: controls] 視点操作・クリック処理
+  // [SECTION: controls]
   // ====================================================================
   let yaw = 0, pitch = 0, targetYaw = 0, targetPitch = 0;
   let isDragging = false;
   let lastX = 0, lastY = 0;
 
   function onDragMove(dx, dy) {
-    if (introCinematicActive || finaleCameraLock) return; // ★追加：導入演出中・星の演出中は操作を無効化
+    if (introCinematicActive || finaleCameraLock) return;
     targetYaw -= dx * 0.003;
     targetPitch -= dy * 0.003;
     targetPitch = Math.max(-0.6, Math.min(1.0, targetPitch));
@@ -2153,9 +2134,8 @@ function resetStarAfterFinale() {
 
   let touchStartX = 0, touchStartY = 0, touchMoved = false;
   const TAP_MOVE_THRESHOLD = 10;
-  // ★追加：スマホのover-scroll（上に引っ張る動作）を防ぐ
   canvasEl.style.touchAction = 'none';
-  document.body.style.overscrollBehavior = 'none'; // ページ全体のプルトゥリフレッシュも防ぐ
+  document.body.style.overscrollBehavior = 'none';
   canvasEl.addEventListener('touchstart', (e) => {
     if (e.touches.length === 1) {
       lastX = e.touches[0].clientX;
@@ -2203,52 +2183,43 @@ function resetStarAfterFinale() {
     const hFov = 2 * Math.atan(Math.tan(vFov / 2) * aspect);
     const distForWidth = (w / 2) / Math.tan(hFov / 2);
 
-    const margin = 1.20; //小さくするほど余白なくなる
+    const margin = 1.20;
     return Math.max(distForHeight, distForWidth) * margin;
-    const minDistance = Math.max(distForHeight, distForWidth) * 1.12; // 常に最小値を確保
-  return Math.max(distance, minDistance);
   }
 
-function handlePhotoSelect(item) {
-  switch (item.type) {
-    case 'normal':
-    case 'depth':
-    case 'letter':
-    case 'bubble':
-    default: {
-      if (viewingItem === item) {
-        viewingItem = null;
-        approachTarget = 0;
-      } else {
-        viewingItem = item;
-        approachTarget = 1;
+  function handlePhotoSelect(item) {
+    switch (item.type) {
+      case 'normal':
+      case 'depth':
+      case 'letter':
+      case 'bubble':
+      default: {
+        if (viewingItem === item) {
+          viewingItem = null;
+          approachTarget = 0;
+        } else {
+          viewingItem = item;
+          approachTarget = 1;
 
-        // ★変更：写真メッシュの回転を考慮して、確実に正対するカメラ位置を計算
-        // 写真メッシュは lookAt(0, y, 0) で中心を向いているので、
-        // その「背後」にカメラを配置することで、常に正面から見える
+          const posVec = item.position.clone();
+          posVec.y = 0;
+          const posDir = posVec.normalize();
 
-        // 1. 写真の位置ベクトル（中心からの方向）
-        const posVec = item.position.clone();
-        posVec.y = 0;
-        const posDir = posVec.normalize();
+          const fitDistance = calcFitDistance(item);
 
-        // 2. カメラまでの距離を計算
-        const fitDistance = calcFitDistance(item);
+          cameraApproachPos = item.position.clone().sub(posDir.multiplyScalar(fitDistance));
+          cameraApproachPos.y = item.position.y - 0.5;
 
-        // 3. 写真の背後（写真が向いている中心の反対側）にカメラを配置
-        cameraApproachPos = item.position.clone().sub(posDir.multiplyScalar(fitDistance));
-        cameraApproachPos.y = item.position.y - 0.5; // 少し下から見上げる角度で柔らかく
-
-        break;
+          break;
+        }
       }
     }
   }
-}
 
   function onPointerClick(clientX, clientY) {
     const elapsed = (performance.now() - spaceStartTime) / 1000;
     if (elapsed < REVEAL_PHOTO_END) return;
-    if (introCinematicActive || starFinaleActive) return; // ★変更：導入カメラワーク中・星の演出中は無効化
+    if (introCinematicActive || starFinaleActive) return;
 
     pointer.x = (clientX / window.innerWidth) * 2 - 1;
     pointer.y = -(clientY / window.innerHeight) * 2 + 1;
@@ -2303,6 +2274,24 @@ function handlePhotoSelect(item) {
     }
   });
 
+  // ★追加：天井の星のホバー検出
+  function updateStarHoverState() {
+    if (!ceilingHitMesh) { starIsHovering = false; return; }
+
+    pointer.x = (lastX / window.innerWidth) * 2 - 1;
+    pointer.y = -(lastY / window.innerHeight) * 2 + 1;
+    raycaster.setFromCamera(pointer, camera);
+
+    const hits = raycaster.intersectObject(ceilingHitMesh);
+    starIsHovering = hits.length > 0;
+
+    canvasEl.style.cursor = starIsHovering ? 'pointer' : 'default';
+  }
+
+  window.addEventListener('mousemove', () => {
+    updateStarHoverState();
+  });
+
   function getFacingItem() {
     const dir = new THREE.Vector3(0, 0, -1).applyEuler(camera.rotation);
     let best = null, bestDot = -Infinity;
@@ -2314,23 +2303,13 @@ function handlePhotoSelect(item) {
     });
     return best;
   }
-  // ====================================================================
-  // [SECTION: controls end]
-  // ====================================================================
 
-
-// ====================================================================
-  // [SECTION: conceptIntro] 導入カメラワーク＋コンセプト文（手紙エピローグ版）
   // ====================================================================
-  // ★変更：自動タイマーではなく、外部(Portalなど)から activateIntro() を
-  // 呼んでもらって初めて演出を開始する方式に変更。裂け目からのチラ見え
-  // 段階では一切動かず、実際に空間へ入ってきた瞬間から始まる。
-  // ------------------------------------------------------
-
-  // --- デザイン確定値（承認済み：A案 / グロー100% / アイボリーゴールド / 署名ピンクゴールド） ---
-  const CONCEPT_ACCENT = '#e8dcc4';     // Remember./グロー/閉じるボタンの色（アイボリーゴールド）
-  const CONCEPT_SIG_COLOR = '#e0a8ac';  // 署名だけの色（ピンクゴールド）
-  const CONCEPT_GLOW = 1.0;             // 枠の光の強さ（0〜1、承認値=100%）
+  // [SECTION: conceptIntro]
+  // ====================================================================
+  const CONCEPT_ACCENT = '#e8dcc4';
+  const CONCEPT_SIG_COLOR = '#e0a8ac';
+  const CONCEPT_GLOW = 1.0;
 
   const CONCEPT_REMEMBER = 'Remember.';
   const CONCEPT_PARAGRAPHS = [
@@ -2340,8 +2319,6 @@ function handlePhotoSelect(item) {
   ];
   const CONCEPT_SIGNATURE = 'photoartist.M';
 
-  // --- 承認デザインで使用するフォントを読み込む（Klee One / Cormorant Garamond） ---
-  // 既にページ側で読み込み済みの場合は重複読み込みを避ける
   if (!document.getElementById('concept-fonts-link')) {
     const fontLink = document.createElement('link');
     fontLink.id = 'concept-fonts-link';
@@ -2351,27 +2328,24 @@ function handlePhotoSelect(item) {
     document.head.appendChild(fontLink);
   }
 
-  let introCinematicActive = true; // ★変更：起動直後(裂け目演出中含む)はロック。activateIntro()が呼ばれて初めて解除
-  let introPhase = 'idle';          // idle -> up -> holdUp -> down -> showingConcept -> done
+  let introCinematicActive = true;
+  let introPhase = 'idle';
   let introElapsedInPhase = 0;
-  let introStartedAt = null;        // ★追加：activateIntro()が呼ばれた時刻
+  let introStartedAt = null;
   const INTRO_LOOKUP_DUR = 3.0;
   const INTRO_HOLD_DUR = 0.7;
   const INTRO_LOOKDOWN_DUR = 3.2;
   const INTRO_PITCH_UP = 1.0;
-  const INTRO_PITCH_DOWN = 0; // ★変更：見下ろす代わりに正面(0)で静止してからコンセプトを表示
+  const INTRO_PITCH_DOWN = 0;
 
-  // ★追加：外部から呼び出す起動関数。Portalの演出が完全に終わり、
-  // プレイヤーがこの空間の主導権を得たタイミングで呼んでもらう。
   function activateIntro() {
-    if (introPhase !== 'idle') return; // 二重起動防止
+    if (introPhase !== 'idle') return;
     introCinematicActive = true;
     introPhase = 'up';
     introElapsedInPhase = 0;
     introStartedAt = performance.now();
   }
 
-  // --- コンセプト文オーバーレイ（"一枚の手紙が浮かぶ"デザイン） ---
   const conceptOverlayEl = document.createElement('div');
   Object.assign(conceptOverlayEl.style, {
     position: 'fixed',
@@ -2384,7 +2358,6 @@ function handlePhotoSelect(item) {
     zIndex: '25',
   });
 
-  // カード本体：半透明ガラス、角丸、柔らかい影（紙の質感・ノイズは持たせない）
   const conceptPanelEl = document.createElement('div');
   Object.assign(conceptPanelEl.style, {
     position: 'relative',
@@ -2401,7 +2374,6 @@ function handlePhotoSelect(item) {
     transition: 'opacity 1.1s ease, transform 1.1s ease',
   });
 
-  // 縁の淡いグロー（紙の質感の代わりに、ふんわり光る枠で"手紙"の存在感を出す）
   const conceptGlowRingEl = document.createElement('div');
   Object.assign(conceptGlowRingEl.style, {
     position: 'absolute',
@@ -2415,7 +2387,6 @@ function handlePhotoSelect(item) {
     ].join(', '),
   });
 
-  // ガラスのハイライト（斜めの淡い光沢）
   const conceptGlassSheenEl = document.createElement('div');
   Object.assign(conceptGlassSheenEl.style, {
     position: 'absolute',
@@ -2426,7 +2397,6 @@ function handlePhotoSelect(item) {
     pointerEvents: 'none',
   });
 
-  // "Remember." ―― 小さなセリフ程度の存在感
   const conceptRememberEl = document.createElement('div');
   conceptRememberEl.textContent = CONCEPT_REMEMBER;
   Object.assign(conceptRememberEl.style, {
@@ -2442,7 +2412,6 @@ function handlePhotoSelect(item) {
     transition: 'opacity 1s ease, transform 1s ease',
   });
 
-  // 本文：段落ごとに要素を分け、順番にフェードインさせる
   const conceptParagraphEls = CONCEPT_PARAGRAPHS.map((text) => {
     const el = document.createElement('div');
     el.textContent = text;
@@ -2461,7 +2430,6 @@ function handlePhotoSelect(item) {
     return el;
   });
 
-  // 署名：ピンクゴールド・細線のイタリック。下にごく細いラインを添える
   const conceptSignatureEl = document.createElement('div');
   conceptSignatureEl.textContent = CONCEPT_SIGNATURE;
   Object.assign(conceptSignatureEl.style, {
@@ -2487,7 +2455,7 @@ function handlePhotoSelect(item) {
   conceptSignatureEl.appendChild(conceptSignatureLineEl);
 
   const conceptCloseButtonEl = document.createElement('button');
-  conceptCloseButtonEl.textContent = '閉じる';
+  conceptCloseButtonEl.textContent = '展示を見る';
   Object.assign(conceptCloseButtonEl.style, {
     display: 'block',
     margin: '34px auto 0',
@@ -2522,7 +2490,6 @@ function handlePhotoSelect(item) {
   conceptOverlayEl.appendChild(conceptPanelEl);
   document.body.appendChild(conceptOverlayEl);
 
-  // 16進カラー+アルファ変換ユーティリティ（グローや細線の色に使用）
   function hexToRgba(hex, alpha) {
     const n = parseInt(hex.replace('#', ''), 16);
     const r = (n >> 16) & 255;
@@ -2531,7 +2498,6 @@ function handlePhotoSelect(item) {
     return `rgba(${r}, ${g}, ${b}, ${alpha})`;
   }
 
-  // --- 映画のエンドロールのような、静かな順次フェードイン ---
   let conceptRevealTimers = [];
   function clearConceptRevealTimers() {
     conceptRevealTimers.forEach((id) => clearTimeout(id));
@@ -2578,58 +2544,60 @@ function handlePhotoSelect(item) {
     conceptOverlayEl.style.display = 'flex';
     playConceptReveal();
   }
-function closeConceptOverlay() {
+  function closeConceptOverlay() {
     clearConceptRevealTimers();
     conceptOverlayEl.style.display = 'none';
 
     if (introPhase !== 'done') {
-        introPhase = 'done';
-        introCinematicActive = false;
+      introPhase = 'done';
+      introCinematicActive = false;
     }
 
-    // ★ボタンタップ直後なのでiOS Safariでも確実に再生される
     playBGM(space2BGM, 0.4, 2000);
 
     showGuideCard();
-}
+  }
 
-conceptCloseButtonEl.addEventListener('click', closeConceptOverlay);
-  // ====================================================================
-  // 閉じた後のガイドカード（操作説明）＋「？」再表示アイコン
-  // ------------------------------------------------------
-  // コンセプト画面には操作説明を出さない代わりに、閉じた直後だけ
-  // 右上にそっと表示し、数秒後に「？」アイコンへ収納する。
-  // ====================================================================
+  conceptCloseButtonEl.addEventListener('click', closeConceptOverlay);
+
   const guideCardEl = document.createElement('div');
-  Object.assign(guideCardEl.style, {
-    position: 'fixed',
-    top: '20px',
-    right: '20px',
-    width: 'min(78vw, 260px)',
-    padding: '18px 20px',
-    borderRadius: '4px',
-    background: 'rgba(20, 16, 26, 0.5)',
-    border: `1px solid ${hexToRgba(CONCEPT_ACCENT, 0.25)}`,
-    boxShadow: '0 8px 30px rgba(0,0,0,0.4)',
-    color: '#f0e8d8',
-    fontFamily: `'Klee One', 'Hiragino Mincho ProN', serif`,
-    fontSize: '12px',
-    lineHeight: '1.9',
-    letterSpacing: '0.03em',
-    opacity: '0',
-    pointerEvents: 'none',
-    transition: 'opacity 0.8s ease',
-    zIndex: '18',
-  });
-  guideCardEl.innerHTML = `
-    <div style="opacity:0.85; margin-bottom:8px; letter-spacing:0.15em; font-size:11px;">展示の楽しみ方</div>
-    <div style="opacity:0.7;">
-      ・スワイプで視点移動<br>
-      ・Viweで写真拡大(PCクリック)<br>
-      ・空の紙飛行機とシャボン玉、<br>
-       フィルムオブジェにも触れます
-    </div>
-  `;
+Object.assign(guideCardEl.style, {
+  position: 'fixed',
+  top: '20px',
+  right: '20px',
+  width: 'min(82vw, 340px)',   // 260 → 340
+  padding: '24px 26px',        // 少し余白を増やす
+  borderRadius: '4px',
+  background: 'rgba(20, 16, 26, 0.5)',
+  border: `1px solid ${hexToRgba(CONCEPT_ACCENT, 0.25)}`,
+  boxShadow: '0 8px 30px rgba(0,0,0,0.4)',
+  color: '#f0e8d8',
+  fontFamily: `'Klee One', 'Hiragino Mincho ProN', serif`,
+  fontSize: '15px', 
+  lineHeight: '2.0',    
+  letterSpacing: '0.03em',
+  opacity: '0',
+  pointerEvents: 'none',
+  transition: 'opacity 0.8s ease',
+  zIndex: '18',
+});
+guideCardEl.innerHTML = `
+  <div style="
+    opacity:0.9;
+    margin-bottom:12px;
+    letter-spacing:0.15em;
+    font-size:14px;
+  ">
+    展示の楽しみ方
+  </div>
+
+  <div style="opacity:0.75;">
+    ・スワイプで視点移動<br>
+    ・Viewで写真拡大<br>
+    ・紙飛行機とシャボン玉をタップ<br>
+    ・空のフィルムオブジェに触れる
+  </div>
+`;
   document.body.appendChild(guideCardEl);
 
   const guideHintButtonEl = document.createElement('button');
@@ -2667,14 +2635,14 @@ conceptCloseButtonEl.addEventListener('click', closeConceptOverlay);
       guideCardEl.style.pointerEvents = 'none';
       guideHintButtonEl.style.opacity = '1';
       guideHintButtonEl.style.pointerEvents = 'auto';
-    }, 5000); // 数秒後に半透明化（5秒。調整可）
+    }, 6000);
   }
   guideHintButtonEl.addEventListener('click', showGuideCard);
 
   function updateConceptIntro(dt) {
-    if (introPhase === 'idle') return; // ★変更：activateIntro()が呼ばれるまで何もしない
+    if (introPhase === 'idle') return;
 
-    if (introPhase === 'done') return; // ★変更：もう一度読むボタンは廃止したので何もしない
+    if (introPhase === 'done') return;
 
     introElapsedInPhase += dt;
 
@@ -2698,13 +2666,9 @@ conceptCloseButtonEl.addEventListener('click', closeConceptOverlay);
       }
     }
   }
-  // ====================================================================
-  // [SECTION: conceptIntro end]
-  // ====================================================================
-
 
   // ====================================================================
-  // [SECTION: update] 毎フレーム更新処理
+  // [SECTION: update]
   // ====================================================================
   let bgUpdateTimer = 0;
   const warmFlareTint = new THREE.Color(0xe0b888);
@@ -2750,7 +2714,7 @@ conceptCloseButtonEl.addEventListener('click', closeConceptOverlay);
         item.mesh.material.opacity += (targetOpacity - item.mesh.material.opacity) * 0.05;
         if (item.aura) {
           item.aura.material.opacity += ((item === viewingItem ? 0.7 : 0.1) - item.aura.material.opacity) * 0.05;
-         if (item.isGlowing && item !== viewingItem) return;
+          if (item.isGlowing && item !== viewingItem) return;
         }
       });
     } else {
@@ -2868,7 +2832,7 @@ conceptCloseButtonEl.addEventListener('click', closeConceptOverlay);
 
   function updateFocusButton(dt) {
     if (!IS_MOBILE) return;
-    if (introCinematicActive) { hideFocusButton(); return; } // ★追加：導入演出中は出さない
+    if (introCinematicActive) { hideFocusButton(); return; }
 
     if (viewingItem || approachProgress > 0.01) {
       hideFocusButton();
@@ -2900,26 +2864,23 @@ conceptCloseButtonEl.addEventListener('click', closeConceptOverlay);
     updateFocusButton(dt);
     updateWriteButton();
     updateFlyingMessages(dt);
-    updateConceptIntro(dt); 
-    updateCeilingStar(dt); 
+    updateConceptIntro(dt);
+    updateCeilingStar(dt);
     if (bookReveal) bookReveal.update(dt);
   }
-  // ====================================================================
-  // [SECTION: update end]
-  // ====================================================================
 
   function hideUI() {
     hideFocusButton();
     hideWriteButton();
     formOverlayEl.style.display = 'none';
     hideMessageTooltip();
-    conceptOverlayEl.style.display = 'none'; // ★追加
+    conceptOverlayEl.style.display = 'none';
     guideCardEl.style.opacity = '0';
     guideCardEl.style.pointerEvents = 'none';
     guideHintButtonEl.style.opacity = '0';
     guideHintButtonEl.style.pointerEvents = 'none';
     clearTimeout(guideCardTimer);
-    albumOverlayEl.style.display = 'none'; // ★追加
+    albumOverlayEl.style.display = 'none';
   }
 
   return { scene, update, hideUI, activateIntro };
