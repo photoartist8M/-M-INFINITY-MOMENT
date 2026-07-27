@@ -326,7 +326,7 @@ body.loaded .titleArea{
     border-radius:10px;
     border:1px solid rgba(255,215,145,.28);
     background:rgba(255,255,255,.015);
-    color:rgba(255,255,255,.32);
+    color:rgba(255,255,255,.62);
     font-size:.62rem;
     letter-spacing:.05em;
     cursor:pointer;

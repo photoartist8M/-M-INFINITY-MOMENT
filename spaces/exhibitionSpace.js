@@ -310,7 +310,7 @@ export function startExhibitionSpace(renderer, camera) {
     Object.assign(focusButtonEl.style, {
       position: 'fixed',
       left: '50%',
-      top: '85%',
+      top: '70%',
       bottom: 'auto',
       transform: 'translateX(-50%) translateY(-20px)',
       padding: '8px 32px',
@@ -692,7 +692,7 @@ export function startExhibitionSpace(renderer, camera) {
     left: '50%',
     top: '20%',
     transform: 'translate(-50%, -50%) scale(0.96)',
-    maxWidth: 'minmin(78vw, 380px)',
+    maxWidth: 'min(88vw, 520px)',
     padding: '24px 34px',
     borderRadius: '14px',
     background: 'rgba(20, 16, 26, 0.35)',

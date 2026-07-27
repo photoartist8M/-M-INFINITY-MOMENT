@@ -90,7 +90,6 @@ function explodeLogo(){
     stopLogoAnimation();
 
     const points = getLogoParticlesInViewportSpace(2);
-    console.log(points.length);
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -225,8 +224,6 @@ function disposeOpeningScene(){
 
     const infoPanel = document.getElementById("infoPanel");
     if(infoPanel) infoPanel.remove();
-
-    console.log("オープニング演出を破棄しました(メモリ解放完了)");
 }
 
 // ======================================================

@@ -53,9 +53,7 @@ export function playSFXRobust(audio, targetVolume = 0.45) {
   audio.currentTime = 0;
   audio.volume = targetVolume;
   setTimeout(() => {
-    audio.play().catch(err => {
-      console.warn(err);
-    });
+audio.play().catch(() => {});
   }, 50);
 }
 
