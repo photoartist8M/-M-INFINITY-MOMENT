@@ -321,7 +321,7 @@ body.loaded .titleArea{
 
 .bottomBar button{
     flex:0 1 auto;
-    width:110px;
+    width:170px;
     height:38px;
     border-radius:10px;
     border:1px solid rgba(255,215,145,.28);
@@ -339,7 +339,11 @@ body.loaded .titleArea{
     position:relative;
     overflow:hidden;
 }
-
+@media (max-width: 768px) {
+    .bottomBar button{
+        width: 125px !important; /* スマホでも横長に */
+    }
+}
 .bottomBar button:hover{
     background:rgba(255,255,255,.04);
     color:rgba(255,255,255,.55);

@@ -310,7 +310,7 @@ export function startExhibitionSpace(renderer, camera) {
     Object.assign(focusButtonEl.style, {
       position: 'fixed',
       left: '50%',
-      top: '70%',
+      top: '78%',
       bottom: 'auto',
       transform: 'translateX(-50%) translateY(-20px)',
       padding: '8px 32px',
@@ -687,13 +687,13 @@ export function startExhibitionSpace(renderer, camera) {
   });
 
   const messageTooltipEl = document.createElement('div');
-  Object.assign(messageTooltipEl.style, {
-    position: 'fixed',
-    left: '50%',
-    top: '20%',
-    transform: 'translate(-50%, -50%) scale(0.96)',
-    maxWidth: 'min(88vw, 520px)',
-    padding: '24px 34px',
+Object.assign(messageTooltipEl.style, {
+  position: 'fixed',
+  left: '50%',
+  top: '20%',
+  transform: 'translate(-50%, -50%) scale(0.96)',
+  width: 'min(92vw, 700px)',  // ← maxWidth → width に変更、幅を大幅に拡張
+  padding: '24px 40px',  // ← paddingも少し広げる
     borderRadius: '14px',
     background: 'rgba(20, 16, 26, 0.35)',
     border: '1px solid rgba(255,255,255,0.12)',
