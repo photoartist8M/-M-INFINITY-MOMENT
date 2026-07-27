@@ -692,7 +692,7 @@ export function startExhibitionSpace(renderer, camera) {
     left: '50%',
     top: '20%',
     transform: 'translate(-50%, -50%) scale(0.96)',
-    maxWidth: 'min(92vw, 600px)',
+    maxWidth: 'minmin(78vw, 380px)',
     padding: '24px 34px',
     borderRadius: '14px',
     background: 'rgba(20, 16, 26, 0.35)',

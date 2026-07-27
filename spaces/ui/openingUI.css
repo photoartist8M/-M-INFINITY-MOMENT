@@ -217,10 +217,12 @@ body.loaded .titleArea{
     aspect-ratio:1/1;
     flex-shrink:0;
     opacity:0;
+    pointer-events:none; /* 非表示の間はクリック不可にする */
 }
 
 #clockButtonWrap.reveal{
     animation:fadeInPlace 1.8s ease forwards;
+    pointer-events:auto; /* revealされたらクリック可能に戻す */
 }
 
 @keyframes fadeInPlace{
@@ -274,15 +276,21 @@ body.loaded .titleArea{
 
 #startButton span{
     font-size:1.15rem;
+    font-weight:700;
     letter-spacing:.16em;
-    text-shadow:0 0 12px rgba(255,240,220,.35);
+    text-shadow:
+        0 2px 4px rgba(0,0,0,.5),
+        0 0 12px rgba(255,240,220,.35);
 }
 
 #startButton small{
-    font-size:.82rem;
+    font-size:1.15rem;
+    font-weight:700;
     letter-spacing:.14em;
     margin-top:.35em;
-    opacity:.85;
+    opacity:1;
+    color:#f2ecdf;
+    text-shadow:0 2px 3px rgba(0,0,0,.55);
 }
 
 #startButton:active{
@@ -299,25 +307,27 @@ body.loaded .titleArea{
     display:flex;
     justify-content:center;
     align-items:center;
-    gap:16px; 
-    margin-top:12px;
+    gap:16px;
+    margin-top:22px;
     opacity:0;
     transform:translateY(16px);
+    pointer-events:none; /* 非表示の間はクリック不可にする */
 }
 
 .bottomBar.reveal{
     animation:fadeUp .9s ease forwards;
+    pointer-events:auto; /* revealされたらクリック可能に戻す */
 }
 
 .bottomBar button{
-    flex:0 1 auto; 
-    width:120px;
+    flex:0 1 auto;
+    width:110px;
     height:38px;
     border-radius:10px;
     border:1px solid rgba(255,215,145,.28);
     background:rgba(255,255,255,.015);
     color:rgba(255,255,255,.32);
-    font-size:.8rem;
+    font-size:.62rem;
     letter-spacing:.05em;
     cursor:pointer;
     transition:all var(--transition);
@@ -545,8 +555,9 @@ body.loaded .titleArea{
     }
 
     .bottomBar button{
-        height:22px;
-        font-size:.55rem;
+        width:96px;
+        height:34px;
+        font-size:.58rem;
     }
 
 }
