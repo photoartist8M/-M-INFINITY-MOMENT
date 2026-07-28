@@ -93,12 +93,20 @@ function explodeLogo(){
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    const titleJapanese = document.querySelector(".titleJapanese");
+const titleJapanese = document.querySelector(".titleJapanese");
     const bottomBar = document.querySelector(".bottomBar");
     const startBtnEl = document.getElementById("startButton");
     const creditEl = document.querySelector(".credit");
 
-    [titleJapanese, bottomBar, creditEl].forEach(el => {
+    // BGM・Infoボタンは即座に消す
+    if(bottomBar){
+        bottomBar.style.transition = "none";
+        bottomBar.style.opacity = "0";
+        bottomBar.classList.remove("reveal");  // revealクラスも削除
+    }
+
+    // 他の要素は0.4sでフェード
+    [titleJapanese, creditEl].forEach(el => {
         if(el){
             el.style.transition = "opacity 0.4s ease";
             el.style.opacity = "0";

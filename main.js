@@ -1746,7 +1746,7 @@ function animate() {
   const now = performance.now();
 
   if (!cameraLocked && !cameraAligning) {
-    camera.position.z -= 0.006;
+    camera.position.z -= 0.01;
   }
 
   if (moveForward) {
@@ -1900,7 +1900,7 @@ function animate() {
       const targetRotation = item.mesh.quaternion.clone();
       
       item.mesh.quaternion.copy(currentRotation);
-      item.mesh.quaternion.slerp(targetRotation, 0.005);
+      item.mesh.quaternion.slerp(targetRotation, 0.01);
 
       if (item.aura) {
         item.aura.position.copy(item.mesh.position);

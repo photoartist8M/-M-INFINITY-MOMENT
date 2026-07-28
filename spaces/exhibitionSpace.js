@@ -321,7 +321,7 @@ export function startExhibitionSpace(renderer, camera) {
       background: 'rgba(210, 165, 106, 0.04)',
       border: '1px solid rgba(255, 230, 190, 0.7)',
       borderRadius: '999px',
-      boxShadow: '0 0 20px rgba(255, 210, 160, 0.35), 0 4px 16px rgba(0,0,0,0.2)',
+      boxShadow: '0 0 20px rgba(255, 210, 160, 0.35), 0 4px 16px rgba(0,0,0,0.2), 0 0 12px rgba(255, 230, 190, .15), 0 0 20px rgba(255, 230, 190, .08)',
       backdropFilter: 'blur(6px)',
       opacity: '0',
       pointerEvents: 'none',
@@ -2635,7 +2635,7 @@ guideCardEl.innerHTML = `
       guideCardEl.style.pointerEvents = 'none';
       guideHintButtonEl.style.opacity = '1';
       guideHintButtonEl.style.pointerEvents = 'auto';
-    }, 6000);
+    }, 10000);
   }
   guideHintButtonEl.addEventListener('click', showGuideCard);
 
