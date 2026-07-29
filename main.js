@@ -1653,6 +1653,14 @@ window.addEventListener("touchmove", (e) => {
 
   if (cameraLocked || cameraAligning) return;
 
+    // ── 連打対策：300ms以内の連続操作を無視 ──
+  const now = Date.now();
+  if (!window.lastTouchMoveTime) window.lastTouchMoveTime = 0;
+  if (now - window.lastTouchMoveTime < 300) {
+    e.preventDefault();
+    return;
+  }
+  window.lastTouchMoveTime = now;
   // ── 操作誘導UI消滅ロジック ──
 if (!tutorialFinished &&
     !guidanceDismissed &&
@@ -1818,15 +1826,26 @@ function animate() {
 
 const now = performance.now();
 
-  // ── 操作誘導UI表示・消滅中はカメラ自動移動を停止 ──
-  const guidanceActive = guidanceShownTime !== null && !guidanceDismissed;
-  const guidanceFadingOut = guidanceDismissed && guidanceShownTime !== null && 
-                            (Date.now() - guidanceShownTime < 3500); // 3秒のアニメーション + 0.5秒の余裕
+ // ── 矢印が表示されるまでカメラ自動移動を停止 ──
+  const guidance = document.getElementById('guidanceOverlay');
+  const guidanceRevealed = guidance && guidance.classList.contains('reveal');
+  const guidanceFadingOut = guidance && (guidance.classList.contains('fadeout-arrows') || guidance.classList.contains('fadeout-text'));
+  
+  // 消滅後、さらに2秒多く一枚目の写真を見れるようにする
+  const guidanceExtended = guidanceDismissed && guidanceShownTime !== null && 
+                           (Date.now() - guidanceShownTime < 5500);
 
+  // チュートリアル終了判定（3.5秒消滅 + 2秒表示 = 5.5秒後）
+  if (guidanceDismissed && guidanceShownTime !== null && 
+      Date.now() - guidanceShownTime >= 5500 && !tutorialFinished) {
+    tutorialFinished = true;
+    console.log('✅ Tutorial finished! One photo can now dissolve.');
+  }
 
-                            
-  if (!cameraLocked && !cameraAligning && !guidanceActive && !guidanceFadingOut) {
-    camera.position.z -= 0.006;
+  if (!cameraLocked && !cameraAligning && (guidanceRevealed || guidanceFadingOut || guidanceExtended)) {
+    // 何もしない（カメラ停止）
+  } else if (!cameraLocked && !cameraAligning) {
+    camera.position.z -= 0.01;
   }
 
   if (moveForward) {
@@ -1980,7 +1999,7 @@ const now = performance.now();
       const targetRotation = item.mesh.quaternion.clone();
       
       item.mesh.quaternion.copy(currentRotation);
-      item.mesh.quaternion.slerp(targetRotation, 0.005);
+    item.mesh.quaternion.slerp(targetRotation, 0.01);
 
       if (item.aura) {
         item.aura.position.copy(item.mesh.position);
@@ -1988,7 +2007,21 @@ const now = performance.now();
       }
     }
   }
-
+// ── カメラが写真に近づきすぎないようにクリップ ──
+  const viewingItem = photoItems.find(it => it.viewing && it.fixed && it.mesh);
+  if (viewingItem && viewingItem.mesh) {
+    const pdx = viewingItem.mesh.position.x - camera.position.x;
+    const pdz = viewingItem.mesh.position.z - camera.position.z;
+    const distXZ = Math.sqrt(pdx * pdx + pdz * pdz);
+    
+    const minDist = 2.5; // カメラが近づけない最小距離
+    if (distXZ < minDist && distXZ > 0) {
+      const dirX = pdx / distXZ;
+      const dirZ = pdz / distXZ;
+      camera.position.x = viewingItem.mesh.position.x - dirX * minDist;
+      camera.position.z = viewingItem.mesh.position.z - dirZ * minDist;
+    }
+  }
   backgroundParticles.material.uniforms.uTime.value = now * 0.001;
   updateParticleEffects();
 

@@ -105,6 +105,13 @@ const titleJapanese = document.querySelector(".titleJapanese");
         bottomBar.classList.remove("reveal");  // revealクラスも削除
     }
 
+    // BGM・Infoボタンは即座に消す
+    if(bottomBar){
+        bottomBar.style.transition = "none";
+        bottomBar.style.opacity = "0";
+        bottomBar.classList.remove("reveal");  // revealクラスも削除
+    }
+
     // 他の要素は0.4sでフェード
     [titleJapanese, creditEl].forEach(el => {
         if(el){
@@ -288,10 +295,7 @@ infoButton.addEventListener("click", () => infoPanel.classList.add("show"));
 closeInfo.addEventListener("click", () => infoPanel.classList.remove("show"));
 
 // ======================================================
-// UIフェードイン演出
-// ------------------------------------------------------
-// 黒画面 → タイトルフェードイン(1.5s) → 静止(0.2s)
-// → 発光+光が流れる → ボタン/BGM/クレジットが現れる
+// UIフェードイン演出（8秒版）
 // ======================================================
 const flareCanvasEl = document.getElementById("flareCanvas");
 const clockButtonWrapEl = document.getElementById("clockButtonWrap");
@@ -300,49 +304,44 @@ const creditEl = document.querySelector(".credit");
 const titleAreaEl = document.querySelector(".titleArea");
 const openingMessageEl = document.getElementById("openingMessage");
 
-document.body.classList.add("loaded");
-
+document.body.classList.add("loaded"); // タイトルフェードイン開始（1.2秒 CSS側で指定）
 
 // ======================================================
 // 鑑賞メッセージ
 // ======================================================
 
-// タイトル表示後、少し間を置いてゆっくり表示
+// タイトル完成後（1.2s + 0.2s = 1.4s後）、メッセージ表示
 setTimeout(() => {
     openingMessageEl?.classList.add("show");
-}, 1800);
+}, 1400);
 
-// 十分読める時間を確保してからゆっくり消す
+// メッセージを十分読める時間確保してから消す（5秒後）
 setTimeout(() => {
     openingMessageEl?.classList.add("hide");
-}, 8200);
-
+}, 6000);
 
 // ======================================================
-// フレア
+// フレア（発光）
 // ======================================================
 
+// 5秒後に発光開始
 setTimeout(() => {
-
     if (flareCanvasEl) {
         flareCanvasEl.classList.add("flash");
 
         setTimeout(() => {
             flareCanvasEl.classList.remove("flash");
-        }, 3200);
+        }, 2500); // 発光アニメーション2.5秒（3.2秒から短縮）
     }
-
-}, 9800);
-
+}, 5000);
 
 // ======================================================
 // ボタン・UI表示
 // ======================================================
 
+// 7.5秒後にボタン・UI出現（5秒 + 2.5秒）
 setTimeout(() => {
-
     clockButtonWrapEl?.classList.add("reveal");
     bottomBarEl?.classList.add("reveal");
     creditEl?.classList.add("reveal");
-
-}, 10400);
+}, 7500);

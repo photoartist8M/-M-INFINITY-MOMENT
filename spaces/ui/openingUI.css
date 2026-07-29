@@ -99,7 +99,7 @@ body{
 }
 
 body.loaded .titleArea{
-    animation:titleFadeIn 1.5s ease forwards;
+    animation:titleFadeIn 1.2s ease forwards;
 }
 
 @keyframes titleFadeIn{
@@ -238,6 +238,9 @@ body.loaded .titleArea{
     height:135%;
     transform:translate(-50%,-50%);
     pointer-events:none;
+            filter: drop-shadow(0 0 12px rgba(255, 230, 190, 0.15))
+            drop-shadow(0 0 20px rgba(255, 230, 190, 0.08));
+    transition: filter 0.3s ease;
 }
 
 #ringCanvas{
@@ -248,6 +251,9 @@ body.loaded .titleArea{
     height:100%;
     transform:translate(-50%,-50%);
     pointer-events:none;
+        filter: drop-shadow(0 0 12px rgba(255, 230, 190, 0.15))
+            drop-shadow(0 0 20px rgba(255, 230, 190, 0.08));
+    transition: filter 0.3s ease;
 }
 
 #startButton{
@@ -311,44 +317,58 @@ body.loaded .titleArea{
     margin-top:22px;
     opacity:0;
     transform:translateY(16px);
-    pointer-events:none; /* 非表示の間はクリック不可にする */
+    pointer-events:none;
 }
 
 .bottomBar.reveal{
     animation:fadeUp .9s ease forwards;
-    pointer-events:auto; /* revealされたらクリック可能に戻す */
+    pointer-events:auto;
 }
 
 .bottomBar button{
     flex:0 1 auto;
     width:110px;
     height:38px;
-    border-radius:10px;
-    border:1px solid rgba(255,215,145,.28);
+    border-radius:30px;
+    border:1px solid #FFD2A0; 
     background:rgba(255,255,255,.015);
     color:rgba(255,255,255,.62);
     font-size:.62rem;
     letter-spacing:.05em;
+
     cursor:pointer;
-    transition:all var(--transition);
+
+    transition:all .35s ease;
+
     backdrop-filter:blur(10px);
     -webkit-backdrop-filter:blur(10px);
-    box-shadow:
-        inset 0 1px 2px rgba(0,0,0,.3),
-        0 0 6px rgba(255,215,145,.12);
+
     position:relative;
     overflow:hidden;
+
+box-shadow:
+    inset 0 1px 2px rgba(0,0,0,.3),
+    0 0 6px rgba(255,215,145,.12),
+    0 0 12px rgba(255,230,190,.15),
+    0 0 20px rgba(255,230,190,.08),
+    inset 0 0 8px rgba(255,230,190,.05);
 }
 
 .bottomBar button:hover{
     background:rgba(255,255,255,.04);
     color:rgba(255,255,255,.55);
+
+    box-shadow:
+        inset 0 1px 2px rgba(0,0,0,.3),
+        0 0 15px rgba(255,210,160,.3),
+        0 0 25px rgba(255,210,160,.2),
+        0 0 35px rgba(255,210,160,.12),
+        inset 0 0 12px rgba(255,210,160,.08);
 }
 
 .bottomBar button:active{
     transform:scale(.98);
 }
-
 
 /* ==========================================================
    Credit
@@ -413,29 +433,30 @@ body.loaded .titleArea{
     animation: arrowPulse 1.4s ease-in-out infinite;
 }
 
+/* 変更後：矢印をテキストの周り近くに配置 */
 .arrow-up {
-    top: 5%;
+    top: 18%;
     left: 50%;
     transform: translateX(-50%);
     animation-delay: 0s;
 }
 
 .arrow-down {
-    bottom: 5%;
+    bottom: 18%;
     left: 50%;
     transform: translateX(-50%);
     animation-delay: 0.35s;
 }
 
 .arrow-left {
-    left: 5%;
+    left: 15%;
     top: 50%;
     transform: translateY(-50%);
     animation-delay: 0.175s;
 }
 
 .arrow-right {
-    right: 5%;
+    right: 15%;
     top: 50%;
     transform: translateY(-50%);
     animation-delay: 0.525s;
@@ -485,11 +506,11 @@ body.loaded .titleArea{
     to { opacity: 0; }
 }
 .guidanceOverlay.fadeout-arrows .arrow {
-    animation: arrowFadeOut 2s ease forwards !important;
+    animation: arrowFadeOut 4s ease forwards !important;
 }
 
 .guidanceOverlay.fadeout-text .guidanceText {
-    animation: textFadeOut 2s ease forwards !important;
+    animation: textFadeOut 4s ease forwards !important;
 }
 
 /* ==========================================================

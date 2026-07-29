@@ -263,22 +263,38 @@ function buildRingCache(){
     octx.restore();
 
     // ── 数字のさらに外側に、細く薄い円のライン ──
-    const outerLineR = numR + BASE_SIZE * 0.002;
-    octx.save();
-    octx.strokeStyle = "rgba(255,225,170,0.5)";
-    octx.lineWidth = BASE_SIZE * 0.0012;
-    octx.beginPath();
-    octx.arc(cx, cy, outerLineR, 0, Math.PI * 2);
-    octx.stroke();
-    octx.restore();
-    // ── さらにもう一本外側のライン ──
-const outerLineR2 = numR + BASE_SIZE * 0.020; // ← 半径をもう少し外側へ
+const outerLineR = numR + BASE_SIZE * 0.002;
+
 octx.save();
-octx.strokeStyle = "rgba(255,225,170,0.35)"; // ← 少し薄めにすると綺麗
-octx.lineWidth = BASE_SIZE * 0.0010; // ← ほんの少し細くして差をつける
+
+octx.strokeStyle = "rgba(255,225,170,0.5)";
+octx.lineWidth = BASE_SIZE * 0.0012;
+
+// 発光
+octx.shadowColor = "rgba(255,230,190,0.7)";
+octx.shadowBlur = BASE_SIZE * 0.015;
+
+octx.beginPath();
+octx.arc(cx, cy, outerLineR, 0, Math.PI * 2);
+octx.stroke();
+
+octx.restore();
+   // ── さらにもう一本外側のライン ──
+const outerLineR2 = numR + BASE_SIZE * 0.020;
+
+octx.save();
+
+octx.strokeStyle = "rgba(255,225,170,0.35)";
+octx.lineWidth = BASE_SIZE * 0.0010;
+
+// 発光
+octx.shadowColor = "rgba(255,230,190,0.55)";
+octx.shadowBlur = BASE_SIZE * 0.015;
+
 octx.beginPath();
 octx.arc(cx, cy, outerLineR2, 0, Math.PI * 2);
 octx.stroke();
+
 octx.restore();
 
     ringCache = off;
