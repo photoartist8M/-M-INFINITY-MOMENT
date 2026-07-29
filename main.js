@@ -232,6 +232,7 @@ let doorTime         = 0;
 let loopDisabled     = false;
 let _dissolvedFlags  = new Array(PHOTO_FILES.length).fill(false);
 let portalPlane = null;
+let tutorialFinished = false;
 
 // ======================================================
 // 裂け目（記憶の星雲）の広がり半径
@@ -1527,6 +1528,17 @@ let cameraAligning = false;
 // ======================================================
 let guidanceShownTime = null;
 let guidanceDismissed = false;
+// ======================================================
+// 操作誘導タイマー開始
+// ======================================================
+window.startGuidanceTimer = function () {
+
+    guidanceShownTime = Date.now();
+    guidanceDismissed = false;
+
+    console.log("🔍 Guidance timer started");
+
+};
 
 //------------------------------------------------------
 // PC
@@ -1536,17 +1548,25 @@ window.addEventListener("mousemove", (e) => {
 
   if (cameraLocked || cameraAligning) return;
 
-  // ── 操作誘導UI消滅ロジック ──
-  if (!guidanceDismissed && guidanceShownTime !== null) {
-    guidanceDismissed = true;
-    const guidance = document.getElementById('guidanceOverlay');
-    if (guidance) {
-      guidance.classList.add('fadeout-arrows');
-      setTimeout(() => {
-        guidance.classList.add('fadeout-text');
-      }, 600);
-    }
+// ── 操作誘導UI消滅ロジック（一枚目限定） ──
+if (!tutorialFinished &&
+    !guidanceDismissed &&
+    guidanceShownTime !== null) {
+
+  tutorialFinished = true;
+
+  const guidance = document.getElementById("guidanceOverlay");
+
+  guidanceDismissed = true;
+
+  if (guidance) {
+    guidance.classList.add("fadeout-arrows");
+
+    setTimeout(() => {
+      guidance.classList.add("fadeout-text");
+    }, 600);
   }
+}
 
   let ty = (e.clientX / window.innerWidth - 0.5) * 0.5;
 
@@ -1634,16 +1654,24 @@ window.addEventListener("touchmove", (e) => {
   if (cameraLocked || cameraAligning) return;
 
   // ── 操作誘導UI消滅ロジック ──
-  if (!guidanceDismissed && guidanceShownTime !== null) {
-    guidanceDismissed = true;
-    const guidance = document.getElementById('guidanceOverlay');
-    if (guidance) {
-      guidance.classList.add('fadeout-arrows');
-      setTimeout(() => {
-        guidance.classList.add('fadeout-text');
-      }, 600);
-    }
+if (!tutorialFinished &&
+    !guidanceDismissed &&
+    guidanceShownTime !== null) {
+
+  tutorialFinished = true;
+
+  const guidance = document.getElementById("guidanceOverlay");
+
+  guidanceDismissed = true;
+
+  if (guidance) {
+    guidance.classList.add("fadeout-arrows");
+
+    setTimeout(() => {
+      guidance.classList.add("fadeout-text");
+    }, 600);
   }
+}
 
   e.preventDefault();
 
@@ -1771,12 +1799,6 @@ function animate() {
     exUpdate(delta);
     renderer.render(exScene, exCamera);
     return;
-  }
-
-// ── 操作誘導UI表示タイミング判定 ──
-  if (guidanceShownTime === null && getPortalState() !== 'switched') {
-    guidanceShownTime = Date.now();
-    console.log('🔍 Guidance timer started at scene load');
   }
 
   // ── 0.5秒後に操作誘導UI表示開始 ──
@@ -1994,6 +2016,9 @@ const now = performance.now();
 // ======================================================
 function dissolvePhoto(item) {
   if (!item.loaded || item.dissolved) return;
+   if (item === photoItems[0] && !tutorialFinished) {
+    return;
+  }
 
   if (item.viewing && item._fixedAt && !item.dissolving) {
     const timeElapsed = (Date.now() - item._fixedAt) > 5000;

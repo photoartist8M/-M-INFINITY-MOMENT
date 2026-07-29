@@ -210,11 +210,20 @@ async function preloadMainScene(){
     mainCanvas.style.transition = "opacity 1.6s ease";
     mainCanvas.style.display = "block";
 
-    await import("../../main.js");
+await import("../../main.js");
 
-    requestAnimationFrame(() => {
-        mainCanvas.style.opacity = "1";
-    });
+requestAnimationFrame(() => {
+
+    mainCanvas.style.opacity = "1";
+
+    // ======================================================
+    // 操作誘導タイマー開始
+    // ======================================================
+    if (window.startGuidanceTimer) {
+        window.startGuidanceTimer();
+    }
+
+});
 }
 
 function disposeOpeningScene(){
