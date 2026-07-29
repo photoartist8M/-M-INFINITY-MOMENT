@@ -1653,14 +1653,6 @@ window.addEventListener("touchmove", (e) => {
 
   if (cameraLocked || cameraAligning) return;
 
-    // ── 連打対策：300ms以内の連続操作を無視 ──
-  const now = Date.now();
-  if (!window.lastTouchMoveTime) window.lastTouchMoveTime = 0;
-  if (now - window.lastTouchMoveTime < 300) {
-    e.preventDefault();
-    return;
-  }
-  window.lastTouchMoveTime = now;
   // ── 操作誘導UI消滅ロジック ──
 if (!tutorialFinished &&
     !guidanceDismissed &&
@@ -1817,7 +1809,7 @@ function animate() {
       const isTouch = window.matchMedia('(hover: none)').matches;
       const textEl = document.getElementById('guidanceTextContent');
       if (textEl) {
-        textEl.textContent = isTouch ? 'スワイプで進む' : 'マウスで見回す';
+        textEl.textContent = isTouch ? 'やさしくスワイプで進む' : 'マウスで見回す';
       }
       guidance.classList.add('reveal');
       console.log('✅ Guidance revealed! isTouch:', isTouch);
@@ -1962,8 +1954,8 @@ const now = performance.now();
       const pdz = item.mesh.position.z - camera.position.z;
       const distXZ = Math.sqrt(pdx * pdx + pdz * pdz);
       
-      const hitDist = 10.0;
-      const pushPower = 0.10;
+      const hitDist = 15.0;
+      const pushPower = 0.20;
 
       if (item._vx === undefined) { item._vx = 0; item._vz = 0; }
 
@@ -2007,21 +1999,7 @@ const now = performance.now();
       }
     }
   }
-// ── カメラが写真に近づきすぎないようにクリップ ──
-  const viewingItem = photoItems.find(it => it.viewing && it.fixed && it.mesh);
-  if (viewingItem && viewingItem.mesh) {
-    const pdx = viewingItem.mesh.position.x - camera.position.x;
-    const pdz = viewingItem.mesh.position.z - camera.position.z;
-    const distXZ = Math.sqrt(pdx * pdx + pdz * pdz);
-    
-    const minDist = 2.5; // カメラが近づけない最小距離
-    if (distXZ < minDist && distXZ > 0) {
-      const dirX = pdx / distXZ;
-      const dirZ = pdz / distXZ;
-      camera.position.x = viewingItem.mesh.position.x - dirX * minDist;
-      camera.position.z = viewingItem.mesh.position.z - dirZ * minDist;
-    }
-  }
+
   backgroundParticles.material.uniforms.uTime.value = now * 0.001;
   updateParticleEffects();
 
@@ -2147,7 +2125,14 @@ function dissolvePhoto(item) {
     if (item.particles) { scene.remove(item.particles); item.particles = null; }
   }
 }
-
+// ── カメラがZ軸で写真を通り越さないようにする ──
+const viewingItem = photoItems.find(it => it.viewing && it.fixed && it.mesh);
+if (viewingItem && viewingItem.mesh) {
+  const minZ = viewingItem.mesh.position.z + 2.0;
+  if (camera.position.z > minZ) {
+    camera.position.z = minZ;
+  }
+}
 animate();
 
 // ======================================================
