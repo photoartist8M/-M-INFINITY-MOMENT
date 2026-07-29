@@ -2,22 +2,14 @@
 <html lang="ja" translate="no">
 <head>
   <meta charset="UTF-8" />
-
   <meta name="google" content="notranslate">
-
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>emotional - 時の瞬き</title>
-
   <link rel="stylesheet" href="./spaces/ui/openingUI.css">
-
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500;600&display=swap" rel="stylesheet">
-
-<script type="importmap">
+  <script type="importmap">
     {
       "imports": {
         "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
@@ -26,22 +18,20 @@
       }
     }
   </script>
-
-
-<style>
-  body {
-    margin: 0;
-  }
-  canvas#canvas {
-    display: none;
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    z-index: 10;
-  }
-</style>
+  <style>
+    body {
+      margin: 0;
+    }
+    canvas#canvas {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: 10;
+    }
+  </style>
 </head>
 <body>
 
@@ -49,25 +39,22 @@
      オープニングUI
      ==================================================== -->
 <div id="opening">
-
     <div class="titleArea">
         <canvas id="flareCanvas"></canvas>
         <canvas id="logoCanvas"></canvas>
-
         <h2 class="titleJapanese">
             ― 時の瞬き ―
         </h2>
     </div>
     <div id="openingMessage" class="openingMessage">
-    <p>この空間は静かに触れることで完成します。</p>
-    <p>ご鑑賞の前に Information をご覧ください。</p>
-</div>
+        <p>この空間は静かに触れることで完成します。</p>
+        <p>ご鑑賞の前に Information をご覧ください。</p>
+    </div>
 
     <!-- ===== Clock Button（円形・ネビュラ・リング・周回する光） ===== -->
     <div id="clockButtonWrap">
         <canvas id="nebulaCanvas"></canvas>
         <canvas id="ringCanvas"></canvas>
-
         <button id="startButton">
             <span>Touch</span>
             <small>to Begin</small>
@@ -79,44 +66,52 @@
         <button id="infoButton">Information</button>
     </div>
 
-    <div class="credit">photoartist. M</div>
-
+    <div class="credit">photo. artist. M</div>
 </div>
 
+<!-- ====================================================
+     操作誘導UI（矢印 + テキスト）
+     ==================================================== -->
+<div id="guidanceOverlay" class="guidanceOverlay">
+  <div class="guidanceArrows">
+    <div class="arrow arrow-up">▲</div>
+    <div class="arrow arrow-down">▼</div>
+    <div class="arrow arrow-left">◀</div>
+    <div class="arrow arrow-right">▶</div>
+  </div>
+  <div class="guidanceText">
+    <p id="guidanceTextContent"></p>
+  </div>
+</div>
+
+<!-- ====================================================
+     Information Panel
+     ==================================================== -->
 <div id="infoPanel">
   <div class="infoContent">
-
     <h3>Information</h3>
-
     <p>
       <strong>Smartphone</strong>
       ・左右にスワイプ　視点移動<br>
       ・上下にスワイプ　前進・後退<br>
     </p>
-
     <p>
       <strong>PC</strong>
       ・ドラッグ　　　視点移動<br>
       ・マウスホイール 前進・後退<br>
     </p>
-
     <div class="infoDivider"></div>
-
     <p>
       本作品には光の演出が含まれます。<br>
       光刺激に敏感な方は、ご自身の体調に配慮しながらご鑑賞ください。
     </p>
-
     <p>
       BGMは ON / OFF を切り替えられます。
     </p>
-
     <p class="infoNote">
       This exhibition is optimized for smartphones.
     </p>
-
     <button id="closeInfo">Close</button>
-
   </div>
 </div>
 
@@ -129,6 +124,7 @@
 <script type="module" src="./spaces/ui/logoCanvas.js"></script>
 <script type="module" src="./spaces/ui/clockButton.js"></script>
 <script type="module" src="./spaces/ui/openingUI.js"></script>
+
 <!-- ====================================================
      致命的エラー時の表示（真っ暗＋無音バグ対策）
      ==================================================== -->
@@ -161,5 +157,6 @@
   window.addEventListener('error', showFatalError);
   window.addEventListener('unhandledrejection', showFatalError);
 </script>
+
 </body>
 </html>

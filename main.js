@@ -1522,6 +1522,12 @@ let targetRotY = 0;
 let cameraLocked = false;
 let cameraAligning = false;
 
+// ======================================================
+// 操作誘導UI管理
+// ======================================================
+let guidanceShownTime = null;
+let guidanceDismissed = false;
+
 //------------------------------------------------------
 // PC
 //------------------------------------------------------
@@ -1529,6 +1535,18 @@ let cameraAligning = false;
 window.addEventListener("mousemove", (e) => {
 
   if (cameraLocked || cameraAligning) return;
+
+  // ── 操作誘導UI消滅ロジック ──
+  if (!guidanceDismissed && guidanceShownTime !== null) {
+    guidanceDismissed = true;
+    const guidance = document.getElementById('guidanceOverlay');
+    if (guidance) {
+      guidance.classList.add('fadeout-arrows');
+      setTimeout(() => {
+        guidance.classList.add('fadeout-text');
+      }, 600);
+    }
+  }
 
   let ty = (e.clientX / window.innerWidth - 0.5) * 0.5;
 
@@ -1614,6 +1632,18 @@ window.addEventListener("touchstart", (e) => {
 window.addEventListener("touchmove", (e) => {
 
   if (cameraLocked || cameraAligning) return;
+
+  // ── 操作誘導UI消滅ロジック ──
+  if (!guidanceDismissed && guidanceShownTime !== null) {
+    guidanceDismissed = true;
+    const guidance = document.getElementById('guidanceOverlay');
+    if (guidance) {
+      guidance.classList.add('fadeout-arrows');
+      setTimeout(() => {
+        guidance.classList.add('fadeout-text');
+      }, 600);
+    }
+  }
 
   e.preventDefault();
 
@@ -1743,10 +1773,38 @@ function animate() {
     return;
   }
 
-  const now = performance.now();
+// ── 操作誘導UI表示タイミング判定 ──
+  if (guidanceShownTime === null && getPortalState() !== 'switched') {
+    guidanceShownTime = Date.now();
+    console.log('🔍 Guidance timer started at scene load');
+  }
 
-  if (!cameraLocked && !cameraAligning) {
-    camera.position.z -= 0.01;
+  // ── 0.5秒後に操作誘導UI表示開始 ──
+  if (guidanceShownTime !== null && Date.now() - guidanceShownTime >= 500) {
+    const guidance = document.getElementById('guidanceOverlay');
+    
+    if (guidance && !guidance.classList.contains('reveal')) {
+      const isTouch = window.matchMedia('(hover: none)').matches;
+      const textEl = document.getElementById('guidanceTextContent');
+      if (textEl) {
+        textEl.textContent = isTouch ? 'スワイプで進む' : 'マウスで見回す';
+      }
+      guidance.classList.add('reveal');
+      console.log('✅ Guidance revealed! isTouch:', isTouch);
+    }
+  }
+
+const now = performance.now();
+
+  // ── 操作誘導UI表示・消滅中はカメラ自動移動を停止 ──
+  const guidanceActive = guidanceShownTime !== null && !guidanceDismissed;
+  const guidanceFadingOut = guidanceDismissed && guidanceShownTime !== null && 
+                            (Date.now() - guidanceShownTime < 3500); // 3秒のアニメーション + 0.5秒の余裕
+
+
+                            
+  if (!cameraLocked && !cameraAligning && !guidanceActive && !guidanceFadingOut) {
+    camera.position.z -= 0.006;
   }
 
   if (moveForward) {
@@ -1900,7 +1958,7 @@ function animate() {
       const targetRotation = item.mesh.quaternion.clone();
       
       item.mesh.quaternion.copy(currentRotation);
-      item.mesh.quaternion.slerp(targetRotation, 0.01);
+      item.mesh.quaternion.slerp(targetRotation, 0.005);
 
       if (item.aura) {
         item.aura.position.copy(item.mesh.position);

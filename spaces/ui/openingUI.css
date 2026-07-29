@@ -238,9 +238,6 @@ body.loaded .titleArea{
     height:135%;
     transform:translate(-50%,-50%);
     pointer-events:none;
-        filter: drop-shadow(0 0 12px rgba(255, 230, 190, 0.15))
-            drop-shadow(0 0 20px rgba(255, 230, 190, 0.08));
-    transition: filter 0.3s ease;
 }
 
 #ringCanvas{
@@ -251,9 +248,6 @@ body.loaded .titleArea{
     height:100%;
     transform:translate(-50%,-50%);
     pointer-events:none;
-    filter: drop-shadow(0 0 12px rgba(255, 230, 190, 0.15))
-            drop-shadow(0 0 20px rgba(255, 230, 190, 0.08));
-    transition: filter 0.3s ease;
 }
 
 #startButton{
@@ -327,10 +321,10 @@ body.loaded .titleArea{
 
 .bottomBar button{
     flex:0 1 auto;
-    width:170px;
+    width:110px;
     height:38px;
-    border-radius:30px;
-    border:1px solid #FFD2A0; 
+    border-radius:10px;
+    border:1px solid rgba(255,215,145,.28);
     background:rgba(255,255,255,.015);
     color:rgba(255,255,255,.62);
     font-size:.62rem;
@@ -339,29 +333,16 @@ body.loaded .titleArea{
     transition:all var(--transition);
     backdrop-filter:blur(10px);
     -webkit-backdrop-filter:blur(10px);
-   box-shadow:
+    box-shadow:
         inset 0 1px 2px rgba(0,0,0,.3),
-        0 0 6px rgba(255,215,145,.12),
-        0 0 12px rgba(255, 230, 190, .15),   /* ← 発光も同じ色 */
-        0 0 20px rgba(255, 230, 190, .08),
-        inset 0 0 8px rgba(255, 230, 190, .05);
+        0 0 6px rgba(255,215,145,.12);
     position:relative;
     overflow:hidden;
 }
-@media (max-width: 768px) {
-    .bottomBar button{
-        width: 125px !important; /* スマホでも横長に */
-    }
-}
+
 .bottomBar button:hover{
     background:rgba(255,255,255,.04);
     color:rgba(255,255,255,.55);
-    box-shadow:
-        inset 0 1px 2px rgba(0,0,0,.3),
-        0 0 15px rgba(255,210,160,.3),   /* ← ホバーでも淡く */
-        0 0 25px rgba(255,210,160,.2),
-        0 0 35px rgba(255,210,160,.12),
-        inset 0 0 12px rgba(255,210,160,.08);
 }
 
 .bottomBar button:active{
@@ -388,6 +369,128 @@ body.loaded .titleArea{
     animation:fadeUp .9s ease forwards;
 }
 
+
+/* ==========================================================
+   操作誘導UI（矢印 + テキスト）
+   ========================================================== */
+
+.guidanceOverlay {
+    position: fixed;
+    inset: 0;
+    z-index: 25;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.8s ease;
+}
+
+.guidanceOverlay.reveal {
+    opacity: 1;
+}
+
+.guidanceOverlay.fadeout-arrows .arrow {
+    animation: arrowFadeOut 0.6s ease forwards;
+}
+
+.guidanceOverlay.fadeout-text .guidanceText {
+    animation: textFadeOut 0.8s ease forwards;
+}
+
+.guidanceArrows {
+    position: fixed;
+    width: 100vw;
+    height: 100vh;
+    inset: 0;
+    pointer-events: none;
+}
+
+.arrow {
+    position: absolute;
+    font-size: clamp(32px, 8vw, 72px);
+    font-weight: bold;
+    color: rgba(255, 215, 145, 0.7);
+    text-shadow: 0 0 16px rgba(255, 215, 145, 0.5);
+    opacity: 0;
+    animation: arrowPulse 1.4s ease-in-out infinite;
+}
+
+.arrow-up {
+    top: 5%;
+    left: 50%;
+    transform: translateX(-50%);
+    animation-delay: 0s;
+}
+
+.arrow-down {
+    bottom: 5%;
+    left: 50%;
+    transform: translateX(-50%);
+    animation-delay: 0.35s;
+}
+
+.arrow-left {
+    left: 5%;
+    top: 50%;
+    transform: translateY(-50%);
+    animation-delay: 0.175s;
+}
+
+.arrow-right {
+    right: 5%;
+    top: 50%;
+    transform: translateY(-50%);
+    animation-delay: 0.525s;
+}
+
+@keyframes arrowPulse {
+    0% { opacity: 0.4; }
+    50% { opacity: 0.9; }
+    100% { opacity: 0.4; }
+}
+
+@keyframes arrowFadeOut {
+    from { opacity: 0.7; }
+    to { opacity: 0; }
+}
+
+.guidanceText {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    opacity: 0;
+    animation: textPulse 1.6s ease-in-out infinite;
+    z-index: 26;
+}
+
+.guidanceText p {
+    font-family: "Noto Serif JP", serif;
+    font-size: clamp(16px, 4.5vw, 28px);
+    font-weight: 400;
+    letter-spacing: 0.08em;
+    color: rgba(255, 215, 145, 0.75);
+    text-shadow: 0 0 20px rgba(255, 215, 145, 0.4);
+    margin: 0;
+    white-space: nowrap;
+}
+
+@keyframes textPulse {
+    0% { opacity: 0.5; }
+    50% { opacity: 1; }
+    100% { opacity: 0.5; }
+}
+
+@keyframes textFadeOut {
+    from { opacity: 0.75; }
+    to { opacity: 0; }
+}
+.guidanceOverlay.fadeout-arrows .arrow {
+    animation: arrowFadeOut 2s ease forwards !important;
+}
+
+.guidanceOverlay.fadeout-text .guidanceText {
+    animation: textFadeOut 2s ease forwards !important;
+}
 
 /* ==========================================================
    Information Panel
