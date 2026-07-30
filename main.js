@@ -68,7 +68,7 @@ const renderer = new THREE.WebGLRenderer({
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(
- Math.min(window.devicePixelRatio,1.5)
+  Math.min(window.devicePixelRatio, 1.0)
 );
 
 const composer = new EffectComposer(renderer);
@@ -308,7 +308,7 @@ function createSparkTexture(size = 128) {
 // 背景粒子 & アクセント粒子
 // ======================================================
 function createBackgroundParticles() {
-  const count = 2500; // 数
+  const count = 2000; // 数
 
   const positions = new Float32Array(count * 3);
   const speeds = new Float32Array(count);
