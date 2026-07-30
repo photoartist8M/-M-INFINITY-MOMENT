@@ -2791,6 +2791,12 @@ guideCardEl.innerHTML = `
     sparkleMaterial.size = 0.2 + Math.sin(sparkleT * 3.1) * 0.06;
   }
 
+  // 60fps基準の収束係数をdtでスケールし、フレームレートに依存せず
+  // 一定の速さで動くようにするための関数（見た目の速さの基準はここで決まる）
+  function frameSmooth(rate, dt) {
+    const clampedDt = Math.min(Math.max(dt || 0, 0), 0.1);
+    return 1 - Math.pow(1 - rate, clampedDt * 60);
+  }
   function updateBackground(dt) {
     bgUpdateTimer++;
     if (bgUpdateTimer % 3 === 0) {

@@ -2001,6 +2001,14 @@ __lastFrameTime = now;
       const mz = _basePos.z + item._repelZ;
       item.mesh.position.set(mx, my, mz);
 
+      // ★修正：当たり判定で写真パネルが奥へ押し戻された時、粒子群の
+      // 基準位置（item.particles）も一緒に追従させる。これをしないと
+      // 消滅演出が始まった瞬間、粒子だけ押し戻される前の元の位置に
+      // 取り残されて点滅して見える不具合になる。
+      if (item.particles) {
+        item.particles.position.set(mx, my, mz);
+      }
+
       _basePos.copy(camera.position);
       _basePos.y = item.mesh.position.y;
       
