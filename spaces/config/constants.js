@@ -63,22 +63,6 @@ export const MAX_TEX_DIM = IS_MOBILE ? 900 : 2000;
 export const SPARKLE_COUNT = 260;
 
 // ------------------------------------------------------
-// 写真読み込みの安定性調整（追加）
-// ------------------------------------------------------
-// スマホの低速回線・低スペック端末では、全30枚近くを一斉に
-// 読み込むとタイムアウトが発生しやすく、写真が欠けて表示される
-// 原因になっていた。以下は「演出・見た目」ではなく「読み込みの
-// 粘り強さ」だけを調整するための設定値。
-// ------------------------------------------------------
-export const PHOTO_LOAD_TIMEOUT_MS = IS_MOBILE ? 18000 : 10000;
-export const PHOTO_LOAD_MAX_RETRIES = IS_MOBILE ? 2 : 1;
-export const PHOTO_LOAD_RETRY_DELAY_MS = 900;
-export const PHOTO_LOAD_CONCURRENCY = IS_MOBILE ? 4 : Infinity;
-// 全体のうちこの割合以上が最終的に読み込み失敗した場合のみ、
-// 「お使いの機種では対応しておりません」的な注意書きを表示する
-export const PHOTO_LOAD_FAILURE_NOTICE_RATIO = 0.50;
-
-// ------------------------------------------------------
 // ⑥ 品質設定オブジェクト（追加・未使用）
 // ------------------------------------------------------
 export const QUALITY = {

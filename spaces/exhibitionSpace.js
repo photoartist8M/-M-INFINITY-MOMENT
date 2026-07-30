@@ -1,8 +1,8 @@
 import * as THREE from 'three';
-import { GALLERY_RADIUS, MAX_TEX_DIM, SPARKLE_COUNT, IS_MOBILE, PHOTO_LOAD_TIMEOUT_MS, PHOTO_LOAD_MAX_RETRIES, PHOTO_LOAD_RETRY_DELAY_MS, PHOTO_LOAD_CONCURRENCY, PHOTO_LOAD_FAILURE_NOTICE_RATIO } from './config/constants.js';
+import { GALLERY_RADIUS, MAX_TEX_DIM, SPARKLE_COUNT, IS_MOBILE } from './config/constants.js';
 import { PHOTO_CONFIG } from './core/photoConfig.js';
 import { extractPastelColors } from './utils/color.js';
-import { loadImageWithRetry, getTextureSource } from './utils/image.js';
+import { loadImageSafely, getTextureSource } from './utils/image.js';
 import { hasSubmitted, submitMessage, fetchLetterMessages, fetchBubbleMessages } from './core/messaging.js';
 import { BookReveal } from './effects/BookReveal.js';
 import { fadeVolume, space2BGM, playBGM, playSFX, kirakiraSFX } from './audio.js';
@@ -1183,101 +1183,6 @@ if (length <= 60) {
   // ====================================================================
   const photoItems = [];
 
-  // --------------------------------------------------------------------
-  // 読み込み同時実行数の制限（追加）
-  // --------------------------------------------------------------------
-  // 30枚近い写真を一斉にリクエストすると、特にスマホの回線・端末では
-  // タイムアウトが多発して写真が欠けて表示される原因になっていた。
-  // ここでは見た目や演出は変えず、「同時に何枚まで読み込みに行くか」
-  // だけをキューで制御する（PCは実質無制限＝従来どおり）。
-  // --------------------------------------------------------------------
-  let activePhotoLoads = 0;
-  const photoLoadQueue = [];
-
-  function enqueuePhotoLoad(task) {
-    photoLoadQueue.push(task);
-    processPhotoLoadQueue();
-  }
-
-  function processPhotoLoadQueue() {
-    while (activePhotoLoads < PHOTO_LOAD_CONCURRENCY && photoLoadQueue.length > 0) {
-      const task = photoLoadQueue.shift();
-      activePhotoLoads++;
-      task(() => {
-        activePhotoLoads--;
-        processPhotoLoadQueue();
-      });
-    }
-  }
-
-  // --------------------------------------------------------------------
-  // 読み込み結果の集計 → 非対応端末向けの注意書き（追加）
-  // --------------------------------------------------------------------
-  const loadStats = { total: PHOTO_CONFIG.length, settled: 0, failed: 0 };
-  let unsupportedNoticeEl = null;
-
-  function showUnsupportedDeviceNotice() {
-    if (unsupportedNoticeEl) return;
-    unsupportedNoticeEl = document.createElement('div');
-    Object.assign(unsupportedNoticeEl.style, {
-      position: 'fixed',
-      left: '50%',
-      bottom: '24px',
-      transform: 'translateX(-50%)',
-      maxWidth: 'min(90vw, 480px)',
-      background: 'rgba(30, 24, 38, 0.92)',
-      border: '1px solid rgba(255,255,255,0.18)',
-      borderRadius: '14px',
-      padding: '14px 18px',
-      boxShadow: '0 8px 30px rgba(0,0,0,0.45)',
-      color: '#fff',
-      fontFamily: 'sans-serif',
-      fontSize: '13px',
-      lineHeight: '1.6',
-      letterSpacing: '0.03em',
-      zIndex: '30',
-      display: 'flex',
-      alignItems: 'center',
-      gap: '12px',
-    });
-
-    const textEl = document.createElement('div');
-    textEl.textContent = 'お使いの機種では、すべての写真が正しく表示されない場合があります。これは完成形ではありません。';
-    Object.assign(textEl.style, { flex: '1', opacity: '0.9' });
-
-    const closeEl = document.createElement('button');
-    closeEl.textContent = '閉じる';
-    Object.assign(closeEl.style, {
-      flexShrink: '0',
-      background: 'rgba(255,255,255,0.12)',
-      border: '1px solid rgba(255,255,255,0.25)',
-      borderRadius: '8px',
-      color: '#fff',
-      fontSize: '12px',
-      padding: '6px 10px',
-      cursor: 'pointer',
-    });
-    closeEl.addEventListener('click', () => {
-      unsupportedNoticeEl.style.display = 'none';
-    });
-
-    unsupportedNoticeEl.appendChild(textEl);
-    unsupportedNoticeEl.appendChild(closeEl);
-    document.body.appendChild(unsupportedNoticeEl);
-  }
-
-  function notePhotoLoadSettled(success) {
-    loadStats.settled++;
-    if (!success) loadStats.failed++;
-
-    if (loadStats.settled >= loadStats.total) {
-      const failureRatio = loadStats.total > 0 ? loadStats.failed / loadStats.total : 0;
-      if (failureRatio >= PHOTO_LOAD_FAILURE_NOTICE_RATIO) {
-        showUnsupportedDeviceNotice();
-      }
-    }
-  }
-
   function createPhotoItem(config) {
     const rad = THREE.MathUtils.degToRad(config.angle);
     const position = new THREE.Vector3(
@@ -1314,80 +1219,72 @@ if (length <= 60) {
       failed: false,
     };
 
-    enqueuePhotoLoad((done) => {
-      loadImageWithRetry(config.src, {
-        timeoutMs: PHOTO_LOAD_TIMEOUT_MS,
-        maxRetries: PHOTO_LOAD_MAX_RETRIES,
-        retryDelayMs: PHOTO_LOAD_RETRY_DELAY_MS,
-        onFail: () => {
-          item.failed = true;
-          notePhotoLoadSettled(false);
-          done();
-        },
-        onSuccess: (img) => {
-          const aspect = img.width / img.height;
-          const frameHeight = 4.5 * config.scale;
-          const baseWidth = frameHeight * aspect;
-          const baseHeight = frameHeight;
+    loadImageSafely(config.src, {
+      timeoutMs: 10000,
+      onFail: () => {
+        item.failed = true;
+      },
+      onSuccess: (img) => {
+        const aspect = img.width / img.height;
+        const frameHeight = 4.5 * config.scale;
+        const baseWidth = frameHeight * aspect;
+        const baseHeight = frameHeight;
 
-          item.frameWidth = baseWidth;
-          item.frameHeight = baseHeight;
+        item.frameWidth = baseWidth;
+        item.frameHeight = baseHeight;
 
-          const texSource = getTextureSource(img, MAX_TEX_DIM);
-          const tex = new THREE.Texture(texSource);
-          tex.needsUpdate = true;
-          tex.anisotropy = 1;
+        const texSource = getTextureSource(img, MAX_TEX_DIM);
+        const tex = new THREE.Texture(texSource);
+        tex.needsUpdate = true;
+        tex.anisotropy = 1;
 
-          const geo = new THREE.PlaneGeometry(baseWidth, baseHeight);
-          const mat = new THREE.MeshBasicMaterial({
-            map: tex,
-            transparent: true,
-            side: THREE.DoubleSide,
-            opacity: 0,
-          });
+        const geo = new THREE.PlaneGeometry(baseWidth, baseHeight);
+        const mat = new THREE.MeshBasicMaterial({
+          map: tex,
+          transparent: true,
+          side: THREE.DoubleSide,
+          opacity: 0,
+        });
 
-          item.mesh = new THREE.Mesh(geo, mat);
-          item.mesh.position.copy(position);
-          item.mesh.lookAt(0, position.y, 0);
-          item.mesh.userData.photoItem = item;
-          scene.add(item.mesh);
+        item.mesh = new THREE.Mesh(geo, mat);
+        item.mesh.position.copy(position);
+        item.mesh.lookAt(0, position.y, 0);
+        item.mesh.userData.photoItem = item;
+        scene.add(item.mesh);
 
-          const hitPadding = 1.5;
-          const hitGeo = new THREE.PlaneGeometry(baseWidth * hitPadding, baseHeight * hitPadding);
-          const hitMat = new THREE.MeshBasicMaterial({ visible: false });
-          item.hitMesh = new THREE.Mesh(hitGeo, hitMat);
-          item.hitMesh.position.copy(position);
-          item.hitMesh.lookAt(0, position.y, 0);
-          item.hitMesh.userData.photoItem = item;
-          scene.add(item.hitMesh);
+        const hitPadding = 1.5;
+        const hitGeo = new THREE.PlaneGeometry(baseWidth * hitPadding, baseHeight * hitPadding);
+        const hitMat = new THREE.MeshBasicMaterial({ visible: false });
+        item.hitMesh = new THREE.Mesh(hitGeo, hitMat);
+        item.hitMesh.position.copy(position);
+        item.hitMesh.lookAt(0, position.y, 0);
+        item.hitMesh.userData.photoItem = item;
+        scene.add(item.hitMesh);
 
-          const auraGeo = new THREE.PlaneGeometry(baseWidth + 0.15, baseHeight + 0.15);
-          const auraMat = new THREE.MeshBasicMaterial({
-            color: 0xffffff,
-            transparent: true,
-            opacity: 0,
-            side: THREE.DoubleSide,
-          });
-          item.aura = new THREE.Mesh(auraGeo, auraMat);
-          item.aura.position.copy(position).multiplyScalar(1.002);
-          item.aura.lookAt(0, position.y, 0);
-          scene.add(item.aura);
+        const auraGeo = new THREE.PlaneGeometry(baseWidth + 0.15, baseHeight + 0.15);
+        const auraMat = new THREE.MeshBasicMaterial({
+          color: 0xffffff,
+          transparent: true,
+          opacity: 0,
+          side: THREE.DoubleSide,
+        });
+        item.aura = new THREE.Mesh(auraGeo, auraMat);
+        item.aura.position.copy(position).multiplyScalar(1.002);
+        item.aura.lookAt(0, position.y, 0);
+        scene.add(item.aura);
 
-          item.pastelColors = extractPastelColors(img);
-          if (config.interaction === 'glow') {
-            item.isGlowing = true;
-            if (item.aura) {
-              item.aura.material.blending = THREE.AdditiveBlending;
-              item.aura.material.needsUpdate = true;
-            }
+        item.pastelColors = extractPastelColors(img);
+        if (config.interaction === 'glow') {
+          item.isGlowing = true;
+          if (item.aura) {
+            item.aura.material.blending = THREE.AdditiveBlending;
+            item.aura.material.needsUpdate = true;
           }
-          item.loaded = true;
-          registerPhotoColorsToSparkles(item.pastelColors);
-          notifyPhotoLoadedForCeilingStar();
-          notePhotoLoadSettled(true);
-          done();
-        },
-      });
+        }
+        item.loaded = true;
+        registerPhotoColorsToSparkles(item.pastelColors);
+        notifyPhotoLoadedForCeilingStar();
+      },
     });
 
     return item;

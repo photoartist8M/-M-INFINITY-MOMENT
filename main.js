@@ -39,13 +39,6 @@ function unlockAudioForPortal() {
   });
 }
 // ======================================================
-// スマホ判定（描画負荷の調整のみに使用／演出内容は変更しない）
-// ======================================================
-const IS_MOBILE_DEVICE =
-  window.innerWidth <= 768 ||
-  /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-
-// ======================================================
 // 基本セットアップ
 // ======================================================
 const scene = new THREE.Scene();
@@ -70,24 +63,19 @@ camera.position.set(0, 0, 30);
 const BLOOM_LAYER = 1;
 const renderer = new THREE.WebGLRenderer({
   canvas: document.querySelector('#canvas'),
-  antialias: !IS_MOBILE_DEVICE, // スマホはAAオフで負荷軽減（見た目の演出は変更なし）
-  powerPreference: 'high-performance',
+  antialias: true
 });
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(
-  Math.min(window.devicePixelRatio, IS_MOBILE_DEVICE ? 1.25 : 1.5)
+ Math.min(window.devicePixelRatio,1.5)
 );
 
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
 
-const BLOOM_RES_SCALE = IS_MOBILE_DEVICE ? 0.65 : 1.0; // 解像度のみ調整、演出パラメータは変更しない
 const bloomPass = new UnrealBloomPass(
-  new THREE.Vector2(
-    window.innerWidth * BLOOM_RES_SCALE,
-    window.innerHeight * BLOOM_RES_SCALE
-  ),
+  new THREE.Vector2(window.innerWidth, window.innerHeight),
   1.3, 2.0, 0.93
 );
 composer.addPass(bloomPass);
@@ -747,7 +735,7 @@ function loadPhotoItem(item) {
     clearTimeout(failTimeoutId);
 
     item._img = img;
-    const isMobile = IS_MOBILE_DEVICE;
+    const isMobile = window.innerWidth <= 768;
 
     const frameHeight = isMobile ? 9.5 : 10;
 
@@ -776,9 +764,8 @@ function loadPhotoItem(item) {
     cx.drawImage(img, 0, 0, w, h);
     const data = cx.getImageData(0, 0, w, h).data;
     let rSum = 0, gSum = 0, bSum = 0, count = 0;
-    const sampleStep = isMobile ? 3 : 2; // スマホは粒子密度を間引いて負荷軽減（見た目のパターンは同一ロジック）
-    for (let y = 0; y < h; y += sampleStep) {
-      for (let x = 0; x < w; x += sampleStep) {
+    for (let y = 0; y < h; y += 2) {
+      for (let x = 0; x < w; x += 2) {
         const i = (y * w + x) * 4;
         const r = data[i], g = data[i+1], b = data[i+2];
         if ((r+g+b) > 450 && x > 2 && x < w-2 && y > 2 && y < h-2) {
@@ -1050,7 +1037,7 @@ const DOOR_PARTICLE_PALETTE = [
 ];
 
 function createDoorParticles() {
-  const count = IS_MOBILE_DEVICE ? 800 : 1400; // スマホは粒子数のみ削減（渦・収束・脈動の演出ロジックは同一）
+  const count = 1400;
   const pos    = new Float32Array(count * 3);
   const colors = new Float32Array(count * 3);
   const sizes  = new Float32Array(count);
@@ -2169,9 +2156,6 @@ window.addEventListener('resize', () => {
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
   composer.setSize(window.innerWidth, window.innerHeight);
-  bloomPass.resolution.set(
-    window.innerWidth * BLOOM_RES_SCALE,
-    window.innerHeight * BLOOM_RES_SCALE
-  );
+  bloomPass.resolution.set(window.innerWidth, window.innerHeight);
   resizePortal();
 });

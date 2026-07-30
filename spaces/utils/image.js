@@ -69,35 +69,3 @@ export function getTextureSource(img, maxDim) {
   cctx.drawImage(img, 0, 0, c.width, c.height);
   return c;
 }
-
-// ------------------------------------------------------
-// 失敗時に自動リトライしてから読み込む（追加・既存の
-// loadImageSafely自体の挙動は一切変更しない）
-// ------------------------------------------------------
-// スマホ回線・低速環境での「タイムアウト＝即失敗」を防ぐため、
-// 一定回数までは間隔を空けて再取得を試みてから onFail を呼ぶ。
-// 呼び出し側から見た挙動（onSuccess / onFail が最終的に一度だけ
-// 呼ばれる）は loadImageSafely と同じなので、既存の見た目・
-// 演出には影響しない。
-// ------------------------------------------------------
-export function loadImageWithRetry(src, { onSuccess, onFail, timeoutMs = 10000, maxRetries = 0, retryDelayMs = 800 } = {}) {
-  let attempt = 0;
-
-  function attemptLoad() {
-    loadImageSafely(src, {
-      timeoutMs,
-      onSuccess,
-      onFail: () => {
-        if (attempt < maxRetries) {
-          attempt++;
-          console.warn(`[exhibition] 再試行します (${attempt}/${maxRetries}): ${src}`);
-          setTimeout(attemptLoad, retryDelayMs * attempt);
-        } else {
-          onFail && onFail();
-        }
-      },
-    });
-  }
-
-  attemptLoad();
-}
