@@ -68,7 +68,7 @@ const renderer = new THREE.WebGLRenderer({
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(
-  Math.min(window.devicePixelRatio, 1.0)
+ Math.min(window.devicePixelRatio,1.2)
 );
 
 const composer = new EffectComposer(renderer);
@@ -1790,6 +1790,21 @@ function disposeMainScene() {
 const LOOP_LENGTH = PHOTO_FILES.length * SPIRAL_CONFIG.zStep;
 const mainClock = new THREE.Clock();
 
+// ======================================================
+// フレームレート非依存の減衰係数
+// ======================================================
+// 「* 0.15」のような値は60fps前提で調整されていたため、
+// フレームレートが低い端末（例：処理が重い古いiPhone）では
+// 同じ収束に２倍以上の実時間がかかり、カメラワークが遅く
+// 感じられる原因になっていた。60fpsでの見た目・速度は完全に
+// 保ったまま、フレームレートに依存しないようにするための関数。
+// ======================================================
+let __lastFrameTime = performance.now();
+function frameSmoothFactor(ratePerFrameAt60fps, dt) {
+  const clampedDt = Math.min(Math.max(dt, 0), 0.1); // タブ復帰時の巨大ジャンプ防止
+  return 1 - Math.pow(1 - ratePerFrameAt60fps, clampedDt * 60);
+}
+
 function animate() {
   requestAnimationFrame(animate);
 
@@ -1817,6 +1832,8 @@ function animate() {
   }
 
 const now = performance.now();
+const __dt = (now - __lastFrameTime) / 1000;
+__lastFrameTime = now;
 
  // ── 矢印が表示されるまでカメラ自動移動を停止 ──
   const guidance = document.getElementById('guidanceOverlay');
@@ -1841,7 +1858,7 @@ const now = performance.now();
   }
 
   if (moveForward) {
-    camera.position.z += (moveTargetZ - camera.position.z) * 0.15;
+    camera.position.z += (moveTargetZ - camera.position.z) * frameSmoothFactor(0.15, __dt);
     if (Math.abs(moveTargetZ - camera.position.z) < 0.03) {
       camera.position.z = moveTargetZ;
       moveForward = false;
@@ -1849,8 +1866,9 @@ const now = performance.now();
   }
 
   if (!cameraLocked && !cameraAligning) {
-    camera.rotation.y += (targetRotY - camera.rotation.y) * 0.08;
-    camera.rotation.x += (targetRotX - camera.rotation.x) * 0.08;
+    const __rotFactor = frameSmoothFactor(0.08, __dt);
+    camera.rotation.y += (targetRotY - camera.rotation.y) * __rotFactor;
+    camera.rotation.x += (targetRotX - camera.rotation.x) * __rotFactor;
   }
 
   backgroundParticles.rotation.y += 0.00008;
