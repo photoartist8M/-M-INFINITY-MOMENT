@@ -1447,10 +1447,6 @@ function checkFixed(item) {
     const worldPos = item.position.clone().add(new THREE.Vector3(0, 0, 3));
     item.mesh.position.copy(worldPos);
     item.mesh.quaternion.set(0, 0, 0, 1);
-    const targetDir = new THREE.Vector3();
-    targetDir.copy(camera.position);
-    targetDir.y = item.mesh.position.y;
-    item.mesh.lookAt(targetDir);
     item.viewing = true;
     item.viewStartTime = Date.now();
     item.viewStartZ = camera.position.z;
@@ -1632,11 +1628,15 @@ window.addEventListener("wheel", (e) => {
 
   if (cameraLocked || cameraAligning) return;
 
+  // ★修正：2本指以上（ピンチ）の場合、wheelイベントをブロック
+  if (e.ctrlKey || e.metaKey) {
+    e.preventDefault();
+    return;
+  }
+
   camera.position.z += e.deltaY * 0.01;
 
-}, { passive: true });
-
-
+}, { passive: false });
 //------------------------------------------------------
 // スマホ
 //------------------------------------------------------
@@ -2055,7 +2055,7 @@ __lastFrameTime = now;
       const targetRotation = item.mesh.quaternion.clone();
       
       item.mesh.quaternion.copy(currentRotation);
-    item.mesh.quaternion.slerp(targetRotation, 0.01);
+    item.mesh.quaternion.slerp(targetRotation, 0.005);
          if (item.particles) {
       item.particles.quaternion.copy(item.mesh.quaternion);
     }

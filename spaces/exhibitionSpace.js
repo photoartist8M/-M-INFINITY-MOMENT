@@ -332,7 +332,6 @@ export function startExhibitionSpace(renderer, camera) {
     });
     document.body.appendChild(focusButtonEl);
   }
-
   let focusedItem = null;
   let focusTimer = 0;
   let focusButtonVisible = false;
@@ -373,7 +372,7 @@ export function startExhibitionSpace(renderer, camera) {
     position: 'fixed',
     left: '50%',
     bottom: window.innerWidth <= 768
-  ? 'calc(env(safe-area-inset-bottom) + 42px)'
+  ? 'calc(env(safe-area-inset-bottom) + 230px)'
   : '9%',
     transform: 'translateX(-50%) translateY(20px)',
     padding: window.innerWidth <= 768
@@ -383,7 +382,7 @@ export function startExhibitionSpace(renderer, camera) {
   ? '15px'
   : '10px',
     fontFamily: 'sans-serif',
-    color: '#3a2c20',
+    color: '#d8b46a',
     background: 'rgba(255, 240, 220, 0.3)',
     border: '1px solid rgba(255, 230, 190, 0.7)',
     borderRadius: '999px',
@@ -1290,11 +1289,57 @@ if (length <= 60) {
     return item;
   }
 
-  PHOTO_CONFIG.forEach((cfg, idx) => {
+ PHOTO_CONFIG.forEach((cfg, idx) => {
     const item = createPhotoItem(cfg);
     item.revealIndex = idx;
     photoItems.push(item);
   });
+
+  // ★修正：読み込み完了後、失敗率をチェックしてメッセージを表示
+  setTimeout(() => {
+    const loadedCount = photoItems.filter(it => it.loaded).length;
+    const failedCount = photoItems.filter(it => it.failed).length;
+    const failureRatio = failedCount / photoItems.length;
+    
+    // 失敗率50%以上でメッセージ表示（30枚中15枚以上失敗）
+    const FAILURE_THRESHOLD = 0.5;
+    
+    console.log(`📊 Photo Load: ${loadedCount}/${photoItems.length} loaded, ${failedCount} failed (${(failureRatio * 100).toFixed(1)}%)`);
+    
+    if (failureRatio >= FAILURE_THRESHOLD) {
+      // 警告メッセージを表示
+      const warningEl = document.createElement('div');
+      Object.assign(warningEl.style, {
+        position: 'fixed',
+        top: '50%',
+        left: '50%',
+        transform: 'translate(-50%, -50%)',
+        background: 'rgba(20, 16, 26, 0.95)',
+        border: '2px solid #d8b46a',
+        color: '#d8b46a',
+        padding: '40px 50px',
+        borderRadius: '8px',
+        textAlign: 'center',
+        fontFamily: 'sans-serif',
+        fontSize: '16px',
+        lineHeight: '1.8',
+        zIndex: '9999',
+        maxWidth: '85%',
+        boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+      });
+      warningEl.innerHTML = `
+        <div style="font-size: 20px; margin-bottom: 16px;">⚠️ 環境注意</div>
+        <div>お使いのデバイスでは、すべての写真を表示できません。</div>
+        <div style="margin-top: 12px; font-size: 14px; color: #d8b46a99;">
+          現在 ${loadedCount} / ${photoItems.length} 枚が表示されています
+        </div>
+        <div style="margin-top: 20px; font-size: 13px; color: #d8b46a77;">
+          ブラウザをリロードするか、別のブラウザをお試しください
+        </div>
+      `;
+      document.body.appendChild(warningEl);
+    }
+  }, 6000);  // 6秒後に判定
 
   // ====================================================================
   // [SECTION: ceilingFilmStar]
