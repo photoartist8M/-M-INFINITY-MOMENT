@@ -2628,7 +2628,7 @@ guideCardEl.innerHTML = `
 
   <div style="opacity:0.75;">
     ・スワイプで視点移動<br>
-    ・Viewで写真拡大<br>
+    ・クリックまたはViewで写真拡大<br>
     ・紙飛行機とシャボン玉をタップ<br>
     ・空のフィルムオブジェに触れる
   </div>

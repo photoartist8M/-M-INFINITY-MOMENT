@@ -118,12 +118,6 @@ requestAnimationFrame(() => {
 });
 
 // ======================================================
-// Raycasting（タップ検出用）
-// ======================================================
-const raycaster = new THREE.Raycaster();
-const mousePos = new THREE.Vector2();
-
-// ======================================================
 // 視点クランプ（写真の端に合わせて水平回転を制限）
 // ======================================================
 function getYawLimits() {
@@ -925,7 +919,7 @@ function onPhotoArrivedAtLight(index) {
 // カメラを裂け目正面・適正距離へ補正してからロックする
 // ======================================================
 const RIFT_VIEW_DISTANCE      = 5.5;
-const CAMERA_ALIGN_DURATION   = 2500;
+const CAMERA_ALIGN_DURATION   = 1700;
 const RIFT_BASE_FOV           = 75;
 
 function computeLookAtQuaternion(fromPos, targetPos) {
@@ -1152,7 +1146,7 @@ function updateDoor() {
   // Phase 1: 台風の目のような対数螺旋で渦が巻き始める
   // ────────────────────────────────────────
   if (doorPhase === 'spiraling') {
-    const SPIRAL_DUR = 1.4;
+    const SPIRAL_DUR = 0.7;
     const sp    = Math.min(1.0, doorTime / SPIRAL_DUR);
     const accel = Math.pow(sp, 2.2);
 
@@ -1336,11 +1330,21 @@ function checkTriggers() {
     const item = photoItems[i];
     if (!item.loaded) continue;
 
-    if (!item.triggered) {
-      const dist = camera.position.distanceTo(item.position);
-      const byDistance = dist < TRIGGER_DISTANCE;
-      const byClick    = item._clickTriggered === true;
-      const byTime     = item.index === 0 && item._loadedAt && (now - item._loadedAt) > 5000;
+if (!item.triggered) {
+  const dist = camera.position.distanceTo(item.position);
+  const byDistance = dist < TRIGGER_DISTANCE;
+  const byClick    = item._clickTriggered === true;
+  const byTime     = item.index === 0 && item._loadedAt && (now - item._loadedAt) > 5000;
+
+  // ★修正A：ドラッグ中及びドラッグ直後は自動トリガー無効
+  const isDragCooldown = (now - dragEndTime) < DRAG_TRIGGER_COOLDOWN;
+  const canAutoTrigger = !isDragging && !isDragCooldown;
+
+  if ((canAutoTrigger && byDistance) || byClick || byTime) {
+        item.triggered = true;
+        item.attract   = true;
+        item._attractStart = Date.now();
+      }
 
       if (byDistance || byClick || byTime) {
         item.triggered = true;
@@ -1443,6 +1447,10 @@ function checkFixed(item) {
     const worldPos = item.position.clone().add(new THREE.Vector3(0, 0, 3));
     item.mesh.position.copy(worldPos);
     item.mesh.quaternion.set(0, 0, 0, 1);
+    const targetDir = new THREE.Vector3();
+    targetDir.copy(camera.position);
+    targetDir.y = item.mesh.position.y;
+    item.mesh.lookAt(targetDir);
     item.viewing = true;
     item.viewStartTime = Date.now();
     item.viewStartZ = camera.position.z;
@@ -1555,6 +1563,20 @@ window.startGuidanceTimer = function () {
 // PC
 //------------------------------------------------------
 
+// ★修正A：ドラッグ判定フラグ
+let isDragging = false;
+let dragEndTime = 0;
+const DRAG_TRIGGER_COOLDOWN = 500;  // ドラッグ終了後500msは自動トリガー無効
+
+window.addEventListener("mousedown", (e) => {
+  isDragging = true;
+});
+
+window.addEventListener("mouseup", (e) => {
+  isDragging = false;
+  dragEndTime = Date.now();
+});
+
 window.addEventListener("mousemove", (e) => {
 
   if (cameraLocked || cameraAligning) return;
@@ -1627,11 +1649,6 @@ let lastTapTime = 0;
 let moveForward = false;
 let moveTargetZ = 0;
 
-// ★修正B用：タップの開始時刻を記録
-let touchStartTime = 0;
-let touchStartX = 0;
-let touchStartY = 0;
-
 window.addEventListener("touchstart", (e) => {
 
   const now = Date.now();
@@ -1645,13 +1662,6 @@ window.addEventListener("touchstart", (e) => {
   }
 
   lastTapTime = now;
-
-  // ★修正B：タップ開始時の情報を記録（判定は touchend で実施）
-  touchStartTime = Date.now();
-  if (e.touches.length === 1) {
-    touchStartX = e.touches[0].clientX;
-    touchStartY = e.touches[0].clientY;
-  }
 
   if (e.touches.length === 1) {
 
@@ -1667,53 +1677,6 @@ window.addEventListener("touchstart", (e) => {
 
     lastPinchDist = Math.sqrt(dx * dx + dy * dy);
 
-  }
-
-}, { passive: true });
-
-// ★修正B：touchend で短時間タップを判定してRaycastingを実行
-window.addEventListener("touchend", (e) => {
-
-  if (cameraLocked || cameraAligning || e.touches.length > 0) return;
-
-  const tapDuration = Date.now() - touchStartTime;
-  const tapDistance = Math.hypot(
-    e.changedTouches[0].clientX - touchStartX,
-    e.changedTouches[0].clientY - touchStartY
-  );
-
-  // 100ms以下かつ移動距離が10px未満 = 「クリック」と判定
-  if (tapDuration < 100 && tapDistance < 10) {
-    mousePos.x = (touchStartX / window.innerWidth) * 2 - 1;
-    mousePos.y = -(touchStartY / window.innerHeight) * 2 + 1;
-
-    raycaster.setFromCamera(mousePos, camera);
-
-    // 全ての粒子パーティクルメッシュと交差判定
-    const particleMeshes = photoItems.map(item => item.particles).filter(p => p);
-    const intersects = raycaster.intersectObjects(particleMeshes);
-
-    if (intersects.length > 0) {
-      // タップされた粒子が属する写真を特定
-      const tapParticle = intersects[0].object;
-      const tappedItem = photoItems.find(item => item.particles === tapParticle);
-
-      if (tappedItem && !tappedItem.dissolved) {
-        // そのアイテムの目の前へカメラを移動
-        const targetZ = tappedItem.position.z + 5; // 写真の手前5ユニット
-        moveTargetZ = targetZ;
-        moveForward = true;
-
-        // トリガーして粒子の集約を開始
-        if (!tappedItem.triggered && !tappedItem.formed) {
-          tappedItem.triggered = true;
-          tappedItem.attract = true;
-          tappedItem._attractStart = Date.now();
-        }
-
-        console.log('✅ Photo tapped! Moving to:', targetZ);
-      }
-    }
   }
 
 }, { passive: true });
@@ -2093,7 +2056,9 @@ __lastFrameTime = now;
       
       item.mesh.quaternion.copy(currentRotation);
     item.mesh.quaternion.slerp(targetRotation, 0.01);
-
+         if (item.particles) {
+      item.particles.quaternion.copy(item.mesh.quaternion);
+    }
       if (item.aura) {
         item.aura.position.copy(item.mesh.position);
         item.aura.quaternion.copy(item.mesh.quaternion);
