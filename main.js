@@ -118,6 +118,12 @@ requestAnimationFrame(() => {
 });
 
 // ======================================================
+// Raycasting（タップ検出用）
+// ======================================================
+const raycaster = new THREE.Raycaster();
+const mousePos = new THREE.Vector2();
+
+// ======================================================
 // 視点クランプ（写真の端に合わせて水平回転を制限）
 // ======================================================
 function getYawLimits() {
@@ -905,9 +911,14 @@ function onPhotoArrivedAtLight(index) {
     moveTargetZ = ACCUM_POINT.z + 4.5;
     moveForward = true;
 
-    setTimeout(() => {
-      alignCameraToRiftAndLock();
-    }, 1500);
+    // ★修正：1.5秒waitをコメントアウト（不要なら削除、必要なら復活）
+    // 裂け目出現が早いと感じたら、以下をアンコメント
+    // setTimeout(() => {
+    //   alignCameraToRiftAndLock();
+    // }, 1500);
+
+    // すぐに裂け目表示へ
+    alignCameraToRiftAndLock();
   }
 }
 // ======================================================
@@ -1630,6 +1641,40 @@ window.addEventListener("touchstart", (e) => {
 
   lastTapTime = now;
 
+  // ★修正：写真タップで目の前へ移動（1本指）
+  if (!cameraLocked && !cameraAligning && e.touches.length === 1) {
+    mousePos.x = (e.touches[0].clientX / window.innerWidth) * 2 - 1;
+    mousePos.y = -(e.touches[0].clientY / window.innerHeight) * 2 + 1;
+
+    raycaster.setFromCamera(mousePos, camera);
+
+    // 全ての粒子パーティクルメッシュと交差判定
+    const particleMeshes = photoItems.map(item => item.particles).filter(p => p);
+    const intersects = raycaster.intersectObjects(particleMeshes);
+
+    if (intersects.length > 0) {
+      // タップされた粒子が属する写真を特定
+      const tapParticle = intersects[0].object;
+      const tappedItem = photoItems.find(item => item.particles === tapParticle);
+
+      if (tappedItem && !tappedItem.dissolved) {
+        // そのアイテムの目の前へカメラを移動
+        const targetZ = tappedItem.position.z + 5; // 写真の手前5ユニット
+        moveTargetZ = targetZ;
+        moveForward = true;
+
+        // トリガーして粒子の集約を開始
+        if (!tappedItem.triggered && !tappedItem.formed) {
+          tappedItem.triggered = true;
+          tappedItem.attract = true;
+          tappedItem._attractStart = Date.now();
+        }
+
+        console.log('✅ Photo tapped! Moving to:', targetZ);
+      }
+    }
+  }
+
   if (e.touches.length === 1) {
 
     lastTouchX = e.touches[0].clientX;
@@ -1652,6 +1697,12 @@ window.addEventListener("touchstart", (e) => {
 window.addEventListener("touchmove", (e) => {
 
   if (cameraLocked || cameraAligning) return;
+
+  // ★修正：2本指以上の場合、ピンチズームを無効化
+  if (e.touches.length > 1) {
+    e.preventDefault();
+    return; // 2本指以上なら処理を中断
+  }
 
   // ── 操作誘導UI消滅ロジック ──
 if (!tutorialFinished &&
@@ -2113,7 +2164,7 @@ function dissolvePhoto(item) {
   if (item.particles && item.particleGeo && item._particleNoises) {
     const pos = item.particleGeo.attributes.position.array;
     
-    item._vortexTime += 0.004;
+    item._vortexTime += 0.012;  // ★修正：3倍速に高速化（0.004 → 0.012）
     const progress = Math.min(1.0, item._vortexTime);
 
     for (let i = 0; i < item.particleCount; i++) {

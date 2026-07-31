@@ -1252,7 +1252,7 @@ if (length <= 60) {
         item.mesh.userData.photoItem = item;
         scene.add(item.mesh);
 
-        const hitPadding = 1.5;
+        const hitPadding = 2.2;
         const hitGeo = new THREE.PlaneGeometry(baseWidth * hitPadding, baseHeight * hitPadding);
         const hitMat = new THREE.MeshBasicMaterial({ visible: false });
         item.hitMesh = new THREE.Mesh(hitGeo, hitMat);
@@ -2165,6 +2165,11 @@ bookReveal.open(bookPos, () => {
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
 
+  // ★ ここに追加
+  let lastClickTime = 0;
+  const CLICK_COOLDOWN = 0.25;
+  let messageButtonVisible = false;
+
   let viewingItem = null;
   let approachProgress = 0;
   let approachTarget = 0;
@@ -2200,6 +2205,7 @@ bookReveal.open(bookPos, () => {
         } else {
           viewingItem = item;
           approachTarget = 1;
+          approachProgress = 0; 
 
           const posVec = item.position.clone();
           posVec.y = 0;
@@ -2216,10 +2222,16 @@ bookReveal.open(bookPos, () => {
     }
   }
 
-  function onPointerClick(clientX, clientY) {
+function onPointerClick(clientX, clientY) {
+    const now = performance.now() / 1000;
+    if (now - lastClickTime < CLICK_COOLDOWN) return;
+    lastClickTime = now;
+
     const elapsed = (performance.now() - spaceStartTime) / 1000;
     if (elapsed < REVEAL_PHOTO_END) return;
     if (introCinematicActive || starFinaleActive) return;
+    
+    // 以下、既存のコード続く...
 
     pointer.x = (clientX / window.innerWidth) * 2 - 1;
     pointer.y = -(clientY / window.innerHeight) * 2 + 1;
@@ -2246,13 +2258,14 @@ bookReveal.open(bookPos, () => {
       }
     }
 
-    if (IS_MOBILE) {
-      if (viewingItem) {
-        viewingItem = null;
-        approachTarget = 0;
-      }
-      return;
-    }
+if (IS_MOBILE) {
+     if (viewingItem) {
+       viewingItem = null;
+       approachTarget = 0;
+       return;  // 拡大中のみ早期終了
+     }
+     // 通常時は写真判定へ進む
+   }
 
     const meshes = photoItems.filter(it => it.hitMesh).map(it => it.hitMesh);
     const hits = raycaster.intersectObjects(meshes);
@@ -2273,8 +2286,6 @@ bookReveal.open(bookPos, () => {
       onPointerClick(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
     }
   });
-
-  // ★追加：天井の星のホバー検出
   function updateStarHoverState() {
     if (!ceilingHitMesh) { starIsHovering = false; return; }
 
@@ -2303,7 +2314,31 @@ bookReveal.open(bookPos, () => {
     });
     return best;
   }
+   function updateMessageButtonPosition() {
+    // メッセージボタンが表示されてて、かつ glow属性の写真だけに追従
+    if (!messageButtonVisible || !viewingItem || !writeButtonEl) return;
+    if (viewingItem.interaction !== 'glow') return;
 
+    // 写真の3D座標をスクリーン座標に投影
+    const vector = viewingItem.position.clone();
+    vector.project(camera);
+
+    // スクリーン座標に変換（-1～1 → 0～width/height）
+    const screenX = (vector.x * 0.5 + 0.5) * window.innerWidth;
+    const screenY = (-(vector.y) * 0.5 + 0.5) * window.innerHeight;
+
+    // 写真の下端からの距離（オフセット）
+    const photoHalfHeight = viewingItem.frameHeight / 2;
+    const distanceToCamera = viewingItem.position.length();
+    const pixelPerUnit = window.innerHeight / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * distanceToCamera);
+    const offsetY = photoHalfHeight * pixelPerUnit + 30; // 30px = 余白
+
+    writeButtonEl.style.position = 'fixed';
+    writeButtonEl.style.left = screenX + 'px';
+    writeButtonEl.style.top = (screenY + offsetY) + 'px';
+    writeButtonEl.style.transform = 'translate(-50%, 0)';
+    writeButtonEl.style.bottom = 'auto';
+  }
   // ====================================================================
   // [SECTION: conceptIntro]
   // ====================================================================
@@ -2865,6 +2900,7 @@ guideCardEl.innerHTML = `
   function update(dt) {
     updateCamera(dt);
     updatePhotos(dt);
+    updateMessageButtonPosition();
     updateRipple(dt);
     updateSparkles(dt);
     updateBackground(dt);
