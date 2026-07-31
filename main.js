@@ -1627,6 +1627,11 @@ let lastTapTime = 0;
 let moveForward = false;
 let moveTargetZ = 0;
 
+// ★修正B用：タップの開始時刻を記録
+let touchStartTime = 0;
+let touchStartX = 0;
+let touchStartY = 0;
+
 window.addEventListener("touchstart", (e) => {
 
   const now = Date.now();
@@ -1641,10 +1646,46 @@ window.addEventListener("touchstart", (e) => {
 
   lastTapTime = now;
 
-  // ★修正：写真タップで目の前へ移動（1本指）
-  if (!cameraLocked && !cameraAligning && e.touches.length === 1) {
-    mousePos.x = (e.touches[0].clientX / window.innerWidth) * 2 - 1;
-    mousePos.y = -(e.touches[0].clientY / window.innerHeight) * 2 + 1;
+  // ★修正B：タップ開始時の情報を記録（判定は touchend で実施）
+  touchStartTime = Date.now();
+  if (e.touches.length === 1) {
+    touchStartX = e.touches[0].clientX;
+    touchStartY = e.touches[0].clientY;
+  }
+
+  if (e.touches.length === 1) {
+
+    lastTouchX = e.touches[0].clientX;
+    lastTouchY = e.touches[0].clientY;
+
+  }
+
+  if (e.touches.length === 2) {
+
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+
+    lastPinchDist = Math.sqrt(dx * dx + dy * dy);
+
+  }
+
+}, { passive: true });
+
+// ★修正B：touchend で短時間タップを判定してRaycastingを実行
+window.addEventListener("touchend", (e) => {
+
+  if (cameraLocked || cameraAligning || e.touches.length > 0) return;
+
+  const tapDuration = Date.now() - touchStartTime;
+  const tapDistance = Math.hypot(
+    e.changedTouches[0].clientX - touchStartX,
+    e.changedTouches[0].clientY - touchStartY
+  );
+
+  // 100ms以下かつ移動距離が10px未満 = 「クリック」と判定
+  if (tapDuration < 100 && tapDistance < 10) {
+    mousePos.x = (touchStartX / window.innerWidth) * 2 - 1;
+    mousePos.y = -(touchStartY / window.innerHeight) * 2 + 1;
 
     raycaster.setFromCamera(mousePos, camera);
 
@@ -1675,24 +1716,7 @@ window.addEventListener("touchstart", (e) => {
     }
   }
 
-  if (e.touches.length === 1) {
-
-    lastTouchX = e.touches[0].clientX;
-    lastTouchY = e.touches[0].clientY;
-
-  }
-
-  if (e.touches.length === 2) {
-
-    const dx = e.touches[0].clientX - e.touches[1].clientX;
-    const dy = e.touches[0].clientY - e.touches[1].clientY;
-
-    lastPinchDist = Math.sqrt(dx * dx + dy * dy);
-
-  }
-
 }, { passive: true });
-
 
 window.addEventListener("touchmove", (e) => {
 
