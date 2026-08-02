@@ -366,6 +366,9 @@ export function startExhibitionSpace(renderer, camera) {
   // ====================================================================
   // [SECTION: messageUI]
   // ====================================================================
+  let closeHintEl = null;
+  let hasShownCloseHint = false;
+
   const writeButtonEl = document.createElement('button');
   writeButtonEl.textContent = 'message';
   Object.assign(writeButtonEl.style, {
@@ -397,6 +400,32 @@ export function startExhibitionSpace(renderer, camera) {
   });
   document.body.appendChild(writeButtonEl);
 
+  // ====================================================================
+  // [SECTION: closeHint]
+  // ====================================================================
+  closeHintEl = document.createElement('div');
+  closeHintEl.textContent = 'クリックで戻ります';
+  Object.assign(closeHintEl.style, {
+    position: 'fixed',
+    left: '50%',
+    top: '50%',
+    transform: 'translate(-50%, -50%)',
+    padding: '12px 24px',
+    fontSize: '14px',
+    fontFamily: 'sans-serif',
+    color: '#d8b46a',
+    background: 'rgba(210, 165, 106, 0.08)',
+    border: '1px solid rgba(255, 230, 190, 0.5)',
+    borderRadius: '8px',
+    backdropFilter: 'blur(6px)',
+    opacity: '0',
+    pointerEvents: 'none',
+    transition: 'opacity 0.4s ease',
+    zIndex: '12',
+    whiteSpace: 'nowrap',
+  });
+  document.body.appendChild(closeHintEl);
+
   let writeButtonVisible = false;
   function showWriteButton() {
     if (writeButtonVisible) return;
@@ -411,6 +440,18 @@ export function startExhibitionSpace(renderer, camera) {
     writeButtonEl.style.opacity = '0';
     writeButtonEl.style.transform = 'translateX(-50%) translateY(20px)';
     writeButtonEl.style.pointerEvents = 'none';
+  }
+
+  function showCloseHint() {
+    if (hasShownCloseHint || !closeHintEl) return;
+    hasShownCloseHint = true;
+
+    closeHintEl.style.opacity = '1';
+    
+    // 2秒後に自動で消す
+    setTimeout(() => {
+      closeHintEl.style.opacity = '0';
+    }, 2000);
   }
 
   const formOverlayEl = document.createElement('div');
@@ -2213,6 +2254,7 @@ bookReveal.open(bookPos, () => {
   // ★ ここに追加
   let lastClickTime = 0;
   const CLICK_COOLDOWN = 0.25;
+
   let messageButtonVisible = false;
 
   let viewingItem = null;
@@ -2955,6 +2997,11 @@ guideCardEl.innerHTML = `
     updateConceptIntro(dt);
     updateCeilingStar(dt);
     if (bookReveal) bookReveal.update(dt);
+
+    // ★ 拡大時に一度だけ「クリックで戻ります」ツールチップを表示
+    if (viewingItem && approachProgress > 0.85 && !hasShownCloseHint) {
+      showCloseHint();
+    }
   }
 
   function hideUI() {

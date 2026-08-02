@@ -185,7 +185,8 @@ function getSpiralPosition(index) {
     -(index * zStep)
   );
 }
-
+const PHOTO_MIN_Z = 20;
+const PHOTO_MAX_Z = -(4 * SPIRAL_CONFIG.zStep);
 // ======================================================
 // 写真アイテムの状態管理
 // ======================================================
@@ -902,16 +903,9 @@ function onPhotoArrivedAtLight(index) {
   if (accumulatedCount >= PHOTO_FILES.length) {
     loopDisabled = true;
 
-    moveTargetZ = ACCUM_POINT.z + 4.5;
-    moveForward = true;
+    //moveTargetZ = ACCUM_POINT.z + 4.5;
+    //moveForward = true;
 
-    // ★修正：1.5秒waitをコメントアウト（不要なら削除、必要なら復活）
-    // 裂け目出現が早いと感じたら、以下をアンコメント
-    // setTimeout(() => {
-    //   alignCameraToRiftAndLock();
-    // }, 1500);
-
-    // すぐに裂け目表示へ
     alignCameraToRiftAndLock();
   }
 }
@@ -1648,6 +1642,7 @@ let lastPinchDist = 0;
 let lastTapTime = 0;
 let moveForward = false;
 let moveTargetZ = 0;
+let allPhotosDisolved = false;
 
 window.addEventListener("touchstart", (e) => {
 
@@ -1902,9 +1897,10 @@ __lastFrameTime = now;
       moveForward = false;
     }
   }
-
+//camera.position.z = Math.max(camera.position.z, PHOTO_MAX_Z - 2);
+  //camera.position.z = Math.min(camera.position.z, PHOTO_MIN_Z + 5);
   if (!cameraLocked && !cameraAligning) {
-    const __rotFactor = frameSmoothFactor(0.08, __dt);
+    const __rotFactor = frameSmoothFactor(0.05, __dt);
     camera.rotation.y += (targetRotY - camera.rotation.y) * __rotFactor;
     camera.rotation.x += (targetRotX - camera.rotation.x) * __rotFactor;
   }
@@ -2024,15 +2020,15 @@ __lastFrameTime = now;
         item._vz += (dirZ >= 0 ? 1 : -1) * pushPower;
       }
 
-      item._vx *= 0.98;
-      item._vz *= 0.98;
+      item._vx *= 0.95;
+      item._vz *= 0.95;
 
       if (item._repelX === undefined) { item._repelX = 0; item._repelZ = 0; }
       item._repelX += item._vx;
       item._repelZ += item._vz;
 
-      item._repelX *= 0.995;
-      item._repelZ *= 0.995;
+      item._repelX *= 0.98;
+      item._repelZ *= 0.98;
 
       const mx = _basePos.x + floatX + item._repelX;
       const my = _basePos.y + floatY;
@@ -2169,11 +2165,11 @@ function dissolvePhoto(item) {
       
       const currentRadius = Math.max(0, (initialRadius + noise.radiusOffset) * (1.0 - progress));
       
-      const targetZ = baseTarget.z - (progress * 60);
+const targetZ = ACCUM_POINT.z;
 
-      const vortexX = Math.cos(angle) * currentRadius;
-      const vortexY = Math.sin(angle) * currentRadius;
-      const vortexZ = targetZ;
+      const vortexX = Math.cos(angle) * currentRadius * (1.0 - progress);
+      const vortexY = Math.sin(angle) * currentRadius * (1.0 - progress);
+      const vortexZ = ACCUM_POINT.z + (baseTarget.z - ACCUM_POINT.z) * (1.0 - progress);
 
       pos[ix] += (vortexX - pos[ix]) * 0.04;
       pos[iy] += (vortexY - pos[iy]) * 0.04;

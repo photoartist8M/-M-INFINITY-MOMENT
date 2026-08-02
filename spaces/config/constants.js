@@ -58,7 +58,7 @@ export const GALLERY_RADIUS = 28;
 // モバイル判定・テクスチャサイズ上限
 // ------------------------------------------------------
 export const IS_MOBILE = window.innerWidth <= 768 || /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
-export const MAX_TEX_DIM = IS_MOBILE ? 900 : 2000;
+export const MAX_TEX_DIM = IS_MOBILE ? 800 : 1800;
 
 export const SPARKLE_COUNT = 260;
 
