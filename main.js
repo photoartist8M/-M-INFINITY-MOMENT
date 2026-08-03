@@ -2171,9 +2171,9 @@ const targetZ = ACCUM_POINT.z;
       const vortexY = Math.sin(angle) * currentRadius * (1.0 - progress);
       const vortexZ = ACCUM_POINT.z + (baseTarget.z - ACCUM_POINT.z) * (1.0 - progress);
 
-      pos[ix] += (vortexX - pos[ix]) * 0.04;
-      pos[iy] += (vortexY - pos[iy]) * 0.04;
-      pos[iz] += (vortexZ - pos[iz]) * 0.04;
+      pos[ix] += (vortexX - pos[ix]) * 0.12;  // より強く吸引
+      pos[iy] += (vortexY - pos[iy]) * 0.12;
+      pos[iz] += (vortexZ - pos[iz]) * 0.12;
     }
     item.particleGeo.attributes.position.needsUpdate = true;
 
