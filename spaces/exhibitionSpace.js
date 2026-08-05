@@ -299,7 +299,93 @@ export function startExhibitionSpace(renderer, camera) {
     }
     colorAttr.needsUpdate = true;
   }
+// ====================================================================
+  // [SECTION: 3D Logo]
+  // ====================================================================
+  let logoSprite = null;
 
+  function createLogoTexture() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d');
+    
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // グラデーション（CSSと同じ）
+    const gradient = ctx.createLinearGradient(0, 0, 0, 512);
+    gradient.addColorStop(0, '#fffaf5');
+    gradient.addColorStop(0.18, '#ffe8d0');
+    gradient.addColorStop(0.38, '#ffd8b6');
+    gradient.addColorStop(0.58, '#f8c8aa');
+    gradient.addColorStop(0.82, '#e5a98d');
+    gradient.addColorStop(1, '#bf7d67');
+    
+    // 深い影（立体感）
+    ctx.fillStyle = 'rgba(100, 80, 40, 0.4)';
+    ctx.font = 'bold 320px "Prata", serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('M', 260, 268);
+    ctx.fillText('M', 258, 266);
+    
+// ===============================
+// フチだけ発光
+// ===============================
+
+// 外側の淡い光
+ctx.shadowColor = 'rgba(255,235,210,0.35)';
+ctx.shadowBlur = 15;
+
+ctx.strokeStyle = 'rgba(255,245,235,0.18)';
+ctx.lineWidth = 8;
+ctx.strokeText('M',256,256);
+
+// 内側の細い光
+ctx.shadowBlur = 8;
+
+ctx.strokeStyle = 'rgba(255,255,255,0.45)';
+ctx.lineWidth = 2.5;
+ctx.strokeText('M',256,256);
+
+ctx.shadowBlur = 0;
+ctx.shadowColor = 'transparent';
+    
+    // メインテキスト（グラデーション）
+    ctx.shadowColor = 'transparent';
+    ctx.fillStyle = gradient;
+    ctx.fillText('M', 256, 256);
+    
+    return new THREE.CanvasTexture(canvas);
+  }
+
+  const logoTexture = createLogoTexture();
+  const logoMat = new THREE.SpriteMaterial({
+    map: logoTexture,
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    opacity: 0.95,
+  });
+  
+  logoSprite = new THREE.Sprite(logoMat);
+  logoSprite.position.set(13, 2.5, 10);
+  logoSprite.scale.set(1.8, 1.8, 1);
+  scene.add(logoSprite);
+
+  // ====================================================================
+  // [SECTION: mobileFocusButton]
+  // ====================================================================
+  function update(dt) {  // ← ここからが update 関数
+    updateCamera(dt);
+    // ... その他の処理 ...
+
+    if (logoSprite) {  // ← ここで dt を使う
+      const logoFloat = Math.sin(performance.now() * 0.0005) * 0.8;
+      logoSprite.position.y = 3 + logoFloat;
+      logoSprite.rotation.z += dt * 0.2;
+    }
+  }
   // ====================================================================
   // [SECTION: mobileFocusButton]
   // ====================================================================
@@ -2997,7 +3083,18 @@ guideCardEl.innerHTML = `
     updateConceptIntro(dt);
     updateCeilingStar(dt);
     if (bookReveal) bookReveal.update(dt);
-
+if (logoSprite) {
+      const t = performance.now() * 0.0003;
+      
+      const baseY = -2;
+      const horizontalRadius = 3;
+      const xOffset = Math.sin(t * 0.15) * horizontalRadius;
+      const zOffset = Math.cos(t * 0.15) * horizontalRadius;
+      
+      const yOffset = Math.sin(t * 0.08) * 1.8 + 
+                       Math.sin(t * 0.05) * 0.8;
+      
+    }
     // ★ 拡大時に一度だけ「クリックで戻ります」ツールチップを表示
     if (viewingItem && approachProgress > 0.85 && !hasShownCloseHint) {
       showCloseHint();
