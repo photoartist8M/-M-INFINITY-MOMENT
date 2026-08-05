@@ -60,16 +60,112 @@
     }
 
     /* Title */
-    .main-title {
-      position: absolute;
-      top: 10%;
-      left: 50%;
-      transform: translateX(-50%);
-      text-align: center;
-      z-index: 10;
-      pointer-events: none;
-      transition: opacity 0.8s ease;
-    }
+/* =========================
+   BRAND LOGO
+========================= */
+
+.main-title{
+    position:absolute;
+    top:9%;
+    left:50%;
+    transform:translateX(-50%);
+    text-align:center;
+    z-index:30;
+    pointer-events:none;
+}
+
+.logo-title{
+
+    font-family:'Cormorant Garamond',serif;
+
+    font-size:clamp(2.8rem,7vw,5.6rem);
+
+    font-weight:300;
+
+    letter-spacing:.14em;
+
+    margin:0;
+
+    background:linear-gradient(
+        180deg,
+        #fffaf5 0%,
+        #ffe8d0 18%,
+        #ffd8b6 38%,
+        #f8c8aa 58%,
+        #e5a98d 82%,
+        #bf7d67 100%
+    );
+
+    -webkit-background-clip:text;
+    -webkit-text-fill-color:transparent;
+
+    text-shadow:
+
+        0 0 6px rgba(255,220,190,.95),
+
+        0 0 12px rgba(255,205,170,.8),
+
+        0 0 22px rgba(255,190,155,.55),
+
+        0 0 42px rgba(255,170,130,.25);
+
+    animation:logoGlow 5s ease-in-out infinite;
+}
+.logo-wrap{
+    position:relative;
+    display:inline-block;
+    overflow:hidden;
+}
+.logo-wrap::after{
+
+    content:"";
+
+    position:absolute;
+
+    top:-20%;
+
+    left:-45%;
+
+    width:22%;
+
+    height:140%;
+
+    transform:rotate(22deg);
+
+    background:linear-gradient(
+
+        90deg,
+
+        rgba(255,255,255,0),
+
+        rgba(255,255,255,.92),
+
+        rgba(255,240,215,.95),
+
+        rgba(255,255,255,0)
+
+    );
+
+    filter:blur(2px);
+
+    animation:logoShine 6s ease-in-out infinite;
+
+}
+.logo-sub{
+
+    margin-top:.9rem;
+
+    font-size:clamp(.7rem,1vw,.95rem);
+
+    letter-spacing:.7em;
+
+    color:#f3d4bd;
+
+    opacity:.92;
+
+    text-transform:uppercase;
+
+}
     .main-title .label {
       font-family: 'Cormorant Garamond', serif;
       font-style: italic;
@@ -241,9 +337,10 @@
       backdrop-filter: blur(6px);
       cursor: pointer;
       user-select: none;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
+white-space: normal;
+line-height: 1.8;
+max-width: 220px;
+text-align: center;
       opacity: 0;
       pointer-events: auto;
       transition: color 0.4s ease, border-color 0.4s ease, background 0.4s ease, box-shadow 0.5s ease, transform 0.4s ease;
@@ -279,6 +376,59 @@
       0 0 45px rgba(201,184,160,0.18);
     opacity: 1;
   }
+}
+@keyframes logoGlow{
+
+0%{
+
+transform:scale(1);
+
+filter:brightness(1);
+
+text-shadow:
+
+0 0 6px rgba(255,220,190,.8),
+
+0 0 14px rgba(255,205,170,.55),
+
+0 0 26px rgba(255,185,150,.35);
+
+}
+
+50%{
+
+transform:scale(1.03);
+
+filter:brightness(1.18);
+
+text-shadow:
+
+0 0 10px rgba(255,235,210,1),
+
+0 0 22px rgba(255,210,175,.95),
+
+0 0 42px rgba(255,190,150,.75),
+
+0 0 75px rgba(255,170,120,.45);
+
+}
+
+100%{
+
+transform:scale(1);
+
+filter:brightness(1);
+
+text-shadow:
+
+0 0 6px rgba(255,220,190,.8),
+
+0 0 14px rgba(255,205,170,.55),
+
+0 0 26px rgba(255,185,150,.35);
+
+}
+
 }
 
     @keyframes floatIn {
@@ -486,19 +636,21 @@
     <!-- Title -->
     <div class="main-title">
       <!-- <div class="label">emotional</div> -->
-      <h1>PhotoArtist.M</h1>
-    </div>
+    <div class="logo-wrap">
+    <h1 class="logo-title">photoartist.M</h1>
+</div>
+<div class="logo-sub">- emotional -</div>
 
     <!-- Facing photos -->
     <div class="photos">
       <div class="between-glow"></div>
       <div class="photo child">
      <img src="images/IMG_0040.jpg" alt="幼い頃の私">
-        <div class="label">幼い頃</div>
+        <div class="label">幼い頃のわたし</div>
       </div>
       <div class="photo adult">
    <img src="images/DSC_2555.jpg" alt="大人になった私">
-        <div class="label">現在</div>
+        <div class="label">大人になった私</div>
       </div>
     </div>
 
@@ -511,14 +663,14 @@
     </div> -->
 
     <!-- Floating words（入ってから出現） -->
-    <div class="float-word w1 pulse" data-id="1">記憶は、過去を保存するものではない</div>
+    <div class="float-word w1 pulse" data-id="1">記憶は過去を<br>保存するものではない</div>
     <div class="float-word w2 pulse" data-id="2">あの日の光は、今も心の中にある</div>
     <div class="float-word w3 pulse" data-id="3">思い出すたびに、光は強まり</div>
     <div class="float-word w4 pulse" data-id="4">写真は、過去ではない</div>
-    <div class="float-word w5 pulse" data-id="5">あなた自身の記憶を呼び覚ますための欠片</div>
+    <div class="float-word w5 pulse" data-id="5">あなた自身の記憶を<br>呼び覚ますための展示</div>
     <div class="float-word w6 pulse" data-id="6">あの日へ、もう一度</div>
     <div class="float-word w7 pulse" data-id="7">目には見えなくなったものたちが</div>
-    <div class="float-word w8 pulse" data-id="8">記憶が現在に立ち現れる瞬間を写したい</div>
+    <div class="float-word w8 pulse" data-id="8">記憶が現在に立ち現れる<br>瞬間を写したい</div>
 
     <div class="guide" id="guide">言葉に触れてみてください</div>
   </div>
@@ -535,35 +687,34 @@
     const contents = {
       1: {
         title: "記憶は、過去を保存するものではない",
-        body: `<p>思い出すたびに、<br>光は強まり、<br>輪郭は失われ、<br>感情だけが静かに残っていく。</p><p>そんな記憶の中を歩くための写真展です。</p>`
+        body: `<p>思い出すたびに光は強まり<br>輪郭は失われ、<br>感情だけが静かに残っていく</p><p>そんな記憶の中を歩くための写真展。</p>`
       },
       2: {
         title: "あの日の光は、今も心の中にある",
-        body: `<p>人物の表情は見えなくても<br>風の匂い<br>夕暮れの色<br>草を踏みしめた感触<br>誰かと笑った時間</p><p>忘れたはずの景色は<br>ふとした瞬間に姿を現します。</p>`
+        body: `<p>人物の表情はおぼろげでも<br>風の間隔や<br>夕暮れの色<br>草を踏みしめた感触<br>誰かと笑った時間</p><p>忘れたはずの景色は<br>ふとした瞬間に姿を現す。</p>`
       },
       3: {
         title: "思い出すたびに、光は強まり",
-        body: `<p>輪郭は失われ、<br>感情だけが静かに残っていく。</p><p>時は流れても<br>心に残る景色は<br>静かに瞬き続けている。</p>`
+        body: `<p>輪郭は失われ、<br>感情だけが静かに残っていく。</p><p>時は流れても<br>心に残る景色は<br>ずっと瞬き続けている。</p>`
       },
       4: {
-        title: "写真は、過去ではない",
-        body: `<p>私は写真を撮りたいのではなく、<br>記憶が現在に立ち現れる、<br>その瞬間を写したい。</p><p>光や空気。<br>手を伸ばした距離。<br>笑い声の余韻。</p>`
+        title: "写心(写真)は、過去ではない",
+        body: `<p>私は写真を撮りたいのではなく、<br>記憶が現在に立ち現れる、<br>その瞬間(写心)を写したい。</p><p>光や空気･･･<br>手を伸ばした距離。<br>笑い声の余韻･･･</p>`
       },
       5: {
-        title: "あなた自身の記憶を呼び覚ますための欠片",
-        body: `<p>ここにある写真は<br>出来事を記録したものではありません。</p><p>あなた自身の記憶を呼び覚ますための<br>小さな欠片です。</p>`
+        title: "あなた自身の記憶を呼び覚ますための展示",
+        body: `<p>展示している作品は<br>出来事を記録したものではありません。</p><p>あなた自身の記憶を呼び覚ますための<br>小さな欠片です。</p>`
       },
       6: {
         title: "あの日へ、もう一度",
-        body: `<p>もしこの展示作品が<br>あなた自身の記憶と静かに重なったなら。</p><p>その瞬間、<br>写真は過去ではなく<br>現在の感情になる。</p>`
+        body: `<p>もしこの展示作品で<br>あなた自身の記憶と静かに重なったなら。</p><p>その瞬間、<br>写心(写真)は過去ではなく<br>現在の感情になる。</p>`
       },
       7: {
         title: "目には見えなくなったものたちが",
-        body: `<p>目には見えなくなったものたちが、<br>今も心の中で生き続けている。</p><p>この展示は一般的な写真ギャラリーではありません。<br>写真を見るためではなく、<br>自分の中にある風景を見つけるための空間です。</p>`
+        body: `<p>今も心の中で生き続けている。</p><p>この展示は一般的な写真ギャラリーではありません。<br>写真を見るためではなく、<br>自分の中にある風景を見つけるための空間です。</p>`
       },
       8: {
-        title: "記憶が現在に立ち現れる瞬間を写したい",
-        body: `<p>私は写真を撮りたいのではなく、<br>記憶が現在に立ち現れる、<br>その瞬間を写したい。</p><p>光や空気。<br>手を伸ばした距離。<br>笑い声の余韻。<br>目には見えなくなったものたちが、<br>今も心の中で生き続けている。</p>`
+
       }
     };
 
