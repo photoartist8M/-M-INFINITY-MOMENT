@@ -359,20 +359,39 @@ ctx.shadowColor = 'transparent';
     return new THREE.CanvasTexture(canvas);
   }
 
-  const logoTexture = createLogoTexture();
+const logoTexture = createLogoTexture();
   const logoMat = new THREE.SpriteMaterial({
     map: logoTexture,
     transparent: true,
-    blending: THREE.AdditiveBlending,
+    blending: THREE.NormalBlending,
     depthWrite: false,
-    opacity: 0.95,
+    depthTest: false,
+    opacity: 0.9,
   });
   
   logoSprite = new THREE.Sprite(logoMat);
   logoSprite.position.set(13, 2.5, 10);
   logoSprite.scale.set(1.8, 1.8, 1);
+  logoSprite.renderOrder = 100;
   scene.add(logoSprite);
 
+  // ロゴクリック判定
+  const logoRaycaster = new THREE.Raycaster();  // ← raycaster → logoRaycaster
+  const logoMouse = new THREE.Vector2();  // ← mouse → logoMouse
+
+  window.addEventListener('click', (event) => {
+    logoMouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+    logoMouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+    
+    logoRaycaster.setFromCamera(logoMouse, camera);
+    const intersects = logoRaycaster.intersectObject(logoSprite);
+    
+    if (intersects.length > 0) {
+   window.localStorage.setItem('returnURL', window.location.href);
+window.location.href = 'LP/index.html';
+
+    }
+  });
   // ====================================================================
   // [SECTION: mobileFocusButton]
   // ====================================================================

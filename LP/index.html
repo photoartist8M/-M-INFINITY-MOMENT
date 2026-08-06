@@ -60,112 +60,57 @@
     }
 
     /* Title */
-/* =========================
-   BRAND LOGO
-========================= */
+    .main-title{
+        position:absolute;
+        top:8%;
+        left:50%;
+        transform:translateX(-50%);
+        text-align:center;
+        z-index:30;
+        pointer-events:none;
+    }
 
-.main-title{
-    position:absolute;
-    top:9%;
-    left:50%;
-    transform:translateX(-50%);
-    text-align:center;
-    z-index:30;
-    pointer-events:none;
-}
-
-.logo-title{
-
-    font-family:'Cormorant Garamond',serif;
-
-    font-size:clamp(2.8rem,7vw,5.6rem);
-
-    font-weight:300;
-
-    letter-spacing:.14em;
-
-    margin:0;
-
-    background:linear-gradient(
-        180deg,
-        #fffaf5 0%,
-        #ffe8d0 18%,
-        #ffd8b6 38%,
-        #f8c8aa 58%,
-        #e5a98d 82%,
-        #bf7d67 100%
-    );
-
-    -webkit-background-clip:text;
-    -webkit-text-fill-color:transparent;
-
-    text-shadow:
-
-        0 0 6px rgba(255,220,190,.95),
-
-        0 0 12px rgba(255,205,170,.8),
-
-        0 0 22px rgba(255,190,155,.55),
-
-        0 0 42px rgba(255,170,130,.25);
-
-    animation:logoGlow 5s ease-in-out infinite;
-}
-.logo-wrap{
-    position:relative;
-    display:inline-block;
-    overflow:hidden;
-}
-.logo-wrap::after{
-
-    content:"";
-
-    position:absolute;
-
-    top:-20%;
-
-    left:-45%;
-
-    width:22%;
-
-    height:140%;
-
-    transform:rotate(22deg);
-
-    background:linear-gradient(
-
-        90deg,
-
-        rgba(255,255,255,0),
-
-        rgba(255,255,255,.92),
-
-        rgba(255,240,215,.95),
-
-        rgba(255,255,255,0)
-
-    );
-
-    filter:blur(2px);
-
-    animation:logoShine 6s ease-in-out infinite;
-
-}
-.logo-sub{
-
-    margin-top:.9rem;
-
-    font-size:clamp(.7rem,1vw,.95rem);
-
-    letter-spacing:.7em;
-
-    color:#f3d4bd;
-
-    opacity:.92;
-
-    text-transform:uppercase;
-
-}
+    .logo-title{
+        font-family:'Cormorant Garamond',serif;
+        font-size:clamp(2.8rem,7vw,5.6rem);
+        font-weight:300;
+        letter-spacing:.14em;
+        margin:0;
+        background:linear-gradient(
+            180deg,
+            #fffaf5 0%,
+            #ffe8d0 18%,
+            #ffd8b6 38%,
+            #f8c8aa 58%,
+            #e5a98d 82%,
+            #bf7d67 100%
+        );
+        -webkit-background-clip:text;
+        -webkit-text-fill-color:transparent;
+        text-shadow:
+            0 0 6px rgba(255,220,190,.95),
+            0 0 12px rgba(255,205,170,.8),
+            0 0 22px rgba(255,190,155,.55),
+            0 0 42px rgba(255,170,130,.25);
+        animation:logoGlow 5s ease-in-out infinite;
+        position:relative;
+        display:inline-block;
+        overflow:visible;
+    }
+    
+    .logo-wrap{
+        position:relative;
+        display:inline-block;
+        overflow:visible;
+    }
+    .logo-sub{
+        margin-top:.9rem;
+        font-size:clamp(.7rem,1vw,.95rem);
+        letter-spacing:.7em;
+        color:#f3d4bd;
+        opacity:.92;
+        text-transform:uppercase;
+    }
     .main-title .label {
       font-family: 'Cormorant Garamond', serif;
       font-style: italic;
@@ -187,14 +132,15 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: clamp(1.8rem, 6vw, 4.5rem);
+      gap: clamp(1.8rem, 6vw, 5rem);
       z-index: 5;
       transition: transform 1s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.8s ease;
+      margin-top: 5%;
     }
 
     .photo {
       position: relative;
-      width: clamp(180px, 26vw, 320px);
+      width: clamp(180px, 28vw, 380px);
       aspect-ratio: 3/4;
       border-radius: 2px;
       overflow: hidden;
@@ -246,7 +192,7 @@
       50% { opacity: 0.85; transform: scale(1.3); }
     }
 
-    /* ===== ENTRANCE（一番分かりやすく） ===== */
+    /* ===== ENTRANCE ===== */
     .entrance {
       position: absolute;
       bottom: 22%;
@@ -292,186 +238,138 @@
       opacity: 0.95;
     }
 
-    /* はっきり分かるパルス */
     .entrance-inner::before {
       content: '';
       position: absolute;
-      inset: -7px;
-      border: 1px solid rgba(201,184,160,0.25);
-      border-radius: 3px;
-      animation: entrancePulse 2.6s ease-in-out infinite;
-      pointer-events: none;
+      top: 50%;
+      left: 50%;
+      width: 0;
+      height: 0;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(201,184,160,0.3) 0%, transparent 70%);
+      transform: translate(-50%, -50%);
+      animation: pulse-ring 2s ease-out infinite;
     }
 
-    @keyframes entrancePulse {
-      0%, 100% {
-        opacity: 0.35;
-        transform: scale(1);
-        box-shadow: 0 0 0 0 rgba(201,184,160,0);
-      }
-      50% {
-        opacity: 1;
-        transform: scale(1.05);
-        box-shadow: 0 0 35px 6px rgba(201,184,160,0.18);
-      }
+    @keyframes pulse-ring {
+      0% { width: 0; height: 0; opacity: 0.8; }
+      100% { width: 100px; height: 100px; opacity: 0; }
     }
 
-    /* 入った後は入り口を消す */
-    .stage.entered .entrance {
-      opacity: 0;
-      pointer-events: none;
-      transform: translateX(-50%) translateY(24px);
-    }
-
-    /* ===== FLOATING WORDS（最初から表示） ===== */
-    .float-word {
-      position: absolute;
-      z-index: 20;
-      font-size: clamp(0.68rem, 1.2vw, 0.9rem);
-      letter-spacing: 0.06em;
-      color: var(--text-dim);
-      background: rgba(10,10,10,0.4);
-      border: 1px solid rgba(255,255,255,0.08);
-      padding: 0.65rem 0.9rem;
+    /* ===== BACK TO EXHIBITION BUTTON ===== */
+    .back-btn {
+      position: fixed;
+      bottom: 2.5%;
+      right: 2.5%;
+      padding: 0.9rem 1.8rem;
+      border: 1px solid rgba(201, 184, 160, 0.5);
+      background: rgba(12, 12, 12, 0.6);
+      backdrop-filter: blur(8px);
       border-radius: 2px;
-      backdrop-filter: blur(6px);
+      color: var(--text);
+      font-size: 0.85rem;
+      letter-spacing: 0.2em;
       cursor: pointer;
       user-select: none;
-white-space: normal;
-line-height: 1.8;
-max-width: 220px;
-text-align: center;
+      transition: all 0.3s ease;
+      z-index: 25;
+      font-family: 'Noto Serif JP', serif;
+      font-weight: 300;
+    }
+
+    .back-btn:hover {
+      border-color: rgba(201, 184, 160, 0.95);
+      background: rgba(18, 18, 18, 0.8);
+      box-shadow: 0 0 30px rgba(201, 184, 160, 0.25);
+      transform: scale(1.05);
+    }
+
+    /* ===== FLOAT WORDS ===== */
+    .float-word {
+      position: fixed;
+      padding: 0.65rem 1rem;
+      background: rgba(12,12,12,0.5);
+      border: 1px solid rgba(201,184,160,0.3);
+      border-radius: 2px;
+      font-size: 0.75rem;
+      letter-spacing: 0.08em;
+      color: var(--text-dim);
+      cursor: pointer;
+      user-select: none;
+      backdrop-filter: blur(6px);
       opacity: 0;
-      pointer-events: auto;
-      transition: color 0.4s ease, border-color 0.4s ease, background 0.4s ease, box-shadow 0.5s ease, transform 0.4s ease;
-      animation: floatIn 1.1s ease forwards, drift 20s ease-in-out infinite;
+      transform: translateY(8px);
+      animation: float-in 1.2s ease-out forwards, float-bob 4s ease-in-out infinite;
+      transition: all 0.4s ease;
+      line-height: 1.6;
+      max-width: 220px;
+      z-index: 10;
     }
 
     .float-word:hover {
-      color: var(--text);
-      border-color: rgba(201,184,160,0.7);
-      background: rgba(18,18,18,0.5);
-      box-shadow: 0 0 35px rgba(201,184,160,0.45), 0 0 18px rgba(201,184,160,0.25);
-      transform: scale(1.04) !important;
+      border-color: rgba(201,184,160,0.8);
+      background: rgba(18,18,18,0.75);
+      transform: translateY(0px) scale(1.05);
+      box-shadow: 0 0 20px rgba(201,184,160,0.25);
     }
 
-    .float-word.pulse::after {
-      content: '';
-      position: absolute;
-      inset: -3px;
-      border-radius: 3px;
-      animation: softPulse 3.8s ease-in-out infinite;
-      pointer-events: none;
+    @keyframes float-in {
+      from {
+        opacity: 0;
+        transform: translateY(8px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
     }
 
-@keyframes softPulse {
-  0%, 100% {
-    border: 1px solid transparent;
-    box-shadow: 0 0 0 rgba(201,184,160,0);
-  }
-  50% {
-    border: 1px solid rgba(201,184,160,0.45);
-    box-shadow: 
-      0 0 22px rgba(201,184,160,0.35),
-      0 0 45px rgba(201,184,160,0.18);
-    opacity: 1;
-  }
-}
-@keyframes logoGlow{
-
-0%{
-
-transform:scale(1);
-
-filter:brightness(1);
-
-text-shadow:
-
-0 0 6px rgba(255,220,190,.8),
-
-0 0 14px rgba(255,205,170,.55),
-
-0 0 26px rgba(255,185,150,.35);
-
-}
-
-50%{
-
-transform:scale(1.03);
-
-filter:brightness(1.18);
-
-text-shadow:
-
-0 0 10px rgba(255,235,210,1),
-
-0 0 22px rgba(255,210,175,.95),
-
-0 0 42px rgba(255,190,150,.75),
-
-0 0 75px rgba(255,170,120,.45);
-
-}
-
-100%{
-
-transform:scale(1);
-
-filter:brightness(1);
-
-text-shadow:
-
-0 0 6px rgba(255,220,190,.8),
-
-0 0 14px rgba(255,205,170,.55),
-
-0 0 26px rgba(255,185,150,.35);
-
-}
-
-}
-
-    @keyframes floatIn {
-      0% { opacity: 0; transform: translateY(8px) scale(0.95); }
-      100% { opacity: 1; transform: translateY(0) scale(1); }
+    @keyframes float-bob {
+      0%, 100% { transform: translateY(0px); }
+      50% { transform: translateY(-4px); }
     }
 
-    @keyframes drift {
-      0%, 100% { transform: translateY(0px) translateX(0px); }
-      25% { transform: translateY(-18px) translateX(8px); }
-      50% { transform: translateY(-24px) translateX(-12px); }
-      75% { transform: translateY(-12px) translateX(6px); }
+    .float-word.pulse {
+      animation: float-in 1.2s ease-out forwards, pulse-glow 2.8s ease-in-out infinite, float-bob 4s ease-in-out infinite;
     }
 
-    /* 浮遊言葉の位置 - JavaScriptで動的設定 */
+    @keyframes pulse-glow {
+      0%, 100% { box-shadow: 0 0 8px rgba(201,184,160,0); }
+      50% { box-shadow: 0 0 20px rgba(201,184,160,0.3); }
+    }
 
-    /* ガイド */
+    /* ===== GUIDE ===== */
     .guide {
-      position: absolute;
-      bottom: 4.5%;
+      position: fixed;
+      bottom: 5%;
       left: 50%;
       transform: translateX(-50%);
-      font-size: 0.66rem;
-      letter-spacing: 0.2em;
-      color: var(--text-dim);
-      opacity: 0.5;
-      z-index: 10;
+      font-size: 0.7rem;
+      letter-spacing: 0.15em;
+      color: var(--accent);
+      opacity: 0.65;
       pointer-events: none;
+      z-index: 8;
       transition: opacity 0.6s ease;
     }
-    .guide.hide { opacity: 0 !important; }
 
-    /* ===== EXPAND PANEL ===== */
+    .guide.hide {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    /* ===== OVERLAY & PANEL ===== */
     .overlay {
       position: fixed;
       inset: 0;
-      background: rgba(0,0,0,0.7);
-      z-index: 100;
+      background: rgba(0,0,0,0.6);
       opacity: 0;
       pointer-events: none;
-      transition: opacity 0.4s ease;
-      backdrop-filter: blur(5px);
+      z-index: 40;
+      transition: opacity 0.5s ease;
+      backdrop-filter: blur(2px);
     }
+
     .overlay.open {
       opacity: 1;
       pointer-events: auto;
@@ -481,152 +379,190 @@ text-shadow:
       position: fixed;
       top: 50%;
       left: 50%;
-      transform: translate(-50%, -50%) scale(0.94);
-      width: min(85vw, 580px);
+      transform: translate(-50%, -50%) scale(0.9);
+      width: min(85vw, 600px);
       max-height: 85vh;
+      background: linear-gradient(135deg, rgba(18,18,18,0.95) 0%, rgba(24,24,24,0.95) 100%);
+      border: 1px solid rgba(201,184,160,0.25);
+      border-radius: 4px;
+      padding: 2rem 2.2rem;
       overflow-y: auto;
-      background: rgba(10,10,10,0.94);
-      border: 1px solid rgba(201,184,160,0.2);
-      border-radius: 3px;
-      padding: 2.2rem 1.8rem 1.8rem;
-      z-index: 110;
       opacity: 0;
       pointer-events: none;
-      transition: opacity 0.35s ease, transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
-      box-shadow: 0 24px 60px rgba(0,0,0,0.65);
+      z-index: 50;
+      transition: all 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+      box-shadow: 0 20px 60px rgba(0,0,0,0.7);
     }
+
     .expand-panel.open {
       opacity: 1;
-      transform: translate(-50%, -50%) scale(1);
       pointer-events: auto;
+      transform: translate(-50%, -50%) scale(1);
     }
-
-    .expand-panel .close {
-      position: absolute;
-      top: 0.95rem;
-      right: 1.15rem;
-      font-size: 0.72rem;
-      letter-spacing: 0.14em;
-      color: var(--text-dim);
-      cursor: pointer;
-      background: none;
-      border: none;
-      font-family: inherit;
-      transition: color 0.3s ease;
-    }
-    .expand-panel .close:hover { color: var(--text); }
 
     .expand-panel h3 {
-      font-size: 0.93rem;
-      font-weight: 400;
-      letter-spacing: 0.1em;
-      color: var(--accent);
+      font-size: 1.3rem;
+      font-weight: 300;
+      letter-spacing: 0.08em;
       margin-bottom: 1.2rem;
+      color: var(--text);
     }
-    .expand-panel p {
-      font-size: 0.92rem;
-      line-height: 2;
-      margin-bottom: 0.95rem;
-    }
-    .expand-panel p:last-child { margin-bottom: 0; }
 
-    /* 入った後に写真を少し小さく */
-    .stage.entered .photos {
-      transform: scale(0.92);
+    .expand-panel p {
+      font-size: 0.95rem;
+      line-height: 1.85;
+      margin-bottom: 1rem;
+      color: var(--text-dim);
+    }
+
+    .close {
+      position: absolute;
+      top: 1.5rem;
+      right: 1.5rem;
+      width: 32px;
+      height: 32px;
+      background: rgba(201,184,160,0.15);
+      border: 1px solid rgba(201,184,160,0.4);
+      color: var(--text);
+      font-size: 18px;
+      border-radius: 2px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.3s ease;
+      z-index: 10;
+    }
+
+    .close:hover {
+      background: rgba(201,184,160,0.25);
+      border-color: rgba(201,184,160,0.8);
+      transform: scale(1.1);
+    }
+
+    .close::before {
+      content: '×';
+      position: absolute;
+    }
+
+    /* ===== SCROLL BAR ===== */
+    .expand-panel::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .expand-panel::-webkit-scrollbar-track {
+      background: rgba(201,184,160,0.08);
+      border-radius: 3px;
+    }
+
+    .expand-panel::-webkit-scrollbar-thumb {
+      background: rgba(201,184,160,0.25);
+      border-radius: 3px;
+    }
+
+    .expand-panel::-webkit-scrollbar-thumb:hover {
+      background: rgba(201,184,160,0.4);
+    }
+
+    /* ===== ANIMATIONS ===== */
+    @keyframes logoGlow {
+      0%, 100% { text-shadow: 0 0 6px rgba(255,220,190,.95), 0 0 12px rgba(255,205,170,.8), 0 0 22px rgba(255,190,155,.55), 0 0 42px rgba(255,170,130,.25); }
+      50% { text-shadow: 0 0 8px rgba(255,220,190,1), 0 0 16px rgba(255,205,170,.9), 0 0 28px rgba(255,190,155,.65), 0 0 50px rgba(255,170,130,.35); }
+    }
+
+    /* ===== RESPONSIVE ===== */
+    @media (max-width: 1024px) {
+      .main-title { top: 7%; }
+      .photos { gap: clamp(1.2rem, 4vw, 3.5rem); margin-top: 4%; }
+      .photo { width: clamp(160px, 26vw, 350px); }
+      .back-btn { bottom: 2%; right: 2%; }
     }
 
     @media (max-width: 768px) {
-      .main-title {
-        top: 12%;
-      }
-      
-      .photos { gap: 0.8rem; }
-      .photo { width: clamp(100px, 32vw, 140px); }
-      
-      .float-word { 
-        font-size: 0.66rem; 
-        padding: 0.5rem 0.75rem; 
-      }
-      
+      .main-title { top: 8%; }
+      .photos { gap: 1rem; margin-top: 5%; }
+      .photo { width: clamp(110px, 32vw, 160px); }
+      .float-word { font-size: 0.65rem; padding: 0.5rem 0.75rem; max-width: 180px; }
       .entrance-inner { padding: 0.9rem 1.8rem 0.85rem; }
-      .entrance { bottom: 18%; }
-      
       .expand-panel {
         width: min(90vw, 540px);
         max-height: 80vh;
         padding: 1.8rem 1.5rem 1.5rem;
       }
+      .back-btn { padding: 0.8rem 1.5rem; font-size: 0.8rem; }
     }
-@media (max-width: 480px) {
-  .main-title {
-    top: 8%;
-  }
-  
-  .main-title h1 {
-    font-size: 1.2rem;
-    margin-bottom: 1rem;
-  }
 
-  /* ★ 写真の距離・サイズ・余白を最適化 ★ */
-  .photos {
-    gap: 1.2rem;        /* 写真同士の距離を広げる */
-    padding: 0 1rem;    /* 左右に余白を作る（見切れ防止） */
-  }
+    @media (max-width: 480px) {
+      .main-title { top: 5%; width: 100%; max-width: 100vw; }
+      .logo-title { font-size: clamp(1.8rem, 6vw, 2.8rem); margin: 0; }
+      .logo-sub { margin-top: 0.6rem; font-size: clamp(0.6rem, 0.8vw, 0.8rem); }
+      
+      .photos {
+        gap: 1.2rem;
+        padding: 0 0.8rem;
+        margin-top: 3.5%;
+        width: 100%;
+        justify-content: center;
+      }
+      
+      .photo { width: clamp(120px, 38vw, 160px); min-width: 120px; }
+      .photo .label { font-size: 0.5rem; padding: 0.4rem 0.3rem; }
+      .between-glow { width: 50px; height: 50px; }
+      
+      .float-word {
+        font-size: 0.55rem;
+        padding: 0.35rem 0.5rem;
+        max-width: 140px;
+        line-height: 1.5;
+      }
+      
+      .entrance-inner { padding: 0.7rem 1.2rem 0.65rem; }
+      .entrance-text { font-size: 0.85rem; }
+      .entrance-sub { font-size: 0.58rem; margin-top: 0.3rem; }
+      .entrance { bottom: 12%; }
+      
+      .guide { font-size: 0.52rem; bottom: 2%; }
+      
+      .expand-panel {
+        width: min(92vw, 400px);
+        max-height: 70vh;
+        padding: 1.3rem 1rem 1rem;
+        top: 50%;
+      }
+      
+      .expand-panel h3 { font-size: 0.9rem; margin-bottom: 0.7rem; }
+      .expand-panel p { font-size: 0.75rem; line-height: 1.6; margin-bottom: 0.5rem; }
+      
+      .close { width: 26px; height: 26px; font-size: 15px; top: 1rem; right: 1rem; }
+      
+      .back-btn {
+        bottom: 1.8%;
+        right: 1.8%;
+        padding: 0.7rem 1.2rem;
+        font-size: 0.75rem;
+      }
+    }
 
-  .photo {
-    width: clamp(130px, 42vw, 170px); 
-    /* 42vw → 2枚並んでも見切れない絶妙サイズ
-       最大170px → 存在感アップ
-       最小130px → 小さすぎない */
-  }
-
-  .photo .label {
-    font-size: 0.55rem;
-    padding: 0.5rem 0.4rem;
-  }
-
-  /* 以下は元のまま（変更なし） */
-  .float-word { 
-    font-size: 0.62rem; 
-    padding: 0.4rem 0.6rem; 
-  }
-  
-  .entrance-inner { 
-    padding: 0.75rem 1.4rem 0.7rem; 
-  }
-  
-  .entrance-text {
-    font-size: 0.95rem;
-  }
-  
-  .entrance-sub {
-    font-size: 0.65rem;
-  }
-  
-  .entrance { bottom: 15%; }
-  
-  .guide {
-    font-size: 0.58rem;
-    bottom: 3%;
-  }
-  
-  .expand-panel {
-    width: min(94vw, 450px);
-    max-height: 68vh;
-    padding: 1.5rem 1.1rem 1.1rem;
-    top: 48%;
-  }
-  .expand-panel h3 {
-    font-size: 0.78rem;
-    margin-bottom: 0.85rem;
-  }
-  .expand-panel p {
-    font-size: 0.78rem;
-    line-height: 1.8;
-    margin-bottom: 0.65rem;
-  }
-}
-
+    @media (max-width: 375px) {
+      .main-title { top: 4%; }
+      .logo-title { font-size: clamp(1.6rem, 5vw, 2.2rem); }
+      .logo-sub { font-size: clamp(0.5rem, 0.7vw, 0.7rem); }
+      
+      .photos {
+        gap: 0.8rem;
+        padding: 0 0.6rem;
+        margin-top: 3%;
+      }
+      
+      .photo { width: clamp(110px, 35vw, 145px); }
+      .float-word { font-size: 0.52rem; max-width: 130px; }
+      .expand-panel { width: min(90vw, 360px); }
+      
+      .back-btn {
+        padding: 0.65rem 1rem;
+        font-size: 0.7rem;
+      }
+    }
   </style>
 </head>
 <body>
@@ -635,42 +571,37 @@ text-shadow:
   <div class="stage" id="stage">
     <!-- Title -->
     <div class="main-title">
-      <!-- <div class="label">emotional</div> -->
-    <div class="logo-wrap">
-    <h1 class="logo-title">photoartist.M</h1>
-</div>
-<div class="logo-sub">- emotional -</div>
-
-    <!-- Facing photos -->
-    <div class="photos">
-      <div class="between-glow"></div>
-      <div class="photo child">
-     <img src="images/IMG_0040.jpg" alt="幼い頃の私">
-        <div class="label">幼い頃のわたし</div>
+      <div class="logo-wrap">
+        <h1 class="logo-title">photoartist.M</h1>
       </div>
-      <div class="photo adult">
-   <img src="images/DSC_2555.jpg" alt="大人になった私">
-        <div class="label">大人になった私</div>
+      <div class="logo-sub">- emotional -</div>
+
+      <!-- Facing photos -->
+      <div class="photos">
+        <div class="between-glow"></div>
+        <div class="photo child">
+          <img src="images/IMG_0040.jpg" alt="幼い頃の私">
+          <div class="label">幼い頃のわたし</div>
+        </div>
+        <div class="photo adult">
+          <img src="images/DSC_2555.jpg" alt="大人になった私">
+          <div class="label">大人になった私</div>
+        </div>
       </div>
     </div>
 
-    <!-- ★ 展示空間の入り口（画面で最も目立つ） ★ -->
-    <!-- <div class="entrance" id="entrance">
-      <div class="entrance-inner">
-        <div class="entrance-text">記憶の中へ</div>
-        <div class="entrance-sub">展示空間に入る</div>
-      </div>
-    </div> -->
-
-    <!-- Floating words（入ってから出現） -->
+    <!-- Floating words -->
     <div class="float-word w1 pulse" data-id="1">記憶は過去を<br>保存するものではない</div>
     <div class="float-word w2 pulse" data-id="2">あの日の光は、今も心の中にある</div>
-    <div class="float-word w3 pulse" data-id="3">思い出すたびに、光は強まり</div>
-    <div class="float-word w4 pulse" data-id="4">写真は、過去ではない</div>
-    <div class="float-word w5 pulse" data-id="5">あなた自身の記憶を<br>呼び覚ますための展示</div>
+    <div class="float-word w3 pulse" data-id="3">写真ではなく、写心</div>
+    <div class="float-word w4 pulse" data-id="4">写真は、答えではない</div>
+    <div class="float-word w5 pulse" data-id="5">あなたの中に眠る風景へ</div>
     <div class="float-word w6 pulse" data-id="6">あの日へ、もう一度</div>
-    <div class="float-word w7 pulse" data-id="7">目には見えなくなったものたちが</div>
+    <div class="float-word w7 pulse" data-id="7">言葉にならなかった想いたち</div>
     <div class="float-word w8 pulse" data-id="8">記憶が現在に立ち現れる<br>瞬間を写したい</div>
+
+    <!-- Back to Exhibition Button -->
+    <button class="back-btn" id="backBtn">展示へ戻る</button>
 
     <div class="guide" id="guide">言葉に触れてみてください</div>
   </div>
@@ -678,7 +609,7 @@ text-shadow:
   <!-- Overlay + Panel -->
   <div class="overlay" id="overlay"></div>
   <div class="expand-panel" id="panel">
-    <button class="close" id="closeBtn">閉じる</button>
+    <button class="close" id="closeBtn"></button>
     <h3 id="panelTitle"></h3>
     <div id="panelBody"></div>
   </div>
@@ -687,52 +618,72 @@ text-shadow:
     const contents = {
       1: {
         title: "記憶は、過去を保存するものではない",
-        body: `<p>思い出すたびに光は強まり<br>輪郭は失われ、<br>感情だけが静かに残っていく</p><p>そんな記憶の中を歩くための写真展。</p>`
+        body: `<p>思い出は、時が止まったまま残るものではありません。</p>
+               <p>思い返すたびに少しずつ姿を変え、<br>
+               感情とともに、今という時間の中で生まれ変わっていきます。</p>
+               <p>この展示は、そんな記憶の中を歩くための空間です。</p>`
       },
       2: {
         title: "あの日の光は、今も心の中にある",
-        body: `<p>人物の表情はおぼろげでも<br>風の間隔や<br>夕暮れの色<br>草を踏みしめた感触<br>誰かと笑った時間</p><p>忘れたはずの景色は<br>ふとした瞬間に姿を現す。</p>`
+        body: `<p>人物の表情はおぼろげになっても<br>
+               夕暮れの色や風の匂い、<br>
+               誰かと笑った感情は、不思議と心に残り続けます。</p>
+               <p>写真は、その光をもう一度思い出すためのきっかけです。</p>`
       },
       3: {
-        title: "思い出すたびに、光は強まり",
-        body: `<p>輪郭は失われ、<br>感情だけが静かに残っていく。</p><p>時は流れても<br>心に残る景色は<br>ずっと瞬き続けている。</p>`
+        title: "写真ではなく、写心。",
+        body: `<p>私が写したいのは、<br>
+               目の前にある事実ではありません。</p>
+               <p>その場所に流れていた空気、<br>
+               光、静けさ、そして心の動き。</p>
+               <p>写真ではなく、<br>
+               心に映った風景を残したい。</p>`
       },
       4: {
-        title: "写心(写真)は、過去ではない",
-        body: `<p>私は写真を撮りたいのではなく、<br>記憶が現在に立ち現れる、<br>その瞬間(写心)を写したい。</p><p>光や空気･･･<br>手を伸ばした距離。<br>笑い声の余韻･･･</p>`
+        title: "写真は、答えではない",
+        body: `<p>一枚の写真に、正しい見方はありません。</p>
+               <p>見る人それぞれの記憶や感情と重なったとき<br>
+               初めてその写真は、新しい意味を持ちはじめます。</p>`
       },
       5: {
         title: "あなた自身の記憶を呼び覚ますための展示",
-        body: `<p>展示している作品は<br>出来事を記録したものではありません。</p><p>あなた自身の記憶を呼び覚ますための<br>小さな欠片です。</p>`
+        body: `<p>展示している作品は、<br>
+               出来事を記録したものではありません。</p>
+               <p>あなた自身の記憶や感情を呼び覚ますための<br>
+               小さな欠片です。</p>`
       },
       6: {
         title: "あの日へ、もう一度",
-        body: `<p>もしこの展示作品で<br>あなた自身の記憶と静かに重なったなら。</p><p>その瞬間、<br>写心(写真)は過去ではなく<br>現在の感情になる。</p>`
+        body: `<p>もしこの展示作品が、<br>
+               あなた自身の記憶と静かに重なったなら。</p>
+               <p>その瞬間、<br>
+               写真は過去ではなく<br>
+               現在の感情になる。</p>`
       },
       7: {
-        title: "目には見えなくなったものたちが",
-        body: `<p>今も心の中で生き続けている。</p><p>この展示は一般的な写真ギャラリーではありません。<br>写真を見るためではなく、<br>自分の中にある風景を見つけるための空間です。</p>`
+        title: "言葉にならなかった想いたち",
+        body: `<p>心を動かした瞬間は、<br>
+               いつも言葉にできるとは限りません。</p>
+               <p>この展示は、写真を見る場所ではなく<br>
+               あなた自身の心の風景と静かに向き合うための空間です。</p>`
       },
       8: {
-
+        title: "",
+        body: ""
       }
     };
 
-    // 浮遊言葉をランダム配置（写真を避ける）
+    // 浮遊言葉をランダム配置
     const floatWords = document.querySelectorAll('.float-word');
-    const isMobile = window.innerWidth <= 480;
-    const isTablet = window.innerWidth <= 768;
-    
-    // 各単語に固定の位置を設定（上部と下部で分ける）
     const positions = [
-      { top: '18%', side: 'left', offset: '8%' },   // w1 - もう少し下に
-      { top: '28%', side: 'right', offset: '8%' },  // w2
-      { top: '38%', side: 'left', offset: '3%' },   // w3 - 写真下に被らせる
-      { top: '68%', side: 'right', offset: '25%' },  // w4
-      { top: '75%', side: 'left', offset: '4%' },   // w5
-      { top: '82%', side: 'right', offset: '5%' },  // w6
-      { top: '88%', side: 'left', offset: '3%' },   // w7
-      { top: '94%', side: 'right', offset: '4%' }   // w8
+      { top: '22%', side: 'left', offset: '8%' },
+      { top: '32%', side: 'right', offset: '8%' },
+      { top: '42%', side: 'left', offset: '3%' },
+      { top: '68%', side: 'right', offset: '25%' },
+      { top: '75%', side: 'left', offset: '4%' },
+      { top: '82%', side: 'right', offset: '5%' },
+      { top: '88%', side: 'left', offset: '3%' },
+      { top: '94%', side: 'right', offset: '4%' }
     ];
     
     floatWords.forEach((word, index) => {
@@ -745,32 +696,24 @@ text-shadow:
         word.style.right = pos.offset;
         word.style.left = 'auto';
       }
-      // アニメーション遅延を設定
       word.style.animationDelay = `${index * 0.15}s, ${index * 0.5}s`;
     });
 
     const stage = document.getElementById('stage');
-    const entrance = document.getElementById('entrance');
     const overlay = document.getElementById('overlay');
     const panel = document.getElementById('panel');
     const panelTitle = document.getElementById('panelTitle');
     const panelBody = document.getElementById('panelBody');
     const closeBtn = document.getElementById('closeBtn');
     const guide = document.getElementById('guide');
-
-    // 入り口をクリック → 展示空間へ（存在する場合のみ）
-    if (entrance) {
-      entrance.addEventListener('click', () => {
-        stage.classList.add('entered');
-      });
-    }
+    const backBtn = document.getElementById('backBtn');
 
     // 浮遊言葉をクリック → パネル展開
     document.querySelectorAll('.float-word').forEach(el => {
       el.addEventListener('click', (e) => {
         e.stopPropagation();
         const data = contents[el.dataset.id];
-        if (!data) return;
+        if (!data || !data.title) return;
         panelTitle.textContent = data.title;
         panelBody.innerHTML = data.body;
         overlay.classList.add('open');
@@ -782,10 +725,17 @@ text-shadow:
     function closePanel() {
       overlay.classList.remove('open');
       panel.classList.remove('open');
+      if (guide) guide.classList.remove('hide');
     }
+    
     closeBtn.addEventListener('click', closePanel);
     overlay.addEventListener('click', closePanel);
     document.addEventListener('keydown', e => { if (e.key === 'Escape') closePanel(); });
+
+    // 展示へ戻るボタン
+backBtn.addEventListener('click', () => {
+  window.history.back();
+});
 
     // Particles
     const canvas = document.getElementById('particles');
