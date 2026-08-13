@@ -1,4 +1,3 @@
-<!DOCTYPE html>
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
@@ -20,16 +19,40 @@
 
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
-    html, body {
-      height: 100%;
-      width: 100%;
-      overflow: hidden;
-      background: #0a0a0a !important;
-      color: var(--text);
-      font-family: 'Noto Serif JP', serif;
-      font-weight: 300;
-      line-height: 1.85;
-    }
+html, body {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+
+  background:
+    radial-gradient(circle at 18% 18%,
+      rgba(230,170,195,.18) 0%,
+      transparent 42%),
+
+    radial-gradient(circle at 82% 22%,
+      rgba(165,185,235,.16) 0%,
+      transparent 45%),
+
+    radial-gradient(circle at 50% 78%,
+      rgba(170,220,195,.14) 0%,
+      transparent 42%),
+
+    radial-gradient(circle at 50% 45%,
+      rgba(205,170,220,.10) 0%,
+      transparent 55%),
+
+    linear-gradient(
+      180deg,
+      #2b2338 0%,
+      #1b1f31 35%,
+      #11151f 65%,
+      #070708 100%);
+
+  color: var(--text);
+  font-family: 'Noto Serif JP', serif;
+  font-weight: 300;
+  line-height: 1.85;
+}
 
     body::before {
       content: '';
@@ -126,72 +149,84 @@
       letter-spacing: 0.3em;
     }
 
-    /* ===== PHOTOS ===== */
-    .photos {
-      position: relative;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: clamp(1.8rem, 6vw, 5rem);
-      z-index: 5;
-      transition: transform 1s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.8s ease;
-      margin-top: 5%;
-    }
+     /* ===== PHOTOS ===== */
+.photos {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 
-    .photo {
-      position: relative;
-      width: clamp(180px, 28vw, 380px);
-      aspect-ratio: 3/4;
-      border-radius: 2px;
-      overflow: hidden;
-      box-shadow: 0 12px 40px rgba(0,0,0,0.55);
-      transition: transform 0.8s ease, box-shadow 0.8s ease;
-    }
+  gap: clamp(1.8rem, 6vw, 5rem);
 
-    .photo img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      display: block;
-      filter: brightness(0.88) contrast(1.05);
-      transition: filter 0.8s ease, transform 1.2s ease;
-    }
+  width: 100%;
+  max-width: 900px;
+  margin: 0 auto;
 
-    .photo:hover img {
-      filter: brightness(1) contrast(1.08);
-      transform: scale(1.03);
-    }
+  /* photoartist.Mとの距離 */
+  margin-top: -1.2rem;
 
-    .photo.child { transform: rotate(0deg); }
-    .photo.adult { transform: rotate(0deg); }
+  z-index: 5;
 
-    .photo .label {
-      position: absolute;
-      bottom: 0; left: 0; right: 0;
-      padding: 0.65rem 0.5rem;
-      background: linear-gradient(to top, rgba(0,0,0,0.7), transparent);
-      font-size: 0.62rem;
-      letter-spacing: 0.12em;
-      color: var(--text-dim);
-      text-align: center;
-    }
+  transition:
+    transform 1s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.8s ease;
+}
 
-    .between-glow {
-      position: absolute;
-      width: 70px; height: 70px;
-      border-radius: 50%;
-      background: radial-gradient(circle, rgba(201,184,160,0.2) 0%, transparent 70%);
-      filter: blur(8px);
-      pointer-events: none;
-      z-index: 4;
-      animation: breath 5s ease-in-out infinite;
-    }
+.photo {
+  position: relative;
+  width: clamp(180px, 28vw, 380px);
+  aspect-ratio: 3 / 4;
+  border-radius: 2px;
+  overflow: hidden;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.55);
+  transition: transform 0.8s ease, box-shadow 0.8s ease;
+}
 
+.photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  filter: brightness(0.88) contrast(1.05);
+  transition: filter 0.8s ease, transform 1.2s ease;
+}
+
+.photo:hover img {
+  filter: brightness(1) contrast(1.08);
+  transform: scale(1.03);
+}
+
+.photo.child { transform: rotate(0deg); }
+.photo.adult { transform: rotate(0deg); }
+
+.photo .label {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 0.65rem 0.5rem;
+  background: linear-gradient(to top, rgba(0,0,0,0.7), transparent);
+  font-size: 0.62rem;
+  letter-spacing: 0.12em;
+  color: var(--text-dim);
+  text-align: center;
+}
+
+.between-glow {
+  position: absolute;
+  width: 70px;
+  height: 70px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(201,184,160,0.2) 0%, transparent 70%);
+  filter: blur(8px);
+  pointer-events: none;
+  z-index: 4;
+  animation: breath 5s ease-in-out infinite;
+}
     @keyframes breath {
       0%, 100% { opacity: 0.45; transform: scale(1); }
       50% { opacity: 0.85; transform: scale(1.3); }
     }
-
     /* ===== ENTRANCE ===== */
     .entrance {
       position: absolute;
@@ -470,17 +505,17 @@
       50% { text-shadow: 0 0 8px rgba(255,220,190,1), 0 0 16px rgba(255,205,170,.9), 0 0 28px rgba(255,190,155,.65), 0 0 50px rgba(255,170,130,.35); }
     }
 
-    /* ===== RESPONSIVE ===== */
+     /* ===== RESPONSIVE ===== */
     @media (max-width: 1024px) {
-      .main-title { top: 7%; }
-      .photos { gap: clamp(1.2rem, 4vw, 3.5rem); margin-top: 4%; }
+      .main-title { top: 10%; }
+      .photos { gap: clamp(1.2rem, 4vw, 3.5rem); margin-top: 2rem; }
       .photo { width: clamp(160px, 26vw, 350px); }
       .back-btn { bottom: 2%; right: 2%; }
     }
 
     @media (max-width: 768px) {
-      .main-title { top: 8%; }
-      .photos { gap: 1rem; margin-top: 5%; }
+      .main-title { top: 10%; }
+      .photos { gap: 1rem; margin-top: 2rem; }
       .photo { width: clamp(110px, 32vw, 160px); }
       .float-word { font-size: 0.65rem; padding: 0.5rem 0.75rem; max-width: 180px; }
       .entrance-inner { padding: 0.9rem 1.8rem 0.85rem; }
@@ -493,14 +528,14 @@
     }
 
     @media (max-width: 480px) {
-      .main-title { top: 5%; width: 100%; max-width: 100vw; }
+      .main-title { top: 10%; width: 100%; max-width: 100vw; }
       .logo-title { font-size: clamp(1.8rem, 6vw, 2.8rem); margin: 0; }
-      .logo-sub { margin-top: 0.6rem; font-size: clamp(0.6rem, 0.8vw, 0.8rem); }
+      .logo-sub { margin-top: 0.4rem; font-size: clamp(0.6rem, 0.8vw, 0.8rem); }
       
       .photos {
         gap: 1.2rem;
         padding: 0 0.8rem;
-        margin-top: 3.5%;
+        margin-top: -9rem;
         width: 100%;
         justify-content: center;
       }
@@ -544,21 +579,51 @@
     }
 
     @media (max-width: 375px) {
-      .main-title { top: 4%; }
-      .logo-title { font-size: clamp(1.6rem, 5vw, 2.2rem); }
-      .logo-sub { font-size: clamp(0.5rem, 0.7vw, 0.7rem); }
+      .main-title { top: 10%; width: 100%; max-width: 100vw; }
+      .logo-title { font-size: clamp(1.6rem, 5vw, 2.2rem); margin: 0; }
+      .logo-sub { margin-top: 0.4rem; font-size: clamp(0.5rem, 0.7vw, 0.7rem); }
       
       .photos {
-        gap: 0.8rem;
-        padding: 0 0.6rem;
-        margin-top: 3%;
+        gap: 1.2rem;
+        padding: 0 0.8rem;
+        margin-top: -5rem;
+        width: 100%;
+        justify-content: center;
       }
       
-      .photo { width: clamp(110px, 35vw, 145px); }
-      .float-word { font-size: 0.52rem; max-width: 130px; }
-      .expand-panel { width: min(90vw, 360px); }
+      .photo { width: clamp(120px, 38vw, 160px); min-width: 120px; }
+      .photo .label { font-size: 0.5rem; padding: 0.4rem 0.3rem; }
+      .between-glow { width: 50px; height: 50px; }
+      
+      .float-word {
+        font-size: 0.55rem;
+        padding: 0.35rem 0.5rem;
+        max-width: 140px;
+        line-height: 1.5;
+      }
+      
+      .entrance-inner { padding: 0.7rem 1.2rem 0.65rem; }
+      .entrance-text { font-size: 0.85rem; }
+      .entrance-sub { font-size: 0.58rem; margin-top: 0.3rem; }
+      .entrance { bottom: 12%; }
+      
+      .guide { font-size: 0.52rem; bottom: 2%; }
+      
+      .expand-panel {
+        width: min(92vw, 400px);
+        max-height: 70vh;
+        padding: 1.3rem 1rem 1rem;
+        top: 50%;
+      }
+      
+      .expand-panel h3 { font-size: 0.9rem; margin-bottom: 0.7rem; }
+      .expand-panel p { font-size: 0.75rem; line-height: 1.6; margin-bottom: 0.5rem; }
+      
+      .close { width: 26px; height: 26px; font-size: 15px; top: 1rem; right: 1rem; }
       
       .back-btn {
+        bottom: 1.8%;
+        right: 1.8%;
         padding: 0.65rem 1rem;
         font-size: 0.7rem;
       }
@@ -574,14 +639,13 @@
       <div class="logo-wrap">
         <h1 class="logo-title">photoartist.M</h1>
       </div>
-      <div class="logo-sub">- emotional -</div>
-
+</div> 
       <!-- Facing photos -->
       <div class="photos">
         <div class="between-glow"></div>
         <div class="photo child">
           <img src="images/IMG_0040.jpg" alt="幼い頃の私">
-          <div class="label">幼い頃のわたし</div>
+          <div class="label">こどものわたし</div>
         </div>
         <div class="photo adult">
           <img src="images/DSC_2555.jpg" alt="大人になった私">
@@ -598,7 +662,6 @@
     <div class="float-word w5 pulse" data-id="5">あなたの中に眠る風景へ</div>
     <div class="float-word w6 pulse" data-id="6">あの日へ、もう一度</div>
     <div class="float-word w7 pulse" data-id="7">言葉にならなかった想いたち</div>
-    <div class="float-word w8 pulse" data-id="8">記憶が現在に立ち現れる<br>瞬間を写したい</div>
 
     <!-- Back to Exhibition Button -->
     <button class="back-btn" id="backBtn">展示へ戻る</button>
@@ -619,24 +682,23 @@
       1: {
         title: "記憶は、過去を保存するものではない",
         body: `<p>思い出は、時が止まったまま残るものではありません。</p>
-               <p>思い返すたびに少しずつ姿を変え、<br>
-               感情とともに、今という時間の中で生まれ変わっていきます。</p>
+               <p>思い返すたびに少しずつ姿を変え･･･<br>
+               感情とともに今という時間の中で生まれ変わっていきます。</p>
                <p>この展示は、そんな記憶の中を歩くための空間です。</p>`
       },
       2: {
         title: "あの日の光は、今も心の中にある",
         body: `<p>人物の表情はおぼろげになっても<br>
-               夕暮れの色や風の匂い、<br>
-               誰かと笑った感情は、不思議と心に残り続けます。</p>
-               <p>写真は、その光をもう一度思い出すためのきっかけです。</p>`
+               夕暮れの色や風の匂い、誰かと笑った感情は<br>
+               不思議と心に残り続けます。</p>`
       },
       3: {
         title: "写真ではなく、写心。",
-        body: `<p>私が写したいのは、<br>
+        body: `<p>私が写したいのは<br>
                目の前にある事実ではありません。</p>
                <p>その場所に流れていた空気、<br>
                光、静けさ、そして心の動き。</p>
-               <p>写真ではなく、<br>
+               <p>写真ではなく<br>
                心に映った風景を残したい。</p>`
       },
       4: {
@@ -654,7 +716,7 @@
       },
       6: {
         title: "あの日へ、もう一度",
-        body: `<p>もしこの展示作品が、<br>
+        body: `<p>もしこの展示作品が<br>
                あなた自身の記憶と静かに重なったなら。</p>
                <p>その瞬間、<br>
                写真は過去ではなく<br>
@@ -666,24 +728,21 @@
                いつも言葉にできるとは限りません。</p>
                <p>この展示は、写真を見る場所ではなく<br>
                あなた自身の心の風景と静かに向き合うための空間です。</p>`
-      },
-      8: {
-        title: "",
-        body: ""
       }
     };
 
+
     // 浮遊言葉をランダム配置
     const floatWords = document.querySelectorAll('.float-word');
-    const positions = [
-      { top: '22%', side: 'left', offset: '8%' },
-      { top: '32%', side: 'right', offset: '8%' },
-      { top: '42%', side: 'left', offset: '3%' },
-      { top: '68%', side: 'right', offset: '25%' },
-      { top: '75%', side: 'left', offset: '4%' },
-      { top: '82%', side: 'right', offset: '5%' },
-      { top: '88%', side: 'left', offset: '3%' },
-      { top: '94%', side: 'right', offset: '4%' }
+const positions = [
+  { top: '20%', side: 'left',  offset: '16%' }, // 記憶は過去
+  //{ top: '76%', side: 'left', offset: '8%' }, // 言葉に
+  { top: '23%', side: 'right',  offset: '12%' }, // あの日の光は
+  { top: '89%', side: 'left', offset: '18%' }, // 写真ではなく写心
+  { top: '55%', side: 'left',  offset: '39%' }, // 写真は答えではない
+  { top: '36%', side: 'right', offset: '65%' }, // あなたの中に眠る
+  { top: '75%', side: 'left',  offset: '12%' }, //あの日へ
+  { top: '80%', side: 'right', offset: '20%' } //記憶が現在に
     ];
     
     floatWords.forEach((word, index) => {
