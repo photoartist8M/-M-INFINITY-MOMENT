@@ -1,4 +1,3 @@
-<!DOCTYPE html>
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
@@ -20,16 +19,40 @@
 
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
-    html, body {
-      height: 100%;
-      width: 100%;
-      overflow: hidden;
-      background: #0a0a0a !important;
-      color: var(--text);
-      font-family: 'Noto Serif JP', serif;
-      font-weight: 300;
-      line-height: 1.85;
-    }
+html, body {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+
+  background:
+    radial-gradient(circle at 18% 18%,
+      rgba(230,170,195,.18) 0%,
+      transparent 42%),
+
+    radial-gradient(circle at 82% 22%,
+      rgba(165,185,235,.16) 0%,
+      transparent 45%),
+
+    radial-gradient(circle at 50% 78%,
+      rgba(170,220,195,.14) 0%,
+      transparent 42%),
+
+    radial-gradient(circle at 50% 45%,
+      rgba(205,170,220,.10) 0%,
+      transparent 55%),
+
+    linear-gradient(
+      180deg,
+      #2b2338 0%,
+      #1b1f31 35%,
+      #11151f 65%,
+      #070708 100%);
+
+  color: var(--text);
+  font-family: 'Noto Serif JP', serif;
+  font-weight: 300;
+  line-height: 1.85;
+}
 
     body::before {
       content: '';
@@ -69,11 +92,6 @@
         z-index:30;
         pointer-events:none;
     }
-    @media (max-width: 768px) {
-  .main-title {
-    top: 8%;           
-  }
-}
 
     .logo-title{
         font-family:'Cormorant Garamond',serif;
@@ -115,7 +133,6 @@
         color:#f3d4bd;
         opacity:.92;
         text-transform:uppercase;
-        display:none; 
     }
     .main-title .label {
       font-family: 'Cormorant Garamond', serif;
@@ -132,7 +149,7 @@
       letter-spacing: 0.3em;
     }
 
-   /* ===== PHOTOS ===== */
+     /* ===== PHOTOS ===== */
 .photos {
   position: relative;
   display: flex;
@@ -210,7 +227,6 @@
       0%, 100% { opacity: 0.45; transform: scale(1); }
       50% { opacity: 0.85; transform: scale(1.3); }
     }
-
     /* ===== ENTRANCE ===== */
     .entrance {
       position: absolute;
@@ -489,7 +505,7 @@
       50% { text-shadow: 0 0 8px rgba(255,220,190,1), 0 0 16px rgba(255,205,170,.9), 0 0 28px rgba(255,190,155,.65), 0 0 50px rgba(255,170,130,.35); }
     }
 
-    /* ===== RESPONSIVE ===== */
+     /* ===== RESPONSIVE ===== */
     @media (max-width: 1024px) {
       .main-title { top: 10%; }
       .photos { gap: clamp(1.2rem, 4vw, 3.5rem); margin-top: 2rem; }
@@ -623,14 +639,13 @@
       <div class="logo-wrap">
         <h1 class="logo-title">photoartist.M</h1>
       </div>
-      <div class="logo-sub">- emotional -</div>
 </div> 
       <!-- Facing photos -->
       <div class="photos">
         <div class="between-glow"></div>
         <div class="photo child">
           <img src="images/IMG_0040.jpg" alt="幼い頃の私">
-          <div class="label">幼い頃のわたし</div>
+          <div class="label">こどものわたし</div>
         </div>
         <div class="photo adult">
           <img src="images/DSC_2555.jpg" alt="大人になった私">
@@ -646,8 +661,7 @@
     <div class="float-word w4 pulse" data-id="4">写真は、答えではない</div>
     <div class="float-word w5 pulse" data-id="5">あなたの中に眠る風景へ</div>
     <div class="float-word w6 pulse" data-id="6">あの日へ、もう一度</div>
-  
-    <div class="float-word w8 pulse" data-id="8">記憶が現在に立ち現れる<br>瞬間を写したい</div>
+    <div class="float-word w7 pulse" data-id="7">言葉にならなかった想いたち</div>
 
     <!-- Back to Exhibition Button -->
     <button class="back-btn" id="backBtn">展示へ戻る</button>
@@ -668,24 +682,23 @@
       1: {
         title: "記憶は、過去を保存するものではない",
         body: `<p>思い出は、時が止まったまま残るものではありません。</p>
-               <p>思い返すたびに少しずつ姿を変え、<br>
-               感情とともに、今という時間の中で生まれ変わっていきます。</p>
+               <p>思い返すたびに少しずつ姿を変え･･･<br>
+               感情とともに今という時間の中で生まれ変わっていきます。</p>
                <p>この展示は、そんな記憶の中を歩くための空間です。</p>`
       },
       2: {
         title: "あの日の光は、今も心の中にある",
         body: `<p>人物の表情はおぼろげになっても<br>
-               夕暮れの色や風の匂い、<br>
-               誰かと笑った感情は、不思議と心に残り続けます。</p>
-               <p>写真は、その光をもう一度思い出すためのきっかけです。</p>`
+               夕暮れの色や風の匂い、誰かと笑った感情は<br>
+               不思議と心に残り続けます。</p>`
       },
       3: {
         title: "写真ではなく、写心。",
-        body: `<p>私が写したいのは、<br>
+        body: `<p>私が写したいのは<br>
                目の前にある事実ではありません。</p>
                <p>その場所に流れていた空気、<br>
                光、静けさ、そして心の動き。</p>
-               <p>写真ではなく、<br>
+               <p>写真ではなく<br>
                心に映った風景を残したい。</p>`
       },
       4: {
@@ -703,14 +716,21 @@
       },
       6: {
         title: "あの日へ、もう一度",
-        body: `<p>もしこの展示作品が、<br>
+        body: `<p>もしこの展示作品が<br>
                あなた自身の記憶と静かに重なったなら。</p>
                <p>その瞬間、<br>
                写真は過去ではなく<br>
                現在の感情になる。</p>`
       },
-
+      7: {
+        title: "言葉にならなかった想いたち",
+        body: `<p>心を動かした瞬間は、<br>
+               いつも言葉にできるとは限りません。</p>
+               <p>この展示は、写真を見る場所ではなく<br>
+               あなた自身の心の風景と静かに向き合うための空間です。</p>`
+      }
     };
+
 
     // 浮遊言葉をランダム配置
     const floatWords = document.querySelectorAll('.float-word');
